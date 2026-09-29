@@ -1,0 +1,1077 @@
+--- /dev/null
++++ b/backend/src/main/java/vn/edu/medmaintenance/api/controller/AdminAccountController.java
+@@ -0,0 +1,33 @@
++package vn.edu.medmaintenance.api.controller;
++
++import jakarta.validation.Valid;
++import org.springframework.http.HttpStatus;
++import org.springframework.web.bind.annotation.*;
++import vn.edu.medmaintenance.api.dto.request.*;
++import vn.edu.medmaintenance.api.dto.response.AccountResponse;
++import vn.edu.medmaintenance.api.dto.response.PageResponse;
++import vn.edu.medmaintenance.persistence.enums.UserRole;
++import vn.edu.medmaintenance.service.AdminAccountService;
++
++@RestController
++@RequestMapping("/api/admin/accounts")
++public class AdminAccountController {
++    private final AdminAccountService accounts;
++    public AdminAccountController(AdminAccountService accounts) { this.accounts = accounts; }
++
++    @GetMapping
++    public PageResponse<AccountResponse> list(@Valid @ModelAttribute PageQuery page,
++            @RequestParam(required = false) String search, @RequestParam(required = false) UserRole role,
++            @RequestParam(required = false) Long departmentId, @RequestParam(required = false) Boolean active) {
++        return accounts.list(page, search, role, departmentId, active);
++    }
++    @GetMapping("/{id}") public AccountResponse detail(@PathVariable Long id) { return accounts.detail(id); }
++    @PostMapping @ResponseStatus(HttpStatus.CREATED)
++    public AccountResponse create(@Valid @RequestBody CreateAccountRequest request) { return accounts.create(request); }
++    @PatchMapping("/{id}")
++    public AccountResponse edit(@PathVariable Long id, @Valid @RequestBody UpdateAccountRequest request) { return accounts.edit(id, request); }
++    @PostMapping("/{id}/activate") public AccountResponse activate(@PathVariable Long id) { return accounts.activate(id); }
++    @PostMapping("/{id}/deactivate") public AccountResponse deactivate(@PathVariable Long id) { return accounts.deactivate(id); }
++    @PostMapping("/{id}/reset-password")
++    public AccountResponse reset(@PathVariable Long id, @Valid @RequestBody ResetAccountPasswordRequest request) { return accounts.resetPassword(id, request); }
++}
+--- /dev/null
++++ b/backend/src/main/java/vn/edu/medmaintenance/api/dto/request/CreateAccountRequest.java
+@@ -0,0 +1,12 @@
++package vn.edu.medmaintenance.api.dto.request;
++
++import jakarta.validation.constraints.NotBlank;
++import jakarta.validation.constraints.NotNull;
++import vn.edu.medmaintenance.persistence.enums.UserRole;
++
++public record CreateAccountRequest(@NotBlank String username, @NotBlank String password,
++        @NotNull UserRole role, Long departmentId, @NotNull Boolean active) {
++    @Override public String toString() {
++        return "CreateAccountRequest[username=" + username + ", password=[REDACTED], role=" + role + "]";
++    }
++}
+--- /dev/null
++++ b/backend/src/main/java/vn/edu/medmaintenance/api/dto/request/ResetAccountPasswordRequest.java
+@@ -0,0 +1,7 @@
++package vn.edu.medmaintenance.api.dto.request;
++
++import jakarta.validation.constraints.NotBlank;
++
++public record ResetAccountPasswordRequest(@NotBlank String newPassword) {
++    @Override public String toString() { return "ResetAccountPasswordRequest[newPassword=[REDACTED]]"; }
++}
+--- /dev/null
++++ b/backend/src/main/java/vn/edu/medmaintenance/api/dto/request/UpdateAccountRequest.java
+@@ -0,0 +1,6 @@
++package vn.edu.medmaintenance.api.dto.request;
++
++import jakarta.validation.constraints.NotNull;
++import vn.edu.medmaintenance.persistence.enums.UserRole;
++
++public record UpdateAccountRequest(@NotNull UserRole role, Long departmentId) { }
+--- /dev/null
++++ b/backend/src/main/java/vn/edu/medmaintenance/api/dto/response/AccountResponse.java
+@@ -0,0 +1,15 @@
++package vn.edu.medmaintenance.api.dto.response;
++
++import vn.edu.medmaintenance.persistence.entity.UserAccount;
++import vn.edu.medmaintenance.persistence.enums.UserRole;
++
++public record AccountResponse(Long id, String username, UserRole role, Long departmentId,
++        String departmentCode, String departmentName, Boolean active) {
++    public static AccountResponse from(UserAccount account) {
++        var department = account.getDepartment();
++        return new AccountResponse(account.getId(), account.getUsername(), account.getRoleCode(),
++                department == null ? null : department.getId(),
++                department == null ? null : department.getCode(),
++                department == null ? null : department.getName(), account.getActive());
++    }
++}
+--- a/backend/src/main/java/vn/edu/medmaintenance/persistence/entity/UserAccount.java
++++ b/backend/src/main/java/vn/edu/medmaintenance/persistence/entity/UserAccount.java
+@@ -34,6 +34,15 @@
+     private Boolean active;
+ 
+     protected UserAccount() {
++    }
++
++    public static UserAccount createLoginAccount(String username, String passwordHash,
++            UserRole role, Department department, boolean active) {
++        var account = new UserAccount();
++        account.setUsername(username); account.setDisplayName(username);
++        account.setPasswordHash(passwordHash); account.setRoleCode(role);
++        account.setDepartment(department); account.setActive(active);
++        return account;
+     }
+ 
+     public Long getId() {
+--- a/backend/src/main/java/vn/edu/medmaintenance/persistence/repository/UserAccountRepository.java
++++ b/backend/src/main/java/vn/edu/medmaintenance/persistence/repository/UserAccountRepository.java
+@@ -7,7 +7,18 @@
+ import vn.edu.medmaintenance.persistence.entity.UserAccount;
+ import vn.edu.medmaintenance.persistence.enums.UserRole;
+ 
+-public interface UserAccountRepository extends JpaRepository<UserAccount, Long> {
++public interface UserAccountRepository extends JpaRepository<UserAccount, Long>,
++        org.springframework.data.jpa.repository.JpaSpecificationExecutor<UserAccount> {
++    @Override
++    @EntityGraph(attributePaths = "department")
++    org.springframework.data.domain.Page<UserAccount> findAll(
++            org.springframework.data.jpa.domain.Specification<UserAccount> specification,
++            org.springframework.data.domain.Pageable pageable);
++
++    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
++    @org.springframework.data.jpa.repository.Query("select u from UserAccount u where u.id = :id")
++    Optional<UserAccount> findForUpdateById(@org.springframework.data.repository.query.Param("id") Long id);
++
+     @EntityGraph(attributePaths = "department")
+     Optional<UserAccount> findByUsername(String username);
+     @EntityGraph(attributePaths = "department")
+--- a/backend/src/main/java/vn/edu/medmaintenance/security/config/SecurityConfig.java
++++ b/backend/src/main/java/vn/edu/medmaintenance/security/config/SecurityConfig.java
+@@ -85,6 +85,7 @@
+                         .requestMatchers(HttpMethod.POST, "/api/approvals/*/decision").hasRole("BAN_GIAM_DOC")
+                         .requestMatchers(HttpMethod.GET, "/api/approvals/pending")
+                             .hasRole("BAN_GIAM_DOC")
++                        .requestMatchers("/api/admin/accounts", "/api/admin/accounts/**").hasRole("ADMIN")
+                         .requestMatchers("/api/**").authenticated()
+                         .anyRequest().denyAll())
+                 .exceptionHandling(ex -> ex
+--- /dev/null
++++ b/backend/src/main/java/vn/edu/medmaintenance/service/AdminAccountService.java
+@@ -0,0 +1,151 @@
++package vn.edu.medmaintenance.service;
++
++import java.nio.charset.StandardCharsets;
++import java.util.Set;
++import org.springframework.dao.DataIntegrityViolationException;
++import org.springframework.data.domain.Sort;
++import org.springframework.data.jpa.domain.Specification;
++import org.springframework.http.HttpStatus;
++import org.springframework.security.crypto.password.PasswordEncoder;
++import org.springframework.stereotype.Service;
++import org.springframework.transaction.annotation.Transactional;
++import vn.edu.medmaintenance.api.common.PageRequests;
++import vn.edu.medmaintenance.api.dto.request.*;
++import vn.edu.medmaintenance.api.dto.response.AccountResponse;
++import vn.edu.medmaintenance.api.dto.response.PageResponse;
++import vn.edu.medmaintenance.persistence.entity.Department;
++import vn.edu.medmaintenance.persistence.entity.UserAccount;
++import vn.edu.medmaintenance.persistence.enums.UserRole;
++import vn.edu.medmaintenance.persistence.repository.DepartmentRepository;
++import vn.edu.medmaintenance.persistence.repository.UserAccountRepository;
++import vn.edu.medmaintenance.security.principal.CurrentUser;
++
++@Service
++@Transactional(readOnly = true)
++public class AdminAccountService {
++    private final UserAccountRepository users;
++    private final DepartmentRepository departments;
++    private final PasswordEncoder passwords;
++    private final CurrentUser currentUser;
++
++    public AdminAccountService(UserAccountRepository users, DepartmentRepository departments,
++            PasswordEncoder passwords, CurrentUser currentUser) {
++        this.users = users; this.departments = departments;
++        this.passwords = passwords; this.currentUser = currentUser;
++    }
++
++    public PageResponse<AccountResponse> list(PageQuery page, String search, UserRole role,
++            Long departmentId, Boolean active) {
++        requireAdmin();
++        if (departmentId != null) PageRequests.requirePositive(departmentId, "departmentId");
++        String term = search == null ? "" : search.trim();
++        if (term.length() > 100) bad("INVALID_USERNAME", "Từ khóa tối đa 100 ký tự.");
++        String pattern = "%" + term.toLowerCase(java.util.Locale.ROOT)
++                .replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
++        Specification<UserAccount> filter = (root, query, cb) -> {
++            var predicates = new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
++            if (!term.isEmpty()) predicates.add(cb.like(cb.lower(root.get("username")), pattern, '\\'));
++            if (role != null) predicates.add(cb.equal(root.get("roleCode"), role));
++            if (departmentId != null) predicates.add(cb.equal(root.get("department").get("id"), departmentId));
++            if (active != null) predicates.add(cb.equal(root.get("active"), active));
++            return cb.and(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
++        };
++        return PageResponse.from(users.findAll(filter, PageRequests.create(page,
++                Set.of("id", "username", "active"), "username", Sort.Direction.ASC)), AccountResponse::from);
++    }
++
++    public AccountResponse detail(Long id) {
++        requireAdmin(); PageRequests.requirePositive(id, "id");
++        return AccountResponse.from(users.findWithDepartmentById(id).orElseThrow(this::notFound));
++    }
++
++    @Transactional
++    public AccountResponse create(CreateAccountRequest command) {
++        requireAdmin();
++        String username = command.username() == null ? "" : command.username().trim();
++        if (username.isBlank() || username.length() > 100)
++            bad("INVALID_USERNAME", "Tên đăng nhập bắt buộc, tối đa 100 ký tự.");
++        validatePassword(command.password());
++        Department department = department(command.role(), command.departmentId());
++        if (command.active() == null) bad("INVALID_ACCOUNT_STATUS", "Trạng thái tài khoản bắt buộc.");
++        if (users.findByUsername(username).isPresent()) duplicate();
++        var account = UserAccount.createLoginAccount(username, passwords.encode(command.password()),
++                command.role(), department, command.active());
++        try { users.saveAndFlush(account); }
++        catch (DataIntegrityViolationException failure) {
++            // The database constraint is also authoritative for concurrent create requests.
++            if (String.valueOf(failure.getMostSpecificCause().getMessage()).contains("uq_user_account_username")) duplicate();
++            throw failure;
++        }
++        return AccountResponse.from(account);
++    }
++
++    @Transactional
++    public AccountResponse edit(Long id, UpdateAccountRequest command) {
++        requireAdmin();
++        Department department = department(command.role(), command.departmentId());
++        var account = locked(id);
++        account.setRoleCode(command.role()); account.setDepartment(department);
++        users.flush();
++        return AccountResponse.from(account);
++    }
++
++    @Transactional
++    public AccountResponse activate(Long id) { return setActive(id, true); }
++
++    @Transactional
++    public AccountResponse deactivate(Long id) { return setActive(id, false); }
++
++    private AccountResponse setActive(Long id, boolean active) {
++        requireAdmin();
++        if (!active && currentUser.get().id().equals(id))
++            throw new BusinessRuleException(HttpStatus.CONFLICT, "ACCOUNT_SELF_DEACTIVATION_FORBIDDEN",
++                    "Bạn không thể vô hiệu hóa tài khoản ADMIN đang đăng nhập của chính mình.");
++        var account = locked(id);
++        account.setActive(active); users.flush();
++        return AccountResponse.from(account);
++    }
++
++    @Transactional
++    public AccountResponse resetPassword(Long id, ResetAccountPasswordRequest command) {
++        requireAdmin(); validatePassword(command.newPassword());
++        var account = locked(id);
++        account.setPasswordHash(passwords.encode(command.newPassword())); users.flush();
++        return AccountResponse.from(account);
++    }
++
++    private UserAccount locked(Long id) {
++        PageRequests.requirePositive(id, "id");
++        return users.findForUpdateById(id).orElseThrow(this::notFound);
++    }
++
++    private Department department(UserRole role, Long id) {
++        if (role == null) bad("INVALID_ACCOUNT_ROLE", "Vai trò tài khoản bắt buộc.");
++        if (id == null) {
++            if (role == UserRole.KHOA_PHONG) bad("DEPARTMENT_REQUIRED", "Khoa/Phòng bắt buộc với vai trò Khoa/Phòng.");
++            return null;
++        }
++        if (id <= 0) bad("INVALID_DEPARTMENT", "Khoa/Phòng không hợp lệ.");
++        var department = departments.findById(id).orElseThrow(() ->
++                new BusinessRuleException(HttpStatus.BAD_REQUEST, "INVALID_DEPARTMENT", "Khoa/Phòng không tồn tại."));
++        if (!Boolean.TRUE.equals(department.getActive())) bad("INVALID_DEPARTMENT", "Khoa/Phòng không còn hoạt động.");
++        return department;
++    }
++
++    private void validatePassword(String password) {
++        if (password == null || password.isBlank()) bad("INVALID_PASSWORD", "Mật khẩu không được để trống.");
++        if (password.getBytes(StandardCharsets.UTF_8).length > 72)
++            bad("INVALID_PASSWORD", "Mật khẩu tối đa 72 byte UTF-8 để phù hợp BCrypt.");
++    }
++    private void requireAdmin() {
++        if (currentUser.get().role() != UserRole.ADMIN)
++            throw new BusinessRuleException(HttpStatus.FORBIDDEN, "BUSINESS_ACCESS_DENIED", "Chỉ ADMIN được quản lý tài khoản.");
++    }
++    private BusinessRuleException notFound() {
++        return new BusinessRuleException(HttpStatus.NOT_FOUND, "ACCOUNT_NOT_FOUND", "Không tìm thấy tài khoản.");
++    }
++    private void duplicate() {
++        throw new BusinessRuleException(HttpStatus.CONFLICT, "USERNAME_ALREADY_EXISTS", "Tên đăng nhập đã tồn tại.");
++    }
++    private void bad(String code, String message) { throw new BusinessRuleException(HttpStatus.BAD_REQUEST, code, message); }
++}
+--- /dev/null
++++ b/backend/src/test/java/vn/edu/medmaintenance/service/AdminAccountIntegrationTest.java
+@@ -0,0 +1,241 @@
++package vn.edu.medmaintenance.service;
++
++import static org.assertj.core.api.Assertions.assertThat;
++
++import com.fasterxml.jackson.databind.JsonNode;
++import java.util.*;
++import org.junit.jupiter.api.*;
++import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.boot.test.context.SpringBootTest;
++import org.springframework.boot.test.web.client.TestRestTemplate;
++import org.springframework.http.*;
++import org.springframework.jdbc.core.JdbcTemplate;
++import org.springframework.security.crypto.password.PasswordEncoder;
++import vn.edu.medmaintenance.api.dto.request.CreateAccountRequest;
++import vn.edu.medmaintenance.api.dto.request.ResetAccountPasswordRequest;
++import vn.edu.medmaintenance.persistence.enums.UserRole;
++
++@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
++@TestInstance(TestInstance.Lifecycle.PER_CLASS)
++class AdminAccountIntegrationTest {
++    @Autowired TestRestTemplate http;
++    @Autowired JdbcTemplate jdbc;
++    @Autowired PasswordEncoder encoder;
++    private String admin;
++    private final Map<Long, String> created = new LinkedHashMap<>();
++    private final String prefix = "SMOKE-V2-ADMIN-TEST-" + UUID.randomUUID();
++    private long noi;
++    private long ngoai;
++    private String password() { return UUID.randomUUID().toString(); }
++    private String name() { return prefix + "-" + UUID.randomUUID().toString().substring(0, 8); }
++
++    @BeforeAll void setup() {
++        admin = demoToken("demo_admin", "ADMIN");
++        noi = jdbc.queryForObject("SELECT id FROM department WHERE code='KHOA_NOI'", Long.class);
++        ngoai = jdbc.queryForObject("SELECT id FROM department WHERE code='KHOA_NGOAI'", Long.class);
++    }
++    @AfterEach void cleanup() {
++        for (var account : created.entrySet()) {
++            assertThat(account.getValue().startsWith(prefix)).isTrue();
++            assertThat(jdbc.update("DELETE FROM user_account WHERE id=? AND username=?", account.getKey(), account.getValue())).isEqualTo(1);
++        }
++        created.clear();
++        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_account", Integer.class)).isEqualTo(15);
++    }
++    private ResponseEntity<JsonNode> send(HttpMethod method, String path, String token, Object body) {
++        HttpHeaders headers = new HttpHeaders();
++        if (token != null) headers.setBearerAuth(token);
++        if (body != null) headers.setContentType(MediaType.APPLICATION_JSON);
++        return http.exchange(path, method, new HttpEntity<>(body, headers), JsonNode.class);
++    }
++    private JsonNode ok(ResponseEntity<JsonNode> response, int status) {
++        assertThat(response.getStatusCode().value()).isEqualTo(status);
++        return response.getBody();
++    }
++    private void error(ResponseEntity<JsonNode> response, int status, String code) {
++        var body = ok(response, status);
++        assertThat(body.path("code").asText()).isEqualTo(code);
++        assertThat(body.path("fieldErrors").isArray()).isTrue();
++        assertThat(body.toString().contains("passwordHash") || body.toString().contains("stackTrace")).isFalse();
++    }
++    private void safe(JsonNode response) {
++        Set<String> allowed = Set.of("id", "username", "role", "departmentId", "departmentCode", "departmentName", "active");
++        response.fieldNames().forEachRemaining(key -> assertThat(allowed.contains(key)).isTrue());
++        assertThat(response.path("id").asLong()).isPositive();
++    }
++    private String demoToken(String user, String role) {
++        return login(user, System.getenv("DEMO_" + role + "_PASSWORD")).path("accessToken").asText();
++    }
++    private JsonNode login(String user, String password) {
++        return ok(send(HttpMethod.POST, "/api/auth/login", null, Map.of("username", user, "password", password)), 200);
++    }
++    private Map<String,Object> body(String username, String password, UserRole role, Long department, boolean active) {
++        Map<String,Object> body = new HashMap<>();
++        body.put("username", username); body.put("password", password); body.put("role", role.name());
++        body.put("departmentId", department); body.put("active", active); return body;
++    }
++    private Map<String,Object> edit(UserRole role, Long department) {
++        Map<String,Object> body = new HashMap<>(); body.put("role", role.name()); body.put("departmentId", department); return body;
++    }
++    private JsonNode create(String username, String password, UserRole role, Long department, boolean active) {
++        var account = ok(send(HttpMethod.POST, "/api/admin/accounts", admin, body(username, password, role, department, active)), 201);
++        created.put(account.path("id").asLong(), account.path("username").asText()); safe(account); return account;
++    }
++    private String path(JsonNode account) { return "/api/admin/accounts/" + account.path("id").asLong(); }
++
++    @Test void adminListAndDetailExposeOnlySafeFields() {
++        var list = ok(send(HttpMethod.GET, "/api/admin/accounts?size=5", admin, null), 200);
++        assertThat(list.path("content").size()).isEqualTo(5);
++        list.path("content").forEach(this::safe);
++        assertThat(list.path("totalElements").asInt()).isEqualTo(15);
++        safe(ok(send(HttpMethod.GET, "/api/admin/accounts/4", admin, null), 200));
++    }
++    @Test void paginationSearchCombinedFiltersAndLiteralWildcardWork() {
++        String username = name() + "_Pct%";
++        var account = create(username, password(), UserRole.KHOA_PHONG, noi, false);
++        var found = ok(send(HttpMethod.GET, "/api/admin/accounts?search=" + prefix.toLowerCase() + "&role=KHOA_PHONG&departmentId=" + noi + "&active=false", admin, null), 200);
++        assertThat(found.path("totalElements").asInt()).isEqualTo(1);
++        assertThat(found.at("/content/0/id").asLong()).isEqualTo(account.path("id").asLong());
++        var literal = ok(send(HttpMethod.GET, "/api/admin/accounts?search=_Pct", admin, null), 200);
++        assertThat(literal.path("totalElements").asInt()).isEqualTo(1);
++        var a = ok(send(HttpMethod.GET, "/api/admin/accounts?page=0&size=3", admin, null), 200);
++        var b = ok(send(HttpMethod.GET, "/api/admin/accounts?page=1&size=3", admin, null), 200);
++        Set<Long> ids = new HashSet<>(); a.path("content").forEach(row -> ids.add(row.path("id").asLong()));
++        b.path("content").forEach(row -> assertThat(ids.contains(row.path("id").asLong())).isFalse());
++        var again = ok(send(HttpMethod.GET, "/api/admin/accounts?page=0&size=3", admin, null), 200);
++        assertThat(again).isEqualTo(a);
++    }
++    @Test void allEndpointsRejectEachNonAdminAndAnonymous() {
++        for (String[] role : new String[][]{{"demo_vtyt","VTYT"},{"demo_bgd","BGD"},{"demo_khoa_noi","KHOA"}}) {
++            String token = demoToken(role[0],role[1]);
++            error(send(HttpMethod.GET,"/api/admin/accounts",token,null),403,"ACCESS_DENIED");
++            error(send(HttpMethod.GET,"/api/admin/accounts/4",token,null),403,"ACCESS_DENIED");
++            error(send(HttpMethod.POST,"/api/admin/accounts",token,Map.of()),403,"ACCESS_DENIED");
++            error(send(HttpMethod.PATCH,"/api/admin/accounts/4",token,Map.of()),403,"ACCESS_DENIED");
++            for (String command : List.of("activate","deactivate","reset-password"))
++                error(send(HttpMethod.POST,"/api/admin/accounts/4/"+command,token,Map.of()),403,"ACCESS_DENIED");
++        }
++        error(send(HttpMethod.GET,"/api/admin/accounts",null,null),401,"AUTHENTICATION_REQUIRED");
++    }
++    @Test void createsAllFourRolesWithRealLoginBcryptAndTrimmedUsername() {
++        for (UserRole role : UserRole.values()) {
++            String username=name(), raw=password();
++            var account=create("  "+username+"  ",raw,role,role==UserRole.KHOA_PHONG?noi:null,true);
++            assertThat(account.path("username").asText()).isEqualTo(username);
++            String hash=jdbc.queryForObject("SELECT password_hash FROM user_account WHERE id=?",String.class,account.path("id").asLong());
++            assertThat(hash.matches("\\$2[aby]\\$12\\$.+")).isTrue();
++            assertThat(hash.equals(raw)).isFalse(); assertThat(encoder.matches(raw,hash)).isTrue();
++            var logged=login(username,raw); assertThat(logged.at("/user/role").asText()).isEqualTo(role.name());
++            var me=ok(send(HttpMethod.GET,"/api/auth/me",logged.path("accessToken").asText(),null),200);
++            assertThat(me.path("role").asText()).isEqualTo(role.name());
++            assertThat(account.toString().contains(raw) || account.toString().contains(hash)).isFalse();
++        }
++    }
++    @Test void directShortPasswordAndExactWhitespaceAreSupported() {
++        String raw=Integer.toString(100000+new java.security.SecureRandom().nextInt(900000));
++        var account=create(name(),raw,UserRole.BAN_GIAM_DOC,null,true);
++        login(account.path("username").asText(),raw);
++        String spaced=" " + password() + " ";
++        var other=create(name(),spaced,UserRole.ADMIN,null,true);
++        login(other.path("username").asText(),spaced);
++        error(send(HttpMethod.POST,"/api/auth/login",null,Map.of("username",other.path("username").asText(),"password",spaced.trim())),401,"INVALID_CREDENTIALS");
++    }
++    @Test void duplicateUsernameReturns409WithoutExtraRow() {
++        String username=name(); create(username,password(),UserRole.PHONG_VTYT,null,true);
++        error(send(HttpMethod.POST,"/api/admin/accounts",admin,body(" "+username+" ",password(),UserRole.ADMIN,null,true)),409,"USERNAME_ALREADY_EXISTS");
++        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_account WHERE username=?",Integer.class,username)).isEqualTo(1);
++    }
++    @Test void requiredInvalidAndInactiveDepartmentRejectWithoutPersistence() {
++        String username=name();
++        error(send(HttpMethod.POST,"/api/admin/accounts",admin,body(username,password(),UserRole.KHOA_PHONG,null,true)),400,"DEPARTMENT_REQUIRED");
++        for (long id : List.of(0L,999999999L))
++            error(send(HttpMethod.POST,"/api/admin/accounts",admin,body(username,password(),UserRole.KHOA_PHONG,id,true)),400,"INVALID_DEPARTMENT");
++        long inactive=jdbc.queryForObject("INSERT INTO department(code,name,active) VALUES (?, 'Temporary test department', false) RETURNING id",Long.class,prefix);
++        try { error(send(HttpMethod.POST,"/api/admin/accounts",admin,body(username,password(),UserRole.KHOA_PHONG,inactive,true)),400,"INVALID_DEPARTMENT"); }
++        finally { jdbc.update("DELETE FROM department WHERE id=? AND code=?",inactive,prefix); }
++        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_account WHERE username=?",Integer.class,username)).isZero();
++    }
++    @Test void invalidRoleUsernameStatusAndPasswordReturnSafe400() {
++        for (String key : List.of("username","password","role","active")) {
++            var request=body(name(),password(),UserRole.ADMIN,null,true); request.put(key,key.equals("username")||key.equals("password")?" ":null);
++            error(send(HttpMethod.POST,"/api/admin/accounts",admin,request),400,"VALIDATION_ERROR");
++        }
++        var invalid=body(name(),password(),UserRole.ADMIN,null,true); invalid.put("role","NOT_A_ROLE");
++        error(send(HttpMethod.POST,"/api/admin/accounts",admin,invalid),400,"INVALID_PARAMETER");
++        error(send(HttpMethod.POST,"/api/admin/accounts",admin,body(name(),"界".repeat(25),UserRole.ADMIN,null,true)),400,"INVALID_PASSWORD");
++        error(send(HttpMethod.GET,"/api/admin/accounts?size=0",admin,null),400,"VALIDATION_ERROR");
++        error(send(HttpMethod.GET,"/api/admin/accounts?sort=passwordHash",admin,null),400,"INVALID_PARAMETER");
++    }
++    @Test void deactivateBlocksLoginAndExistingTokenActivateRestores() {
++        String raw=password(); var account=create(name(),raw,UserRole.KHOA_PHONG,noi,true);
++        String token=login(account.path("username").asText(),raw).path("accessToken").asText();
++        assertThat(ok(send(HttpMethod.POST,path(account)+"/deactivate",admin,null),200).path("active").asBoolean()).isFalse();
++        error(send(HttpMethod.GET,"/api/auth/me",token,null),401,"INVALID_TOKEN");
++        error(send(HttpMethod.POST,"/api/auth/login",null,Map.of("username",account.path("username").asText(),"password",raw)),401,"INVALID_CREDENTIALS");
++        assertThat(ok(send(HttpMethod.POST,path(account)+"/activate",admin,null),200).path("active").asBoolean()).isTrue();
++        login(account.path("username").asText(),raw);
++    }
++    @Test void createInactiveCannotLoginUntilActivated() {
++        String raw=password(); var account=create(name(),raw,UserRole.PHONG_VTYT,null,false);
++        error(send(HttpMethod.POST,"/api/auth/login",null,Map.of("username",account.path("username").asText(),"password",raw)),401,"INVALID_CREDENTIALS");
++        ok(send(HttpMethod.POST,path(account)+"/activate",admin,null),200); login(account.path("username").asText(),raw);
++    }
++    @Test void resetPasswordRejectsOldAllowsNewAndPreservesStatusRoleDepartment() {
++        String old=password(), next=password(); var account=create(name(),old,UserRole.KHOA_PHONG,noi,true);
++        String existing=login(account.path("username").asText(),old).path("accessToken").asText();
++        safe(ok(send(HttpMethod.POST,path(account)+"/reset-password",admin,Map.of("newPassword",next)),200));
++        error(send(HttpMethod.POST,"/api/auth/login",null,Map.of("username",account.path("username").asText(),"password",old)),401,"INVALID_CREDENTIALS");
++        login(account.path("username").asText(),next);
++        var me=ok(send(HttpMethod.GET,"/api/auth/me",existing,null),200); // unchanged V1 JWT lifetime model
++        assertThat(me.path("departmentId").asLong()).isEqualTo(noi);
++        String hash=jdbc.queryForObject("SELECT password_hash FROM user_account WHERE id=?",String.class,account.path("id").asLong());
++        assertThat(encoder.matches(next,hash)).isTrue(); assertThat(encoder.matches(old,hash)).isFalse();
++    }
++    @Test void failedResetLeavesOriginalPasswordValid() {
++        String raw=password(); var account=create(name(),raw,UserRole.ADMIN,null,true);
++        error(send(HttpMethod.POST,path(account)+"/reset-password",admin,Map.of("newPassword"," ")),400,"VALIDATION_ERROR");
++        error(send(HttpMethod.POST,path(account)+"/reset-password",admin,Map.of("newPassword","界".repeat(25))),400,"INVALID_PASSWORD");
++        login(account.path("username").asText(),raw);
++    }
++    @Test void editsRoleDepartmentOnExistingTokenAndKeepsUsernameStatus() {
++        String raw=password(); var account=create(name(),raw,UserRole.KHOA_PHONG,noi,true);
++        String token=login(account.path("username").asText(),raw).path("accessToken").asText();
++        ok(send(HttpMethod.GET,"/api/equipment/1/maintenance-history",token,null),200);
++        error(send(HttpMethod.GET,"/api/equipment/4/maintenance-history",token,null),403,"EQUIPMENT_HISTORY_ACCESS_DENIED");
++        safe(ok(send(HttpMethod.PATCH,path(account),admin,edit(UserRole.KHOA_PHONG,ngoai)),200));
++        assertThat(ok(send(HttpMethod.GET,"/api/auth/me",token,null),200).path("departmentId").asLong()).isEqualTo(ngoai);
++        error(send(HttpMethod.GET,"/api/equipment/1/maintenance-history",token,null),403,"EQUIPMENT_HISTORY_ACCESS_DENIED");
++        var update=edit(UserRole.BAN_GIAM_DOC,null); update.put("username","ignored-change"); update.put("active",false);
++        var edited=ok(send(HttpMethod.PATCH,path(account),admin,update),200);
++        assertThat(edited.path("username").asText()).isEqualTo(account.path("username").asText());
++        assertThat(edited.path("active").asBoolean()).isTrue(); assertThat(edited.path("departmentId").isNull()).isTrue();
++        assertThat(ok(send(HttpMethod.GET,"/api/auth/me",token,null),200).path("role").asText()).isEqualTo("BAN_GIAM_DOC");
++        ok(send(HttpMethod.GET,"/api/approvals/pending",token,null),200);
++        login(account.path("username").asText(),raw);
++    }
++    @Test void invalidEditRollsBackAllAccountFields() {
++        String raw=password(); var account=create(name(),raw,UserRole.PHONG_VTYT,noi,true);
++        error(send(HttpMethod.PATCH,path(account),admin,edit(UserRole.KHOA_PHONG,null)),400,"DEPARTMENT_REQUIRED");
++        assertThat(ok(send(HttpMethod.GET,path(account),admin,null),200)).isEqualTo(account);
++        login(account.path("username").asText(),raw);
++    }
++    @Test void selfDeactivationBlockedAndNoMaintenancePrivilegeOrDeleteAdded() {
++        String raw=password(); var account=create(name(),raw,UserRole.ADMIN,null,true);
++        String own=login(account.path("username").asText(),raw).path("accessToken").asText();
++        error(send(HttpMethod.POST,path(account)+"/deactivate",own,null),409,"ACCOUNT_SELF_DEACTIVATION_FORBIDDEN");
++        assertThat(ok(send(HttpMethod.GET,path(account),own,null),200).path("active").asBoolean()).isTrue();
++        error(send(HttpMethod.POST,"/api/plans",own,Map.of()),403,"ACCESS_DENIED");
++        error(send(HttpMethod.GET,"/api/equipment/1/maintenance-history",own,null),403,"ACCESS_DENIED");
++        error(send(HttpMethod.DELETE,path(account),admin,null),405,"METHOD_NOT_ALLOWED");
++    }
++    @Test void missingAccount404AndRequestDebugRenderingRedactsPasswords() {
++        error(send(HttpMethod.GET,"/api/admin/accounts/999999999",admin,null),404,"ACCOUNT_NOT_FOUND");
++        error(send(HttpMethod.PATCH,"/api/admin/accounts/999999999",admin,edit(UserRole.ADMIN,null)),404,"ACCOUNT_NOT_FOUND");
++        for (String command : List.of("activate","deactivate"))
++            error(send(HttpMethod.POST,"/api/admin/accounts/999999999/"+command,admin,null),404,"ACCOUNT_NOT_FOUND");
++        error(send(HttpMethod.POST,"/api/admin/accounts/999999999/reset-password",admin,Map.of("newPassword",password())),404,"ACCOUNT_NOT_FOUND");
++        String raw=password();
++        assertThat(new CreateAccountRequest(name(),raw,UserRole.ADMIN,null,true).toString().contains(raw)).isFalse();
++        assertThat(new ResetAccountPasswordRequest(raw).toString().contains(raw)).isFalse();
++    }
++}
+--- a/frontend/src/App.tsx
++++ b/frontend/src/App.tsx
+@@ -16,6 +16,10 @@
+ import { ReportDetailPage } from './pages/ReportDetailPage'
+ import { EquipmentListPage } from './pages/EquipmentListPage'
+ import { EquipmentHistoryPage } from './pages/EquipmentHistoryPage'
++
++import { AdminAccountListPage } from './pages/AdminAccountListPage'
++import { AdminAccountFormPage } from './pages/AdminAccountFormPage'
++import { AdminAccountDetailPage } from './pages/AdminAccountDetailPage'
+ 
+ export default function App() {
+   return <Routes>
+@@ -36,6 +40,10 @@
+         <Route path="/plans/:planId/report" element={<RoleGuard roles={['PHONG_VTYT', 'BAN_GIAM_DOC']}><ReportDetailPage /></RoleGuard>} />
+         <Route path="/equipment" element={<RoleGuard roles={['PHONG_VTYT', 'BAN_GIAM_DOC', 'KHOA_PHONG']}><EquipmentListPage /></RoleGuard>} />
+         <Route path="/equipment/:equipmentId/history" element={<RoleGuard roles={['PHONG_VTYT', 'BAN_GIAM_DOC', 'KHOA_PHONG']}><EquipmentHistoryPage /></RoleGuard>} />
++        <Route path="/admin/accounts" element={<RoleGuard roles={['ADMIN']}><AdminAccountListPage /></RoleGuard>} />
++        <Route path="/admin/accounts/new" element={<RoleGuard roles={['ADMIN']}><AdminAccountFormPage mode="create" /></RoleGuard>} />
++        <Route path="/admin/accounts/:id" element={<RoleGuard roles={['ADMIN']}><AdminAccountDetailPage /></RoleGuard>} />
++        <Route path="/admin/accounts/:id/edit" element={<RoleGuard roles={['ADMIN']}><AdminAccountFormPage mode="edit" /></RoleGuard>} />
+         <Route path="/unauthorized" element={<UnauthorizedPage />} />
+       </Route>
+     </Route>
+--- /dev/null
++++ b/frontend/src/api/adminAccountsApi.ts
+@@ -0,0 +1,21 @@
++import { apiRequest } from './client'
++import type { AccountDetail, AccountFilters, AccountSummary, CreateAccountRequest, ResetPasswordRequest, UpdateAccountRequest } from '../types/account'
++import type { PageResponse } from '../types/workflow'
++
++const base = '/api/admin/accounts'
++export const adminAccountsApi = {
++  list(page = 0, size = 10, filters: AccountFilters = {}): Promise<PageResponse<AccountSummary>> {
++    const params = new URLSearchParams({ page: String(page), size: String(size), sort: 'username,asc' })
++    if (filters.search?.trim()) params.set('search', filters.search.trim())
++    if (filters.role) params.set('role', filters.role)
++    if (filters.departmentId !== undefined) params.set('departmentId', String(filters.departmentId))
++    if (filters.active !== undefined) params.set('active', String(filters.active))
++    return apiRequest(`${base}?${params}`)
++  },
++  detail(id: number): Promise<AccountDetail> { return apiRequest(`${base}/${id}`) },
++  create(body: CreateAccountRequest): Promise<AccountDetail> { return apiRequest(base, { method: 'POST', body }) },
++  edit(id: number, body: UpdateAccountRequest): Promise<AccountDetail> { return apiRequest(`${base}/${id}`, { method: 'PATCH', body }) },
++  activate(id: number): Promise<AccountDetail> { return apiRequest(`${base}/${id}/activate`, { method: 'POST' }) },
++  deactivate(id: number): Promise<AccountDetail> { return apiRequest(`${base}/${id}/deactivate`, { method: 'POST' }) },
++  resetPassword(id: number, body: ResetPasswordRequest): Promise<AccountDetail> { return apiRequest(`${base}/${id}/reset-password`, { method: 'POST', body }) },
++}
+--- /dev/null
++++ b/frontend/src/pages/AdminAccountDetailPage.tsx
+@@ -0,0 +1,75 @@
++import { useEffect, useState } from 'react'
++import type { FormEvent } from 'react'
++import { Link, useLocation, useParams } from 'react-router'
++import { adminAccountsApi } from '../api/adminAccountsApi'
++import { WorkflowError, WorkflowSuccess } from '../components/WorkflowFeedback'
++import { StatusBadge } from '../components/StatusBadge'
++import type { AccountDetail } from '../types/account'
++import { roleLabels } from '../utils/roleLabels'
++import { UserInputError } from '../utils/UserInputError'
++
++export function AdminAccountDetailPage() {
++  const id = Number(useParams().id)
++  const location = useLocation()
++  const [account, setAccount] = useState<AccountDetail | null>(null)
++  const [loading, setLoading] = useState(true)
++  const [busy, setBusy] = useState(false)
++  const [error, setError] = useState<unknown>(null)
++  const [notice, setNotice] = useState<string | null>((location.state as { flash?: string } | null)?.flash ?? null)
++  const [refresh, setRefresh] = useState(0)
++  const [resetOpen, setResetOpen] = useState(false)
++  const [password, setPassword] = useState('')
++  const [confirm, setConfirm] = useState('')
++  useEffect(() => {
++    let current = true
++    if (!Number.isInteger(id) || id <= 0) return () => { current = false }
++    adminAccountsApi.detail(id).then(result => { if (current) { setAccount(result); setError(null); setLoading(false) } })
++      .catch(failure => { if (current) { setAccount(null); setError(failure); setLoading(false) } })
++    return () => { current = false }
++  }, [id, refresh])
++  function clearPasswords() { setPassword(''); setConfirm('') }
++  function reload() { clearPasswords(); setResetOpen(false); setLoading(true); setRefresh(value => value + 1) }
++  async function changeStatus() {
++    if (!account || busy) return
++    const verb = account.active ? 'vô hiệu hóa' : 'kích hoạt'
++    if (!window.confirm(`Xác nhận ${verb} tài khoản ${account.username}?`)) return
++    setBusy(true); setError(null); setNotice(null)
++    try {
++      const result = account.active ? await adminAccountsApi.deactivate(id) : await adminAccountsApi.activate(id)
++      setAccount(result); setNotice(result.active ? 'Đã kích hoạt tài khoản.' : 'Đã vô hiệu hóa tài khoản. Các request tiếp theo của tài khoản này sẽ bị từ chối.')
++    } catch (failure) { setError(failure) } finally { setBusy(false) }
++  }
++  async function reset(event: FormEvent) {
++    event.preventDefault(); setError(null); setNotice(null)
++    if (!password.trim() || !confirm.trim()) { setError(new UserInputError('Vui lòng nhập và xác nhận mật khẩu mới.')); return }
++    if (password !== confirm) { setError(new UserInputError('Xác nhận mật khẩu mới không khớp.')); return }
++    if (busy || !window.confirm(`Đặt lại mật khẩu cho ${account?.username}?`)) return
++    setBusy(true)
++    try {
++      await adminAccountsApi.resetPassword(id, { newPassword: password })
++      clearPasswords(); setResetOpen(false); setNotice('Đã đặt lại mật khẩu. Người dùng đăng nhập bằng mật khẩu mới đã cấp.')
++    } catch (failure) { clearPasswords(); setError(failure) } finally { setBusy(false) }
++  }
++  const validId = Number.isInteger(id) && id > 0
++  return <div className="page-stack account-page">
++    <div className="page-title-row"><div className="page-title-block"><p className="eyebrow">ADMIN · TÀI KHOẢN #{validId ? id : '—'}</p><h1>Chi tiết tài khoản</h1><p>Quản lý quyền truy cập và thông tin đăng nhập của tài khoản.</p></div>
++      <Link className="button secondary" to="/admin/accounts">Về danh sách</Link></div>
++    <WorkflowSuccess message={notice} /><WorkflowError error={error} onReload={reload} />
++    {!validId ? <p className="workflow-error" role="alert">Đường dẫn tài khoản không hợp lệ.</p> : loading ? <p className="muted" role="status">Đang tải tài khoản…</p> : account && <>
++      <section className="panel business-panel"><div className="panel-heading"><h2>{account.username}</h2><StatusBadge label={account.active ? 'Hoạt động' : 'Không hoạt động'} tone={account.active ? 'teal' : 'amber'} /></div>
++        <dl className="detail-list"><div><dt>Tên đăng nhập</dt><dd>{account.username}</dd></div><div><dt>Vai trò</dt><dd>{roleLabels[account.role]}</dd></div>
++          <div><dt>Khoa/Phòng</dt><dd>{account.departmentName || 'Không có khoa/phòng'}</dd></div><div><dt>Trạng thái</dt><dd>{account.active ? 'Hoạt động' : 'Không hoạt động'}</dd></div></dl>
++        <div className="header-actions account-detail-actions"><Link className="button secondary" to={`/admin/accounts/${id}/edit`}>Chỉnh sửa</Link>
++          <button className="button secondary" type="button" disabled={busy} onClick={() => void changeStatus()}>{busy ? 'Đang xử lý…' : account.active ? 'Vô hiệu hóa' : 'Kích hoạt'}</button>
++          <button className="button secondary" type="button" disabled={busy} onClick={() => { clearPasswords(); setError(null); setResetOpen(value => !value) }}>Đặt lại mật khẩu</button>
++          <button className="button secondary" type="button" disabled={busy} onClick={reload}>Tải lại</button></div>
++      </section>
++      {resetOpen && <form className="panel business-panel" onSubmit={reset} noValidate><div className="panel-heading"><h2>Đặt lại mật khẩu</h2></div>
++        <p className="muted">ADMIN cấp mật khẩu trực tiếp, không cần mật khẩu cũ. Không để trống; tối đa 72 byte UTF-8.</p>
++        <div className="form-grid account-form-grid"><label>Mật khẩu mới<input type="password" autoComplete="new-password" value={password} onChange={event => setPassword(event.target.value)} required /></label>
++          <label>Xác nhận mật khẩu mới<input type="password" autoComplete="new-password" value={confirm} onChange={event => setConfirm(event.target.value)} required /></label></div>
++        <div className="form-actions account-detail-actions"><button className="button secondary" type="button" disabled={busy} onClick={() => { clearPasswords(); setResetOpen(false) }}>Hủy</button>
++          <button className="button primary" type="submit" disabled={busy}>{busy ? 'Đang lưu…' : 'Lưu mật khẩu mới'}</button></div></form>}
++    </>}
++  </div>
++}
+--- /dev/null
++++ b/frontend/src/pages/AdminAccountFormPage.tsx
+@@ -0,0 +1,82 @@
++import { useEffect, useState } from 'react'
++import type { FormEvent } from 'react'
++import { Link, useNavigate, useParams } from 'react-router'
++import { adminAccountsApi } from '../api/adminAccountsApi'
++import { departmentsApi } from '../api/departmentsApi'
++import { useAuth } from '../auth/useAuth'
++import { WorkflowError } from '../components/WorkflowFeedback'
++import type { AccountDetail } from '../types/account'
++import type { Department } from '../types/workflow'
++import { roles } from '../types/auth'
++import type { Role } from '../types/auth'
++import { roleLabels } from '../utils/roleLabels'
++import { UserInputError } from '../utils/UserInputError'
++
++export function AdminAccountFormPage({ mode }: { mode: 'create' | 'edit' }) {
++  const id = Number(useParams().id)
++  const navigate = useNavigate()
++  const { user, retryRestore } = useAuth()
++  const [account, setAccount] = useState<AccountDetail | null>(null)
++  const [departments, setDepartments] = useState<Department[]>([])
++  const [username, setUsername] = useState('')
++  const [password, setPassword] = useState('')
++  const [role, setRole] = useState<Role>('PHONG_VTYT')
++  const [department, setDepartment] = useState('')
++  const [active, setActive] = useState(true)
++  const [loading, setLoading] = useState(true)
++  const [busy, setBusy] = useState(false)
++  const [error, setError] = useState<unknown>(null)
++  const [refresh, setRefresh] = useState(0)
++  useEffect(() => {
++    let current = true
++    if (mode === 'edit' && (!Number.isInteger(id) || id <= 0)) {
++      return () => { current = false }
++    }
++    Promise.all([departmentsApi.list(), mode === 'edit' ? adminAccountsApi.detail(id) : Promise.resolve(null)])
++      .then(([refs, existing]) => {
++        if (!current) return
++        setDepartments(refs); setAccount(existing)
++        if (existing) { setUsername(existing.username); setRole(existing.role); setDepartment(existing.departmentId == null ? '' : String(existing.departmentId)); setActive(existing.active) }
++        setError(null); setLoading(false)
++      }).catch(failure => { if (current) { setError(failure); setLoading(false) } })
++    return () => { current = false }
++  }, [mode, id, refresh])
++  function reload() { setLoading(true); setPassword(''); setRefresh(value => value + 1) }
++  async function save(event: FormEvent<HTMLFormElement>) {
++    event.preventDefault(); setError(null)
++    if (mode === 'create' && (!username.trim() || !password.trim())) { setError(new UserInputError('Tên đăng nhập và mật khẩu không được để trống.')); return }
++    if (username.trim().length > 100) { setError(new UserInputError('Tên đăng nhập tối đa 100 ký tự.')); return }
++    if (role === 'KHOA_PHONG' && !department) { setError(new UserInputError('Vui lòng chọn Khoa/Phòng cho tài khoản Khoa/Phòng.')); return }
++    if (busy) return
++    setBusy(true)
++    try {
++      const assignment = { role, departmentId: department ? Number(department) : null }
++      const result = mode === 'create' ? await adminAccountsApi.create({ username: username.trim(), password, ...assignment, active }) : await adminAccountsApi.edit(id, assignment)
++      setPassword('')
++      if (mode === 'edit' && result.id === user?.id && result.role !== user.role) await retryRestore()
++      navigate(`/admin/accounts/${result.id}`, { replace: true, state: { flash: mode === 'create' ? 'Đã tạo tài khoản. Có thể đăng nhập bằng thông tin vừa cấp.' : 'Đã lưu vai trò và khoa/phòng.' } })
++    } catch (failure) { setError(failure) } finally { setBusy(false) }
++  }
++  const validId = mode === 'create' || (Number.isInteger(id) && id > 0)
++  return <div className="page-stack account-page">
++    <div className="page-title-block"><p className="eyebrow">ADMIN · TÀI KHOẢN</p><h1>{mode === 'create' ? 'Tạo tài khoản' : 'Chỉnh sửa tài khoản'}</h1>
++      <p>{mode === 'create' ? 'ADMIN nhập mật khẩu trực tiếp. Người dùng đăng nhập bằng đúng mật khẩu đã cấp.' : 'Tên đăng nhập cố định; trạng thái và mật khẩu được quản lý tại trang chi tiết.'}</p></div>
++    {!validId ? <p className="workflow-error" role="alert">Đường dẫn tài khoản không hợp lệ.</p> : loading ? <p className="muted" role="status">Đang tải biểu mẫu…</p> :
++      (error && departments.length === 0) || (mode === 'edit' && !account) ? <WorkflowError error={error} onReload={reload} /> :
++        <form className="plan-form" onSubmit={save} noValidate><section className="panel business-panel"><div className="panel-heading"><h2>Thông tin tài khoản</h2></div>
++          <div className="form-grid account-form-grid">
++            <label>Tên đăng nhập<input autoComplete="off" value={username} readOnly={mode === 'edit'} maxLength={100} required onChange={event => setUsername(event.target.value)} /></label>
++            {mode === 'create' && <label>Mật khẩu<input type="password" autoComplete="new-password" value={password} required onChange={event => setPassword(event.target.value)} /><small>Không để trống. Tối đa 72 byte UTF-8; không yêu cầu độ phức tạp.</small></label>}
++            <label>Vai trò<select value={role} onChange={event => setRole(event.target.value as Role)}>{roles.map(value => <option key={value} value={value}>{roleLabels[value]}</option>)}</select></label>
++            <label>Khoa/Phòng {role === 'KHOA_PHONG' && <span className="warning-text">(bắt buộc)</span>}<select value={department} required={role === 'KHOA_PHONG'} onChange={event => setDepartment(event.target.value)}>
++              <option value="">Không chọn khoa/phòng</option>{departments.filter(row => row.active || row.id === account?.departmentId).map(row => <option key={row.id} value={row.id}>{row.name}{row.active ? '' : ' (không hoạt động)'}</option>)}</select>
++              <small>{role === 'KHOA_PHONG' ? 'Quyền truy cập được giới hạn theo khoa/phòng đã chọn.' : 'Các vai trò khác có thể chọn khoa/phòng hoặc để trống.'}</small></label>
++            {mode === 'create' && <label>Trạng thái<select value={String(active)} onChange={event => setActive(event.target.value === 'true')}><option value="true">Hoạt động</option><option value="false">Không hoạt động</option></select></label>}
++          </div>
++        </section><WorkflowError error={error} />
++          <div className="form-actions"><Link className="button secondary" to={mode === 'edit' ? `/admin/accounts/${id}` : '/admin/accounts'}>Hủy</Link>
++            <button className="button primary" type="submit" disabled={busy}>{busy ? 'Đang lưu…' : mode === 'create' ? 'Tạo tài khoản' : 'Lưu chỉnh sửa'}</button></div>
++        </form>}
++    <Link className="text-link" to="/admin/accounts">← Danh sách tài khoản</Link>
++  </div>
++}
+--- /dev/null
++++ b/frontend/src/pages/AdminAccountListPage.tsx
+@@ -0,0 +1,76 @@
++import { useEffect, useState } from 'react'
++import type { FormEvent } from 'react'
++import { Link, useLocation } from 'react-router'
++import { adminAccountsApi } from '../api/adminAccountsApi'
++import { departmentsApi } from '../api/departmentsApi'
++import { Pagination } from '../components/Pagination'
++import { StatusBadge } from '../components/StatusBadge'
++import { WorkflowError, WorkflowSuccess } from '../components/WorkflowFeedback'
++import type { AccountSummary } from '../types/account'
++import type { Department, PageResponse } from '../types/workflow'
++import { roles } from '../types/auth'
++import type { Role } from '../types/auth'
++import { roleLabels } from '../utils/roleLabels'
++
++export function AdminAccountListPage() {
++  const location = useLocation()
++  const [page, setPage] = useState(0)
++  const [input, setInput] = useState('')
++  const [search, setSearch] = useState('')
++  const [role, setRole] = useState<Role | ''>('')
++  const [department, setDepartment] = useState('')
++  const [active, setActive] = useState('')
++  const [data, setData] = useState<PageResponse<AccountSummary> | null>(null)
++  const [departments, setDepartments] = useState<Department[]>([])
++  const [loading, setLoading] = useState(true)
++  const [error, setError] = useState<unknown>(null)
++  const [referenceError, setReferenceError] = useState<unknown>(null)
++  const [refresh, setRefresh] = useState(0)
++  const flash = (location.state as { flash?: string } | null)?.flash ?? null
++  useEffect(() => {
++    let current = true
++    departmentsApi.list().then(rows => { if (current) { setDepartments(rows); setReferenceError(null) } })
++      .catch(failure => { if (current) setReferenceError(failure) })
++    return () => { current = false }
++  }, [refresh])
++  useEffect(() => {
++    let current = true
++    adminAccountsApi.list(page, 10, { search, role: role || undefined,
++      departmentId: department ? Number(department) : undefined, active: active === '' ? undefined : active === 'true' })
++      .then(rows => { if (current) { setData(rows); setError(null); setLoading(false) } })
++      .catch(failure => { if (current) { setError(failure); setLoading(false) } })
++    return () => { current = false }
++  }, [page, search, role, department, active, refresh])
++  function reload() { setLoading(true); setRefresh(value => value + 1) }
++  function find(event: FormEvent) { event.preventDefault(); setPage(0); setSearch(input.trim()); reload() }
++  function clear() { setInput(''); setSearch(''); setRole(''); setDepartment(''); setActive(''); setPage(0); reload() }
++  return <div className="page-stack account-page">
++    <div className="page-title-row"><div className="page-title-block"><p className="eyebrow">ADMIN · TÀI KHOẢN</p><h1>Quản lý tài khoản</h1>
++      <p>Tạo tài khoản đăng nhập và quản lý vai trò, khoa/phòng, trạng thái hoạt động.</p></div>
++      <Link className="button primary" to="/admin/accounts/new">Tạo tài khoản</Link></div>
++    <WorkflowSuccess message={flash} />
++    <section className="panel business-panel"><div className="panel-heading"><h2>Danh sách tài khoản</h2>
++      <button className="button secondary" type="button" onClick={reload}>Tải lại</button></div>
++      <form className="account-filters" onSubmit={find}>
++        <label className="account-search">Tìm theo tên đăng nhập<input type="search" maxLength={100} value={input} onChange={event => setInput(event.target.value)} placeholder="Nhập tên đăng nhập" /></label>
++        <button className="button secondary" type="submit">Tìm kiếm</button>
++        <label>Vai trò<select value={role} onChange={event => { setRole(event.target.value as Role | ''); setPage(0); setLoading(true) }}>
++          <option value="">Tất cả vai trò</option>{roles.map(value => <option key={value} value={value}>{roleLabels[value]}</option>)}</select></label>
++        <label>Khoa/Phòng<select value={department} onChange={event => { setDepartment(event.target.value); setPage(0); setLoading(true) }}>
++          <option value="">Tất cả khoa/phòng</option>{departments.map(row => <option key={row.id} value={row.id}>{row.name}{row.active ? '' : ' (không hoạt động)'}</option>)}</select></label>
++        <label>Trạng thái<select value={active} onChange={event => { setActive(event.target.value); setPage(0); setLoading(true) }}>
++          <option value="">Tất cả trạng thái</option><option value="true">Hoạt động</option><option value="false">Không hoạt động</option></select></label>
++        <button className="button secondary" type="button" onClick={clear}>Xóa bộ lọc</button>
++      </form>
++      <WorkflowError error={referenceError} onReload={reload} />
++      {loading ? <p className="muted" role="status">Đang tải tài khoản…</p> : error ? <WorkflowError error={error} onReload={reload} /> :
++        data && <>{data.content.length === 0 ? <p className="empty-state">Không có tài khoản phù hợp với bộ lọc.</p> : <div className="table-scroll"><table className="data-table account-table"><thead><tr>
++          <th>Tên đăng nhập</th><th>Vai trò</th><th>Khoa/Phòng</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
++          {data.content.map(account => <tr key={account.id}><td><Link className="table-link" to={`/admin/accounts/${account.id}`}>{account.username}</Link><span className="row-sub">#{account.id}</span></td>
++            <td>{roleLabels[account.role]}</td><td>{account.departmentName || '—'}</td>
++            <td><StatusBadge label={account.active ? 'Hoạt động' : 'Không hoạt động'} tone={account.active ? 'teal' : 'amber'} /></td>
++            <td><Link className="table-link" to={`/admin/accounts/${account.id}`}>Xem</Link></td></tr>)}</tbody></table></div>}
++          <Pagination data={data} onPage={next => { setPage(next); setLoading(true) }} /></>}
++    </section>
++  </div>
++}
+--- /dev/null
++++ b/frontend/src/pages/AdminAccounts.test.tsx
+@@ -0,0 +1,179 @@
++import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
++import { MemoryRouter, Route, Routes } from 'react-router'
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
++import App from '../App'
++import { AppLayout } from '../layouts/AppLayout'
++import { adminAccountsApi } from '../api/adminAccountsApi'
++import { departmentsApi } from '../api/departmentsApi'
++import { ApiError } from '../api/types'
++import { AdminAccountListPage } from './AdminAccountListPage'
++import { AdminAccountFormPage } from './AdminAccountFormPage'
++import { AdminAccountDetailPage } from './AdminAccountDetailPage'
++import type { Role } from '../types/auth'
++import type { AccountDetail } from '../types/account'
++
++const auth = vi.hoisted(() => ({ user: { id: 4, username: 'demo_admin', role: 'ADMIN' as Role, departmentId: 2 },
++  status: 'authenticated', isAuthenticated: true, logout: vi.fn(), retryRestore: vi.fn() }))
++vi.mock('../auth/useAuth', () => ({ useAuth: () => auth }))
++vi.mock('../api/adminAccountsApi', () => ({ adminAccountsApi: { list: vi.fn(), detail: vi.fn(), create: vi.fn(), edit: vi.fn(), activate: vi.fn(), deactivate: vi.fn(), resetPassword: vi.fn() } }))
++vi.mock('../api/departmentsApi', () => ({ departmentsApi: { list: vi.fn() } }))
++const account: AccountDetail = { id: 44, username: 'SMOKE-V2-ADMIN-UI', role: 'KHOA_PHONG', departmentId: 1, departmentCode: 'KHOA_NOI', departmentName: 'Khoa Nội', active: true }
++const page = { content: [account], page: 0, size: 10, totalElements: 11, totalPages: 2, last: false }
++const refs = [{ id: 1, code: 'KHOA_NOI', name: 'Khoa Nội', active: true }, { id: 8, code: 'KHOA_NGOAI', name: 'Khoa Ngoại', active: true }]
++function form(mode: 'create' | 'edit' = 'create') {
++  const path = mode === 'create' ? '/admin/accounts/new' : '/admin/accounts/44/edit'
++  return render(<MemoryRouter initialEntries={[path]}><Routes><Route path="/admin/accounts/new" element={<AdminAccountFormPage mode="create" />} /><Route path="/admin/accounts/:id/edit" element={<AdminAccountFormPage mode="edit" />} /><Route path="/admin/accounts/:id" element={<p>Đã chuyển đến chi tiết</p>} /></Routes></MemoryRouter>)
++}
++function list() { return render(<MemoryRouter><AdminAccountListPage /></MemoryRouter>) }
++function detail() { return render(<MemoryRouter initialEntries={['/admin/accounts/44']}><Routes><Route path="/admin/accounts/:id" element={<AdminAccountDetailPage />} /></Routes></MemoryRouter>) }
++function input(label: string, value: string) { fireEvent.change(screen.getByLabelText(new RegExp('^' + label)), { target: { value } }) }
++async function readyForm() { await screen.findByLabelText('Tên đăng nhập') }
++afterEach(() => { cleanup(); vi.restoreAllMocks() })
++beforeEach(() => {
++  vi.clearAllMocks(); auth.user = { id: 4, username: 'demo_admin', role: 'ADMIN', departmentId: 2 }
++  vi.mocked(adminAccountsApi.list).mockResolvedValue(page)
++  vi.mocked(adminAccountsApi.detail).mockResolvedValue(account)
++  vi.mocked(adminAccountsApi.create).mockResolvedValue(account)
++  vi.mocked(adminAccountsApi.edit).mockResolvedValue(account)
++  vi.mocked(adminAccountsApi.activate).mockResolvedValue({ ...account, active: true })
++  vi.mocked(adminAccountsApi.deactivate).mockResolvedValue({ ...account, active: false })
++  vi.mocked(adminAccountsApi.resetPassword).mockResolvedValue(account)
++  vi.mocked(departmentsApi.list).mockResolvedValue(refs)
++  vi.spyOn(window, 'confirm').mockReturnValue(true)
++})
++
++describe('ADMIN routes and navigation', () => {
++  it('shows account navigation for ADMIN', () => {
++    render(<MemoryRouter><AppLayout /></MemoryRouter>)
++    expect(screen.getByRole('link', { name: 'Quản lý tài khoản' }).getAttribute('href')).toBe('/admin/accounts')
++  })
++  it.each<Role>(['PHONG_VTYT', 'BAN_GIAM_DOC', 'KHOA_PHONG'])('hides ADMIN navigation and rejects direct routes for %s', role => {
++    auth.user.role = role
++    const view = render(<MemoryRouter><AppLayout /></MemoryRouter>)
++    expect(screen.queryByRole('link', { name: 'Quản lý tài khoản' })).toBeNull()
++    view.unmount()
++    render(<MemoryRouter initialEntries={['/admin/accounts']}><App /></MemoryRouter>)
++    expect(screen.getByRole('heading', { name: 'Không có quyền xem trang' })).toBeTruthy()
++    expect(adminAccountsApi.list).not.toHaveBeenCalled()
++  })
++})
++describe('Account list', () => {
++  it('renders safe table, status and paginates', async () => {
++    list(); await screen.findByRole('link', { name: account.username })
++    expect(screen.getByText('Khoa Nội', { selector: 'td' })).toBeTruthy()
++    expect(screen.getByText('Hoạt động', { selector: '.status-badge' })).toBeTruthy()
++    fireEvent.click(screen.getByRole('button', { name: 'Sau' }))
++    await waitFor(() => expect(vi.mocked(adminAccountsApi.list).mock.calls.at(-1)?.[0]).toBe(1))
++  })
++  it('applies search and combined filters, resets page and clears filters', async () => {
++    list(); await screen.findByRole('link', { name: account.username })
++    input('Tìm theo tên đăng nhập', ' smoke ')
++    fireEvent.click(screen.getByRole('button', { name: 'Tìm kiếm' }))
++    await waitFor(() => expect(vi.mocked(adminAccountsApi.list).mock.calls.at(-1)?.[2]?.search).toBe('smoke'))
++    input('Vai trò', 'KHOA_PHONG'); input('Khoa/Phòng', '1'); input('Trạng thái', 'false')
++    await waitFor(() => expect(vi.mocked(adminAccountsApi.list).mock.calls.at(-1)?.[2]).toEqual({ search: 'smoke', role: 'KHOA_PHONG', departmentId: 1, active: false }))
++    fireEvent.click(screen.getByRole('button', { name: 'Xóa bộ lọc' }))
++    await waitFor(() => expect(vi.mocked(adminAccountsApi.list).mock.calls.at(-1)?.[2]).toEqual({ search: '', role: undefined, departmentId: undefined, active: undefined }))
++  })
++  it('renders empty and safe backend error states with reload', async () => {
++    vi.mocked(adminAccountsApi.list).mockResolvedValueOnce({ ...page, content: [], totalElements: 0, totalPages: 0, last: true })
++    list(); await screen.findByText('Không có tài khoản phù hợp với bộ lọc.')
++    vi.mocked(adminAccountsApi.list).mockRejectedValueOnce(new ApiError(403, 'ACCESS_DENIED', 'internal'))
++    fireEvent.click(screen.getByRole('button', { name: 'Tải lại' }))
++    await screen.findByText('Bạn không có quyền thực hiện thao tác này.')
++    expect(screen.queryByText('internal')).toBeNull()
++    fireEvent.click(screen.getByRole('button', { name: 'Tải lại dữ liệu' }))
++    await screen.findByRole('link', { name: account.username })
++  })
++})
++describe('Create and edit accounts', () => {
++  it('requires username and password and masks password', async () => {
++    form(); await readyForm()
++    expect((screen.getByLabelText(/^Mật khẩu/) as HTMLInputElement).type).toBe('password')
++    fireEvent.click(screen.getByRole('button', { name: 'Tạo tài khoản' }))
++    await screen.findByText('Tên đăng nhập và mật khẩu không được để trống.')
++    expect(adminAccountsApi.create).not.toHaveBeenCalled()
++  })
++  it('requires department for KHOA and creates with exact chosen password', async () => {
++    form(); await readyForm()
++    const raw = crypto.randomUUID()
++    input('Tên đăng nhập', '  SMOKE-V2-ADMIN-CREATE  '); input('Mật khẩu', raw); input('Vai trò', 'KHOA_PHONG')
++    fireEvent.click(screen.getByRole('button', { name: 'Tạo tài khoản' }))
++    await screen.findByText('Vui lòng chọn Khoa/Phòng cho tài khoản Khoa/Phòng.')
++    expect(adminAccountsApi.create).not.toHaveBeenCalled()
++    fireEvent.change(screen.getByLabelText(/Khoa\/Phòng/), { target: { value: '1' } })
++    fireEvent.click(screen.getByRole('button', { name: 'Tạo tài khoản' }))
++    await screen.findByText('Đã chuyển đến chi tiết')
++    const body = vi.mocked(adminAccountsApi.create).mock.calls[0]?.[0]
++    expect(body?.password === raw).toBe(true)
++    expect(body?.username).toBe('SMOKE-V2-ADMIN-CREATE')
++    expect(body?.departmentId).toBe(1); expect(body?.role).toBe('KHOA_PHONG')
++    expect(document.querySelector('input[type=password]')).toBeNull()
++  })
++  it('shows duplicate error without rendering HTML', async () => {
++    vi.mocked(adminAccountsApi.create).mockRejectedValue(new ApiError(409, 'USERNAME_ALREADY_EXISTS', 'Tên đăng nhập đã tồn tại.'))
++    form(); await readyForm(); input('Tên đăng nhập', 'demo_admin'); input('Mật khẩu', crypto.randomUUID())
++    fireEvent.click(screen.getByRole('button', { name: 'Tạo tài khoản' }))
++    await screen.findByText('Tên đăng nhập đã tồn tại.')
++  })
++  it('edits only role and department with username read-only', async () => {
++    form('edit'); await readyForm()
++    expect((screen.getByLabelText('Tên đăng nhập') as HTMLInputElement).readOnly).toBe(true)
++    expect(screen.queryByLabelText('Mật khẩu')).toBeNull()
++    input('Vai trò', 'BAN_GIAM_DOC'); input('Khoa/Phòng', '')
++    fireEvent.click(screen.getByRole('button', { name: 'Lưu chỉnh sửa' }))
++    await screen.findByText('Đã chuyển đến chi tiết')
++    expect(adminAccountsApi.edit).toHaveBeenCalledWith(44, { role: 'BAN_GIAM_DOC', departmentId: null })
++  })
++})
++describe('Detail status and password reset', () => {
++  it('renders detail and activates/deactivates through confirmed actions', async () => {
++    detail(); await screen.findByRole('heading', { name: account.username })
++    expect(screen.getByRole('link', { name: 'Chỉnh sửa' }).getAttribute('href')).toBe('/admin/accounts/44/edit')
++    fireEvent.click(screen.getByRole('button', { name: 'Vô hiệu hóa' }))
++    await screen.findByRole('button', { name: 'Kích hoạt' })
++    expect(adminAccountsApi.deactivate).toHaveBeenCalledWith(44)
++    fireEvent.click(screen.getByRole('button', { name: 'Kích hoạt' }))
++    await screen.findByRole('button', { name: 'Vô hiệu hóa' })
++    expect(adminAccountsApi.activate).toHaveBeenCalledWith(44)
++    expect(screen.queryByRole('button', { name: /xóa/i })).toBeNull()
++  })
++  it('does not mutate status when confirmation is cancelled', async () => {
++    vi.mocked(window.confirm).mockReturnValue(false)
++    detail(); await screen.findByRole('button', { name: 'Vô hiệu hóa' })
++    fireEvent.click(screen.getByRole('button', { name: 'Vô hiệu hóa' }))
++    expect(adminAccountsApi.deactivate).not.toHaveBeenCalled()
++  })
++  it('shows self-protection business error and preserves active badge', async () => {
++    vi.mocked(adminAccountsApi.deactivate).mockRejectedValue(new ApiError(409, 'ACCOUNT_SELF_DEACTIVATION_FORBIDDEN', 'Không thể vô hiệu hóa chính mình.'))
++    detail(); await screen.findByRole('button', { name: 'Vô hiệu hóa' })
++    fireEvent.click(screen.getByRole('button', { name: 'Vô hiệu hóa' }))
++    await screen.findByText('Không thể vô hiệu hóa chính mình.')
++    expect(screen.getByText('Hoạt động', { selector: '.status-badge' })).toBeTruthy()
++  })
++  it('validates matching password confirmation, resets and clears fields', async () => {
++    detail(); await screen.findByRole('button', { name: 'Đặt lại mật khẩu' })
++    fireEvent.click(screen.getByRole('button', { name: 'Đặt lại mật khẩu' }))
++    fireEvent.click(screen.getByRole('button', { name: 'Lưu mật khẩu mới' }))
++    await screen.findByText('Vui lòng nhập và xác nhận mật khẩu mới.')
++    const raw = crypto.randomUUID()
++    input('Mật khẩu mới', raw); input('Xác nhận mật khẩu mới', crypto.randomUUID())
++    fireEvent.click(screen.getByRole('button', { name: 'Lưu mật khẩu mới' }))
++    await screen.findByText('Xác nhận mật khẩu mới không khớp.')
++    expect(adminAccountsApi.resetPassword).not.toHaveBeenCalled()
++    input('Xác nhận mật khẩu mới', raw)
++    fireEvent.click(screen.getByRole('button', { name: 'Lưu mật khẩu mới' }))
++    await screen.findByText('Đã đặt lại mật khẩu. Người dùng đăng nhập bằng mật khẩu mới đã cấp.')
++    expect(vi.mocked(adminAccountsApi.resetPassword).mock.calls[0]?.[1].newPassword === raw).toBe(true)
++    expect(document.querySelector('input[type=password]')).toBeNull()
++  })
++  it('clears reset passwords when cancelled and renders missing-account error', async () => {
++    detail(); await screen.findByRole('button', { name: 'Đặt lại mật khẩu' })
++    fireEvent.click(screen.getByRole('button', { name: 'Đặt lại mật khẩu' }))
++    input('Mật khẩu mới', crypto.randomUUID()); fireEvent.click(screen.getByRole('button', { name: 'Hủy' }))
++    expect(document.querySelector('input[type=password]')).toBeNull()
++    vi.mocked(adminAccountsApi.detail).mockRejectedValueOnce(new ApiError(404, 'ACCOUNT_NOT_FOUND', 'internal'))
++    fireEvent.click(screen.getByRole('button', { name: 'Tải lại' }))
++    await screen.findByText('Không tìm thấy dữ liệu yêu cầu. Vui lòng tải lại.')
++  })
++})
+--- a/frontend/src/routes/navigation.ts
++++ b/frontend/src/routes/navigation.ts
+@@ -8,6 +8,7 @@
+ }
+ 
+ export const navigationItems: NavigationItem[] = [
++  { path: '/admin/accounts', label: 'Quản lý tài khoản', section: 'Quản lý tài khoản', roles: ['ADMIN'] },
+   { path: '/plans', label: 'Kế hoạch bảo trì', section: 'Kế hoạch bảo trì', roles: ['PHONG_VTYT'] },
+   { path: '/execution', label: 'Thực hiện bảo trì', section: 'Thực hiện bảo trì', roles: ['PHONG_VTYT'] },
+   { path: '/reports', label: 'Báo cáo', section: 'Báo cáo', roles: ['PHONG_VTYT', 'BAN_GIAM_DOC'] },
+--- a/frontend/src/styles.css
++++ b/frontend/src/styles.css
+@@ -49,3 +49,13 @@
+ .history-details{border-top:1px solid #dfe9eb;padding-top:16px;min-width:0}.history-details summary{cursor:pointer;color:#173f51;font-weight:700;font-size:14px}.history-details summary:focus-visible{outline:3px solid #89c8ca;outline-offset:3px}.history-details>.attempt-list,.history-timelines{margin-top:17px}
+ .history-timelines{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}.history-events{min-width:0}.history-events h4{color:#123047;margin:0 0 10px}.history-events ol{padding-left:23px;display:grid;gap:12px}.history-events li{font-size:13px;overflow-wrap:anywhere}.history-events li span{display:block;color:#6d8390;margin-top:4px}.history-events li p{margin:5px 0}
+ @media(max-width:760px){.report-fields,.report-read-view,.history-timelines{grid-template-columns:1fr}.report-fields .block-label:nth-child(2){grid-column:auto}.report-counts{grid-template-columns:1fr}.campaign-card{padding:18px}}
++
++/* Version 2 account management: scoped additions keep existing V1 pages intact. */
++.account-page .account-filters{display:grid;grid-template-columns:minmax(180px,1fr) auto;gap:16px;margin-bottom:24px;align-items:end}
++.account-page .account-filters label{display:grid;gap:8px;color:#315064;font-size:13px;font-weight:700;min-width:0}
++.account-page .account-filters input,.account-page .account-filters select{width:100%;min-width:0;border:1px solid #cbdde2;border-radius:8px;color:#17394b;background:#fff;min-height:43px;padding:10px 12px;font:inherit;font-size:14px}
++.account-page .account-filters .account-search{grid-column:1}.account-page .account-table td:first-child{overflow-wrap:anywhere;max-width:300px}
++.account-page .account-form-grid label:first-child{grid-column:auto}.account-page .account-form-grid small{font-size:12px;font-weight:400;color:#607987;line-height:1.6}
++.account-page .account-detail-actions{margin-top:24px}.account-page h2{overflow-wrap:anywhere}
++@media(min-width:1200px){.account-page .account-filters{grid-template-columns:repeat(3,minmax(0,1fr)) auto}.account-page .account-filters .account-search{grid-column:1/3;grid-row:1}.account-page .account-filters>button[type=submit]{grid-column:3;grid-row:1;justify-self:start}.account-page .account-filters>button[type=button]{grid-column:4;grid-row:1}.account-page .account-filters>label:nth-of-type(2){grid-column:1;grid-row:2}.account-page .account-filters>label:nth-of-type(3){grid-column:2;grid-row:2}.account-page .account-filters>label:nth-of-type(4){grid-column:3;grid-row:2}}
++@media(max-width:750px){.account-page .account-filters{grid-template-columns:1fr}.account-page .account-filters .button{justify-self:start}.account-page .account-table{min-width:620px}}
+--- /dev/null
++++ b/frontend/src/types/account.ts
+@@ -0,0 +1,18 @@
++import type { Role } from './auth'
++
++export interface AccountSummary {
++  id: number
++  username: string
++  role: Role
++  departmentId: number | null
++  departmentCode: string | null
++  departmentName: string | null
++  active: boolean
++}
++export type AccountDetail = AccountSummary
++export interface CreateAccountRequest {
++  username: string; password: string; role: Role; departmentId: number | null; active: boolean
++}
++export interface UpdateAccountRequest { role: Role; departmentId: number | null }
++export interface ResetPasswordRequest { newPassword: string }
++export interface AccountFilters { search?: string; role?: Role; departmentId?: number; active?: boolean }
+--- a/scripts/start-v1.sh
++++ b/scripts/start-v1.sh
+@@ -10,7 +10,7 @@
+ [[ -f "${V1_SECURITY_ENV}" ]] || { v1_error 'Missing ignored backend-security.env. Restore your local file using the existing backend setup instructions; this helper does not reset demo passwords.'; exit 1; }
+ [[ -f "${V1_VITE}" ]] || { v1_error 'Frontend dependencies are missing. Run npm ci --prefix frontend with the project toolchain.'; exit 1; }
+ v1_lock
+-"${V1_ROOT}/backend/scripts/setup-dev-db.sh" >"${V1_RUN}/postgres-setup.log" 2>&1 || { v1_error 'PostgreSQL setup failed. See .local-run/postgres-setup.log.'; exit 1; }
++"${V1_ROOT}/backend/scripts/setup-dev-db.sh" 9>&- >"${V1_RUN}/postgres-setup.log" 2>&1 || { v1_error 'PostgreSQL setup failed. See .local-run/postgres-setup.log.'; exit 1; }
+ source "${V1_DB_ENV}"
+ source "${V1_SECURITY_ENV}"
+ [[ "${DB_HOST}" == '127.0.0.1' && "${DB_PORT}" == '55432' && "${DB_NAME}" == 'medical_maintenance_backend_dev' ]] || { v1_error 'Unexpected database environment; use the project local database.'; exit 1; }
+--- a/scripts/v1-common.sh
++++ b/scripts/v1-common.sh
+@@ -75,7 +75,7 @@
+     printf '%s' "${body}" | python3 -c 'import json,sys; s=json.load(sys.stdin)["status"]; print(s); sys.exit(0 if s=="UP" else 1)' 2>/dev/null
+ }
+ v1_frontend_ready() {
+-    curl -fsS --connect-timeout 1 --max-time 2 http://localhost:5173/login 2>/dev/null | rg -q 'src="/src/main.tsx"'
++    curl -fsS --connect-timeout 1 --max-time 2 http://localhost:5173/login 2>/dev/null | rg -q 'src="/src/main\.tsx([?][^"]*)?"'
+ }
+ v1_postgres_ready() {
+     [[ -f "${V1_DB_ENV}" ]] || return 1

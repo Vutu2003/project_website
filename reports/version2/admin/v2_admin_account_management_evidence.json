@@ -1,0 +1,1450 @@
+{
+  "checks": [
+    {
+      "name": "Real login and /me: ADMIN",
+      "result": "PASS",
+      "evidence": {
+        "id": 4,
+        "username": "demo_admin",
+        "role": "ADMIN",
+        "departmentId": 2
+      }
+    },
+    {
+      "name": "ADMIN navigation is account-only",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Real UI pagination",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Create password masked",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "KHOA missing department blocked by real form",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Safe account detail DTO",
+      "result": "PASS",
+      "evidence": {
+        "id": 46,
+        "username": "SMOKE-V2-ADMIN-20260928170956-332049-KHOA_PHONG",
+        "role": "KHOA_PHONG",
+        "departmentId": 1,
+        "departmentCode": "KHOA_NOI",
+        "departmentName": "Khoa Nội",
+        "active": true
+      }
+    },
+    {
+      "name": "UI create KHOA_PHONG",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Password cleared after create",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "SQL BCrypt and plaintext absent: KHOA_PHONG",
+      "result": "PASS",
+      "evidence": {
+        "password_is_bcrypt": true,
+        "plaintext_not_stored": true
+      }
+    },
+    {
+      "name": "Create password masked",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Safe account detail DTO",
+      "result": "PASS",
+      "evidence": {
+        "id": 47,
+        "username": "SMOKE-V2-ADMIN-20260928170956-332049-PHONG_VTYT",
+        "role": "PHONG_VTYT",
+        "departmentId": 2,
+        "departmentCode": "PHONG_VTYT",
+        "departmentName": "Phòng Vật tư Y tế",
+        "active": true
+      }
+    },
+    {
+      "name": "UI create PHONG_VTYT",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Password cleared after create",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "SQL BCrypt and plaintext absent: PHONG_VTYT",
+      "result": "PASS",
+      "evidence": {
+        "password_is_bcrypt": true,
+        "plaintext_not_stored": true
+      }
+    },
+    {
+      "name": "Create password masked",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Safe account detail DTO",
+      "result": "PASS",
+      "evidence": {
+        "id": 48,
+        "username": "SMOKE-V2-ADMIN-20260928170956-332049-BAN_GIAM_DOC",
+        "role": "BAN_GIAM_DOC",
+        "departmentId": null,
+        "departmentCode": null,
+        "departmentName": null,
+        "active": true
+      }
+    },
+    {
+      "name": "UI create BAN_GIAM_DOC",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Password cleared after create",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "SQL BCrypt and plaintext absent: BAN_GIAM_DOC",
+      "result": "PASS",
+      "evidence": {
+        "password_is_bcrypt": true,
+        "plaintext_not_stored": true
+      }
+    },
+    {
+      "name": "Create password masked",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Safe account detail DTO",
+      "result": "PASS",
+      "evidence": {
+        "id": 49,
+        "username": "SMOKE-V2-ADMIN-20260928170956-332049-ADMIN",
+        "role": "ADMIN",
+        "departmentId": 2,
+        "departmentCode": "PHONG_VTYT",
+        "departmentName": "Phòng Vật tư Y tế",
+        "active": true
+      }
+    },
+    {
+      "name": "UI create ADMIN",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Password cleared after create",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "SQL BCrypt and plaintext absent: ADMIN",
+      "result": "PASS",
+      "evidence": {
+        "password_is_bcrypt": true,
+        "plaintext_not_stored": true
+      }
+    },
+    {
+      "name": "Real username search case-insensitive",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Role / department / status filters combined",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Empty state / clear filters",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Account page no document overflow width 1366",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Account page no document overflow width 1024",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Account page no document overflow width 760",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Real login and /me: KHOA_PHONG",
+      "result": "PASS",
+      "evidence": {
+        "id": 46,
+        "username": "SMOKE-V2-ADMIN-20260928170956-332049-KHOA_PHONG",
+        "role": "KHOA_PHONG",
+        "departmentId": 1
+      }
+    },
+    {
+      "name": "Created KHOA navigation",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Created KHOA current department",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Created KHOA allowed history real UI",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Created KHOA foreign department 403 without details",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Created KHOA ADMIN access blocked",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Safe account detail DTO",
+      "result": "PASS",
+      "evidence": {
+        "id": 46,
+        "username": "SMOKE-V2-ADMIN-20260928170956-332049-KHOA_PHONG",
+        "role": "KHOA_PHONG",
+        "departmentId": 1,
+        "departmentCode": "KHOA_NOI",
+        "departmentName": "Khoa Nội",
+        "active": false
+      }
+    },
+    {
+      "name": "UI deactivate persisted",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Existing browser session rejected on next protected request",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Existing JWT rejected by DB reload",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Real browser login rejected",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Real login and /me: KHOA_PHONG",
+      "result": "PASS",
+      "evidence": {
+        "id": 46,
+        "username": "SMOKE-V2-ADMIN-20260928170956-332049-KHOA_PHONG",
+        "role": "KHOA_PHONG",
+        "departmentId": 1
+      }
+    },
+    {
+      "name": "Safe account detail DTO",
+      "result": "PASS",
+      "evidence": {
+        "id": 46,
+        "username": "SMOKE-V2-ADMIN-20260928170956-332049-KHOA_PHONG",
+        "role": "KHOA_PHONG",
+        "departmentId": 1,
+        "departmentCode": "KHOA_NOI",
+        "departmentName": "Khoa Nội",
+        "active": true
+      }
+    },
+    {
+      "name": "Reactivation restores real login",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Real password confirmation mismatch blocked",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Password fields cleared after reset",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Reset preserves existing V1 JWT lifetime behavior",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Real browser login rejected",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Real login and /me: KHOA_PHONG",
+      "result": "PASS",
+      "evidence": {
+        "id": 46,
+        "username": "SMOKE-V2-ADMIN-20260928170956-332049-KHOA_PHONG",
+        "role": "KHOA_PHONG",
+        "departmentId": 1
+      }
+    },
+    {
+      "name": "Reset BCrypt matches only new password",
+      "result": "PASS",
+      "evidence": {
+        "old_password_rejected": true,
+        "new_password_accepted": true
+      }
+    },
+    {
+      "name": "Department edit on existing token",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Old department history rejected after edit",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "New department history allowed in real UI",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Role edit affects current request principal",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Role navigation refreshed from DB",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Real login and /me: PHONG_VTYT",
+      "result": "PASS",
+      "evidence": {
+        "id": 47,
+        "username": "SMOKE-V2-ADMIN-20260928170956-332049-PHONG_VTYT",
+        "role": "PHONG_VTYT",
+        "departmentId": 2
+      }
+    },
+    {
+      "name": "Created PHONG_VTYT correct navigation",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Created PHONG_VTYT ADMIN API forbidden",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Real login and /me: BAN_GIAM_DOC",
+      "result": "PASS",
+      "evidence": {
+        "id": 48,
+        "username": "SMOKE-V2-ADMIN-20260928170956-332049-BAN_GIAM_DOC",
+        "role": "BAN_GIAM_DOC",
+        "departmentId": null
+      }
+    },
+    {
+      "name": "Created BAN_GIAM_DOC correct navigation",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Created BAN_GIAM_DOC ADMIN API forbidden",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Real login and /me: ADMIN",
+      "result": "PASS",
+      "evidence": {
+        "id": 49,
+        "username": "SMOKE-V2-ADMIN-20260928170956-332049-ADMIN",
+        "role": "ADMIN",
+        "departmentId": 2
+      }
+    },
+    {
+      "name": "Created ADMIN correct navigation",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Safe account detail DTO",
+      "result": "PASS",
+      "evidence": {
+        "id": 49,
+        "username": "SMOKE-V2-ADMIN-20260928170956-332049-ADMIN",
+        "role": "ADMIN",
+        "departmentId": 2,
+        "departmentCode": "PHONG_VTYT",
+        "departmentName": "Phòng Vật tư Y tế",
+        "active": true
+      }
+    },
+    {
+      "name": "Own ADMIN deactivation business error preserves account",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "ADMIN maintenance command still 403",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Duplicate rejected in real UI without extra row",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "No uncaught JS/CORS/credential console errors",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Guarded cleanup restores all canonical fingerprints/schema/migrations",
+      "result": "PASS",
+      "evidence": {
+        "deleted_accounts": 4,
+        "canonical_rows": 603
+      }
+    },
+    {
+      "name": "Real login and /me: ADMIN",
+      "result": "PASS",
+      "evidence": {
+        "id": 4,
+        "username": "demo_admin",
+        "role": "ADMIN",
+        "departmentId": 2
+      }
+    },
+    {
+      "name": "Final filter layout no document overflow 1366",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Final filter layout no document overflow 1024",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Final filter layout no document overflow 760",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Final desktop filters on second row with readable width",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Final layout search still works",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Read-only final layout review preserves canonical DB",
+      "result": "PASS",
+      "evidence": null
+    }
+  ],
+  "network": [
+    {
+      "method": "OPTIONS",
+      "path": "/api/auth/login",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/departments",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/departments",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/departments",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/accounts",
+      "status": 201
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts/46",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts/46",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/departments",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/accounts",
+      "status": 201
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts/47",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts/47",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/departments",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/accounts",
+      "status": 201
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts/48",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts/48",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/departments",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/accounts",
+      "status": 201
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts/49",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts/49",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts/49",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/departments",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/departments",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/departments",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/auth/login",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/equipment/1/maintenance-history",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/equipment/1/maintenance-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/equipment/4/maintenance-history",
+      "status": 403
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/equipment/4/maintenance-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/equipment/1/maintenance-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts/46",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts/46/deactivate",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/accounts/46/deactivate",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/equipment/1/maintenance-history",
+      "status": 401
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "status": 401
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts/46/activate",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/accounts/46/activate",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts/46/reset-password",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/accounts/46/reset-password",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "status": 401
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/departments",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts/46",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts/46",
+      "status": 200
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/accounts/46",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts/46",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/equipment/38/maintenance-history",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/equipment/38/maintenance-history",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/departments",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts/46",
+      "status": 200
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/admin/accounts/46",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts/46",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/departments"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts"
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/departments",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts/49",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts/49",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts/49/deactivate",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/accounts/49/deactivate",
+      "status": 409
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/departments",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/accounts",
+      "status": 409
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts/46",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/auth/login",
+      "status": 200
+    },
+    {
+      "method": "POST",
+      "path": "/api/auth/login",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/departments",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/departments",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/departments",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/departments",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/accounts/4",
+      "status": 200
+    },
+    {
+      "method": "OPTIONS",
+      "path": "/api/admin/accounts/4",
+      "status": 200
+    }
+  ],
+  "baseline": {
+    "counts": {
+      "department": 8,
+      "service_provider": 7,
+      "user_account": 15,
+      "equipment": 40,
+      "maintenance_coverage": 35,
+      "maintenance_plan": 8,
+      "maintenance_plan_item": 52,
+      "approval_request": 19,
+      "approval_action": 15,
+      "maintenance_execution": 30,
+      "maintenance_progress_log": 90,
+      "acceptance_record": 40,
+      "maintenance_report": 4,
+      "status_history": 240
+    },
+    "rows": 603,
+    "fingerprints": {
+      "department": "344b2a9ce14a58083dc4b35979f92f58",
+      "service_provider": "9ecd3f714e28fa8f6ce31fdf68e11a6f",
+      "user_account": "56e5c0fe9b1313953e17ce398c809137",
+      "equipment": "79f8759ea8622132981c21d648874487",
+      "maintenance_coverage": "6b37e9de5113d107a9b1162fa9ed0cc0",
+      "maintenance_plan": "eeb1ceb7d86023625c5aadb53633b126",
+      "maintenance_plan_item": "4ee7d488f577788862506a59f91ef43a",
+      "approval_request": "e92afc5893442eb969718b425c35ee4e",
+      "approval_action": "8e0dcf9919614e2da66c4c8ac9c4fa82",
+      "maintenance_execution": "211de515b307ea6f6476d5a7d053ff55",
+      "maintenance_progress_log": "04d2b9b4ad51bc7a1aac179d68a84e74",
+      "acceptance_record": "3d5f82b7c403370ee6ec0d8cacf17c86",
+      "maintenance_report": "01f60954bda4b58a6ac2c1f02f2ccb14",
+      "status_history": "0e2397c6c9cecf701e8faf2d5d87065f"
+    },
+    "schema": {
+      "columns": 117,
+      "tables": 14,
+      "foreign_keys": 31,
+      "migrations": [
+        {
+          "version": "001",
+          "description": "master data",
+          "success": true
+        },
+        {
+          "version": "002",
+          "description": "planning and coverage",
+          "success": true
+        },
+        {
+          "version": "003",
+          "description": "approval",
+          "success": true
+        },
+        {
+          "version": "004",
+          "description": "execution and acceptance",
+          "success": true
+        },
+        {
+          "version": "005",
+          "description": "report and history",
+          "success": true
+        },
+        {
+          "version": "006",
+          "description": "required indexes",
+          "success": true
+        }
+      ]
+    }
+  },
+  "chrome": "Chrome 154 (real headless Chrome, CDP)",
+  "started_at": "2026-09-28T17:09:56.518799+07:00",
+  "run_prefix": "SMOKE-V2-ADMIN-20260928170956-332049",
+  "created_accounts": [
+    {
+      "id": 46,
+      "username": "SMOKE-V2-ADMIN-20260928170956-332049-KHOA_PHONG"
+    },
+    {
+      "id": 47,
+      "username": "SMOKE-V2-ADMIN-20260928170956-332049-PHONG_VTYT"
+    },
+    {
+      "id": 48,
+      "username": "SMOKE-V2-ADMIN-20260928170956-332049-BAN_GIAM_DOC"
+    },
+    {
+      "id": 49,
+      "username": "SMOKE-V2-ADMIN-20260928170956-332049-ADMIN"
+    }
+  ],
+  "browser_result": "PASS",
+  "cleanup": {
+    "deleted_accounts": 4,
+    "exact_ids": [
+      46,
+      47,
+      48,
+      49
+    ],
+    "canonical_restored": true,
+    "baseline": {
+      "counts": {
+        "department": 8,
+        "service_provider": 7,
+        "user_account": 15,
+        "equipment": 40,
+        "maintenance_coverage": 35,
+        "maintenance_plan": 8,
+        "maintenance_plan_item": 52,
+        "approval_request": 19,
+        "approval_action": 15,
+        "maintenance_execution": 30,
+        "maintenance_progress_log": 90,
+        "acceptance_record": 40,
+        "maintenance_report": 4,
+        "status_history": 240
+      },
+      "rows": 603,
+      "fingerprints": {
+        "department": "344b2a9ce14a58083dc4b35979f92f58",
+        "service_provider": "9ecd3f714e28fa8f6ce31fdf68e11a6f",
+        "user_account": "56e5c0fe9b1313953e17ce398c809137",
+        "equipment": "79f8759ea8622132981c21d648874487",
+        "maintenance_coverage": "6b37e9de5113d107a9b1162fa9ed0cc0",
+        "maintenance_plan": "eeb1ceb7d86023625c5aadb53633b126",
+        "maintenance_plan_item": "4ee7d488f577788862506a59f91ef43a",
+        "approval_request": "e92afc5893442eb969718b425c35ee4e",
+        "approval_action": "8e0dcf9919614e2da66c4c8ac9c4fa82",
+        "maintenance_execution": "211de515b307ea6f6476d5a7d053ff55",
+        "maintenance_progress_log": "04d2b9b4ad51bc7a1aac179d68a84e74",
+        "acceptance_record": "3d5f82b7c403370ee6ec0d8cacf17c86",
+        "maintenance_report": "01f60954bda4b58a6ac2c1f02f2ccb14",
+        "status_history": "0e2397c6c9cecf701e8faf2d5d87065f"
+      },
+      "schema": {
+        "columns": 117,
+        "tables": 14,
+        "foreign_keys": 31,
+        "migrations": [
+          {
+            "version": "001",
+            "description": "master data",
+            "success": true
+          },
+          {
+            "version": "002",
+            "description": "planning and coverage",
+            "success": true
+          },
+          {
+            "version": "003",
+            "description": "approval",
+            "success": true
+          },
+          {
+            "version": "004",
+            "description": "execution and acceptance",
+            "success": true
+          },
+          {
+            "version": "005",
+            "description": "report and history",
+            "success": true
+          },
+          {
+            "version": "006",
+            "description": "required indexes",
+            "success": true
+          }
+        ]
+      }
+    }
+  },
+  "finished_at": "2026-09-28T17:26:17.621642+07:00",
+  "final_task_baseline": {
+    "counts": {
+      "department": 8,
+      "service_provider": 7,
+      "user_account": 15,
+      "equipment": 40,
+      "maintenance_coverage": 35,
+      "maintenance_plan": 8,
+      "maintenance_plan_item": 52,
+      "approval_request": 19,
+      "approval_action": 15,
+      "maintenance_execution": 30,
+      "maintenance_progress_log": 90,
+      "acceptance_record": 40,
+      "maintenance_report": 4,
+      "status_history": 240
+    },
+    "rows": 603,
+    "fingerprints": {
+      "department": "344b2a9ce14a58083dc4b35979f92f58",
+      "service_provider": "9ecd3f714e28fa8f6ce31fdf68e11a6f",
+      "user_account": "56e5c0fe9b1313953e17ce398c809137",
+      "equipment": "79f8759ea8622132981c21d648874487",
+      "maintenance_coverage": "6b37e9de5113d107a9b1162fa9ed0cc0",
+      "maintenance_plan": "eeb1ceb7d86023625c5aadb53633b126",
+      "maintenance_plan_item": "4ee7d488f577788862506a59f91ef43a",
+      "approval_request": "e92afc5893442eb969718b425c35ee4e",
+      "approval_action": "8e0dcf9919614e2da66c4c8ac9c4fa82",
+      "maintenance_execution": "211de515b307ea6f6476d5a7d053ff55",
+      "maintenance_progress_log": "04d2b9b4ad51bc7a1aac179d68a84e74",
+      "acceptance_record": "3d5f82b7c403370ee6ec0d8cacf17c86",
+      "maintenance_report": "01f60954bda4b58a6ac2c1f02f2ccb14",
+      "status_history": "0e2397c6c9cecf701e8faf2d5d87065f"
+    },
+    "schema": {
+      "columns": 117,
+      "tables": 14,
+      "foreign_keys": 31,
+      "migrations": [
+        {
+          "version": "001",
+          "description": "master data",
+          "success": true
+        },
+        {
+          "version": "002",
+          "description": "planning and coverage",
+          "success": true
+        },
+        {
+          "version": "003",
+          "description": "approval",
+          "success": true
+        },
+        {
+          "version": "004",
+          "description": "execution and acceptance",
+          "success": true
+        },
+        {
+          "version": "005",
+          "description": "report and history",
+          "success": true
+        },
+        {
+          "version": "006",
+          "description": "required indexes",
+          "success": true
+        }
+      ]
+    }
+  },
+  "matches_pre_implementation_baseline": true,
+  "runtime_regression": {
+    "cold_start": true,
+    "repeated_start": true,
+    "app_only_stop": true,
+    "restart": true,
+    "status_healthy": true,
+    "script_syntax": true,
+    "hmr_query_readiness": true,
+    "repeated_start_after_hmr": true
+  },
+  "regression": {
+    "frontend_build": "PASS",
+    "frontend_lint": "PASS",
+    "frontend_tests": 36,
+    "backend_tests": 103,
+    "backend_failures": 0,
+    "backend_errors": 0,
+    "backend_skips": 0
+  },
+  "final_secret_audit": "PASS",
+  "final_source_preservation": "PASS",
+  "v1_reverse_and_forward_patch_verified": true,
+  "manual_guide_blank_fields_verified": true,
+  "layout_review": {
+    "search_and_filters_separated": true,
+    "readable_desktop_filter_width": true,
+    "widths_without_document_overflow": [
+      1366,
+      1024,
+      760
+    ],
+    "canonical_only_read_review": true
+  },
+  "runtime_defects_fixed": [
+    "PostgreSQL inherited control lock FD",
+    "Vite HMR entry-point query rejected by readiness matcher"
+  ]
+}

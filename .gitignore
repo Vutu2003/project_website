@@ -1,0 +1,42 @@
+# Project-local development tools
+.toolchain/
+
+# Java and Maven
+target/
+*.class
+.mvn/timing.properties
+
+# Node and Vite
+node_modules/
+dist/
+coverage/
+.vite/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs and temporary files
+*.log
+logs/
+*.tmp
+*.swp
+
+# IDE and OS files
+.idea/
+.vscode/
+*.iml
+.project
+.classpath
+.settings/
+.DS_Store
+Thumbs.db
+
+# Private local PostgreSQL cluster for Phase 1.2
+.local-postgres/
+
+# Local Version 1 service PIDs and logs
+.local-run/

@@ -1,0 +1,15 @@
+package vn.edu.medmaintenance.persistence.enums;
+
+public enum PlanItemStatus {
+    PLANNED,
+    UNDER_CONTRACT,
+    PENDING_PROPOSAL,
+    WAITING_VENDOR_APPROVAL,
+    ASSIGNED_EXTERNAL,
+    IN_MAINTENANCE,
+    AWAITING_TECHNICAL_ACCEPTANCE,
+    AWAITING_HANDOVER,
+    COMPLETED,
+    REWORK_REQUIRED,
+    REPAIR_REQUIRED
+}

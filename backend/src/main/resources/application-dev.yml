@@ -1,0 +1,5 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:127.0.0.1}:${DB_PORT:55432}/${DB_NAME:medical_maintenance_backend_dev}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}

@@ -1,0 +1,1047 @@
+{
+  "phase": "5.3",
+  "checks": [
+    {
+      "name": "Stop leaves externally started apps untouched",
+      "result": "PASS",
+      "evidence": {
+        "command": [
+          "./scripts/stop-v1.sh"
+        ],
+        "exit_code": 0,
+        "output": "[INFO] frontend: no helper-owned process recorded.\n[INFO] backend: no helper-owned process recorded.\n[INFO] Port 5173 still has a process outside this helper; it was left untouched.\n[INFO] Port 8080 still has a process outside this helper; it was left untouched.\n[INFO] PostgreSQL kept running. Use --with-db to stop the project cluster too.\n"
+      }
+    },
+    {
+      "name": "External service still alive after helper stop: 8080",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "External service still alive after helper stop: 5173",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Existing audit services stopped gracefully",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "First one-command helper start",
+      "result": "PASS",
+      "evidence": {
+        "command": [
+          "./scripts/start-v1.sh"
+        ],
+        "exit_code": 0,
+        "output": "\nPostgreSQL : RUNNING — 127.0.0.1:55432\nBackend    : RUNNING — http://localhost:8080\nFrontend   : RUNNING — http://localhost:5173\n\nLogin:\nhttp://localhost:5173/login\n"
+      }
+    },
+    {
+      "name": "Idempotent second start",
+      "result": "PASS",
+      "evidence": {
+        "command": [
+          "./scripts/start-v1.sh"
+        ],
+        "exit_code": 0,
+        "output": "\nPostgreSQL : RUNNING — 127.0.0.1:55432\nBackend    : RUNNING — http://localhost:8080\nFrontend   : RUNNING — http://localhost:5173\n\nLogin:\nhttp://localhost:5173/login\n"
+      }
+    },
+    {
+      "name": "Second start retains exact PIDs and start times",
+      "result": "PASS",
+      "evidence": {
+        "backend": "72216 730866",
+        "frontend": "72561 731621"
+      }
+    },
+    {
+      "name": "Status all three services healthy",
+      "result": "PASS",
+      "evidence": {
+        "command": [
+          "./scripts/status-v1.sh"
+        ],
+        "exit_code": 0,
+        "output": "[OK] PostgreSQL : 127.0.0.1:55432\n[OK] Backend    : http://localhost:8080 (health UP)\n[OK] Frontend   : http://localhost:5173\n"
+      }
+    },
+    {
+      "name": "Detached helpers remain healthy after launcher exited",
+      "result": "PASS",
+      "evidence": {
+        "command": [
+          "./scripts/status-v1.sh"
+        ],
+        "exit_code": 0,
+        "output": "[OK] PostgreSQL : 127.0.0.1:55432\n[OK] Backend    : http://localhost:8080 (health UP)\n[OK] Frontend   : http://localhost:5173\n"
+      }
+    },
+    {
+      "name": "Browser login / JWT / me: vtyt",
+      "result": "PASS",
+      "evidence": {
+        "username": "demo_vtyt",
+        "role": "PHONG_VTYT",
+        "departmentId": 2
+      }
+    },
+    {
+      "name": "Managed stop succeeds",
+      "result": "PASS",
+      "evidence": {
+        "command": [
+          "./scripts/stop-v1.sh"
+        ],
+        "exit_code": 0,
+        "output": "[OK] frontend: stopped.\n[OK] backend: stopped.\n[INFO] PostgreSQL kept running. Use --with-db to stop the project cluster too.\n"
+      }
+    },
+    {
+      "name": "Managed ports stopped; PostgreSQL kept running",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Status accurately reports stopped app ports",
+      "result": "PASS",
+      "evidence": {
+        "command": [
+          "./scripts/status-v1.sh"
+        ],
+        "exit_code": 1,
+        "output": "[OK] PostgreSQL : 127.0.0.1:55432\n[DOWN] backend : port 8080\n[DOWN] frontend : port 5173\n"
+      }
+    },
+    {
+      "name": "Unmatched PID stop does not signal unrelated process",
+      "result": "PASS",
+      "evidence": {
+        "command": [
+          "./scripts/stop-v1.sh"
+        ],
+        "exit_code": 0,
+        "output": "[INFO] frontend: no helper-owned process recorded.\n[INFO] backend: stale/unmatched PID record; no process signaled.\n[INFO] PostgreSQL kept running. Use --with-db to stop the project cluster too.\n"
+      }
+    },
+    {
+      "name": "Unrelated sleep and original Chrome remain alive",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Start safely rejects unrelated occupied port 8080",
+      "result": "PASS",
+      "evidence": {
+        "command": [
+          "./scripts/start-v1.sh"
+        ],
+        "exit_code": 1,
+        "output": "[ERROR] Port 8080 is used by another process. It was left untouched.\n"
+      }
+    },
+    {
+      "name": "Unrelated listener kept alive; other app port not launched 8080",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Start safely rejects unrelated occupied port 5173",
+      "result": "PASS",
+      "evidence": {
+        "command": [
+          "./scripts/start-v1.sh"
+        ],
+        "exit_code": 1,
+        "output": "[ERROR] Port 5173 is used by another process. It was left untouched.\n"
+      }
+    },
+    {
+      "name": "Unrelated listener kept alive; other app port not launched 5173",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Start again after stop/conflict checks",
+      "result": "PASS",
+      "evidence": {
+        "command": [
+          "./scripts/start-v1.sh"
+        ],
+        "exit_code": 0,
+        "output": "\nPostgreSQL : RUNNING — 127.0.0.1:55432\nBackend    : RUNNING — http://localhost:8080\nFrontend   : RUNNING — http://localhost:5173\n\nLogin:\nhttp://localhost:5173/login\n"
+      }
+    },
+    {
+      "name": "Browser login / JWT / me: vtyt",
+      "result": "PASS",
+      "evidence": {
+        "username": "demo_vtyt",
+        "role": "PHONG_VTYT",
+        "departmentId": 2
+      }
+    },
+    {
+      "name": "Optional stop including only private project PostgreSQL",
+      "result": "PASS",
+      "evidence": {
+        "command": [
+          "./scripts/stop-v1.sh",
+          "--with-db"
+        ],
+        "exit_code": 0,
+        "output": "[OK] frontend: stopped.\n[OK] backend: stopped.\nwaiting for server to shut down.... done\nserver stopped\n[OK] Project PostgreSQL: stopped.\n"
+      }
+    },
+    {
+      "name": "Optional with-db stops all project ports",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Restart all layers after with-db",
+      "result": "PASS",
+      "evidence": {
+        "command": [
+          "./scripts/start-v1.sh"
+        ],
+        "exit_code": 0,
+        "output": "\nPostgreSQL : RUNNING — 127.0.0.1:55432\nBackend    : RUNNING — http://localhost:8080\nFrontend   : RUNNING — http://localhost:5173\n\nLogin:\nhttp://localhost:5173/login\n"
+      }
+    },
+    {
+      "name": "Final healthy runtime status",
+      "result": "PASS",
+      "evidence": {
+        "command": [
+          "./scripts/status-v1.sh"
+        ],
+        "exit_code": 0,
+        "output": "[OK] PostgreSQL : 127.0.0.1:55432\n[OK] Backend    : http://localhost:8080 (health UP)\n[OK] Frontend   : http://localhost:5173\n"
+      }
+    },
+    {
+      "name": "Browser login / JWT / me: vtyt",
+      "result": "PASS",
+      "evidence": {
+        "username": "demo_vtyt",
+        "role": "PHONG_VTYT",
+        "departmentId": 2
+      }
+    },
+    {
+      "name": "Logs and PIDs are ignored and private",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Browser login / JWT / me: vtyt",
+      "result": "PASS",
+      "evidence": {
+        "username": "demo_vtyt",
+        "role": "PHONG_VTYT",
+        "departmentId": 2
+      }
+    },
+    {
+      "name": "Fresh window/tab in same Chrome profile has empty sessionStorage",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Browser login / JWT / me: bgd",
+      "result": "PASS",
+      "evidence": {
+        "username": "demo_bgd",
+        "role": "BAN_GIAM_DOC",
+        "departmentId": null
+      }
+    },
+    {
+      "name": "Simultaneous VTYT/BGD windows keep independent tab credentials across refresh",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Opener window initially copies sessionStorage then changes independently",
+      "result": "PASS",
+      "evidence": {
+        "opened": true,
+        "copied": true,
+        "independent": true
+      }
+    },
+    {
+      "name": "Password retrieval filter selects only four real demo-login variables",
+      "result": "PASS",
+      "evidence": {
+        "variable_names": [
+          "DEMO_VTYT_PASSWORD",
+          "DEMO_BGD_PASSWORD",
+          "DEMO_KHOA_PASSWORD",
+          "DEMO_ADMIN_PASSWORD"
+        ]
+      }
+    },
+    {
+      "name": "Four demo accounts/roles/departments active in live PostgreSQL",
+      "result": "PASS",
+      "evidence": [
+        {
+          "id": 1,
+          "username": "demo_vtyt",
+          "role_code": "PHONG_VTYT",
+          "department_id": 2,
+          "department": "Phòng Vật tư Y tế",
+          "active": true
+        },
+        {
+          "id": 2,
+          "username": "demo_bgd",
+          "role_code": "BAN_GIAM_DOC",
+          "department_id": null,
+          "department": null,
+          "active": true
+        },
+        {
+          "id": 3,
+          "username": "demo_khoa_noi",
+          "role_code": "KHOA_PHONG",
+          "department_id": 1,
+          "department": "Khoa Nội",
+          "active": true
+        },
+        {
+          "id": 4,
+          "username": "demo_admin",
+          "role_code": "ADMIN",
+          "department_id": 2,
+          "department": "Phòng Vật tư Y tế",
+          "active": true
+        }
+      ]
+    },
+    {
+      "name": "Runtime tests did not change canonical business rows/schema/migrations",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Original frozen files unchanged except authorised gitignore extension",
+      "result": "PASS",
+      "evidence": [
+        ".gitignore"
+      ]
+    },
+    {
+      "name": "gitignore changed only by local-run ignore block",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Reviewed Phase5.1/5.2 artifacts preserved",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "local_v1_runtime_guide.md required sections and links",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "phase_5_3_local_runtime_multi_role_setup_report.md required sections and links",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Secret/JWT value scan: reports/version1/testing_v1/quick_commands.md",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Secret/JWT value scan: reports/version1/testing_v1/phase_5_3_validation_evidence.json",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Secret/JWT value scan: reports/version1/testing_v1/local_v1_runtime_guide.md",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Secret/JWT value scan: reports/version1/testing_v1/phase_5_3_local_runtime_multi_role_setup_report.md",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Secret/JWT value scan: scripts/v1-common.sh",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Secret/JWT value scan: scripts/start-v1.sh",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Secret/JWT value scan: scripts/status-v1.sh",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Secret/JWT value scan: scripts/stop-v1.sh",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Secret/JWT value scan: .local-run/backend.log",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Secret/JWT value scan: .local-run/frontend.pid",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Secret/JWT value scan: .local-run/control.lock",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Secret/JWT value scan: .local-run/postgres-setup.log",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Secret/JWT value scan: .local-run/frontend.log",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Secret/JWT value scan: .local-run/backend.pid",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Frontend does not inherit DB/JWT/demo secrets",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Backend does not inherit unneeded demo passwords",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Runtime files private",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Syntax checks pass",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "Status works outside repository directory",
+      "result": "PASS",
+      "evidence": null
+    },
+    {
+      "name": "No canonical business change and frontend regression passed",
+      "result": "PASS",
+      "evidence": {
+        "business_rows": 603,
+        "tables": 14,
+        "columns": 117,
+        "foreign_keys": 31,
+        "frontend_tests": 20
+      }
+    }
+  ],
+  "initial_source_hashes": {
+    ".editorconfig": "1c245779de4f094598edcce4cd400ef5d7de9c0cd0140f126663586b00d42267",
+    ".gitignore": "560da4d1650eb3406936ba7466e5497814446f3c917cdc7fbe2fbccf21a341df",
+    "README.md": "663e4aad2d8c840a49f2d539c140abb3d1f826ceada3974189493c3b520200dc",
+    "backend/.env.example": "f5fc40d985f0da229a9897ba0c9c1a0d31f1640caabbbf328cd7c40a6e42f9c9",
+    "backend/README.md": "6809d9885a6c9c8f96e81804b0c05c7b11093ad2e2fbf382792ec8937ce81d3a",
+    "backend/docs/api-foundation-guide.md": "826c43e461a96f45cb890e3cfe0056e48e570ff3abd42ad3526a1ca4b0835340",
+    "backend/docs/backend-architecture.md": "0c8c7675fd799f0f8ef76b80d9698dae0f9a17b239082cc204b9e0b357baa3d0",
+    "backend/docs/backend-business-freeze.md": "1a488b0778d00f805403249a3d8d66c983fea4161f8e3e8094ff2c65299b086d",
+    "backend/docs/demo-accounts.md": "2b84c0c4339e8adf8754e4c811c8b6df96f3d1ffaa0b08fe87485aba1617e8a9",
+    "backend/docs/execution-acceptance-workflow.md": "1e32396142d0266589815089a871f30236ff6480d8baa0830503600e1a6258b7",
+    "backend/docs/persistence-model.md": "2725f0862053253d6cc92ea6d028edf6d4d8ee14841cda34722abbe534b7d812",
+    "backend/docs/phase_3_handoff.md": "816cb76a295846b5c242c6c4e5410d1de9a5863949e25001d5e10cfc28c5627e",
+    "backend/docs/planning-approval-workflow.md": "aa3a7d791f0dbf73a37457a799c0899acecd8eaf237bbb6df099c439e6c17fb8",
+    "backend/docs/provider-routing-workflow.md": "9d8e65aee062489bb2ce498b67bfd7e17ead44e532db383e1877285522827ef6",
+    "backend/docs/reporting-history-workflow.md": "5a71b137ea2f201d3eb09db77912db2fec13bade5ec498d8b28d05720dcce968",
+    "backend/docs/repository-query-guide.md": "8cda24d79f7fd5c31da8bd8b175eedf1507ed229c85ac1c224f0a7a263cf21ac",
+    "backend/docs/security-guide.md": "494ba1184a2eca5c18a8f9e97439f6af69b84e4e843acc2415753dad112361b2",
+    "backend/pom.xml": "95d0a4bc3e4f61257a86170e3d8606c078f7477ec4c374a2c8cd6a3f2dbcd824",
+    "backend/scripts/reset-dev-db.sh": "f46fab479a7e76a9514f382e19863f62b10df344d0335ca3b4e55a4fbc644b3c",
+    "backend/scripts/seed-dev-db.sh": "6bdc2b33e86296dd285bc68adbe054f44971da0449c7c92fdeaf9e81322da547",
+    "backend/scripts/setup-demo-login.sh": "fec7bad73f3d5f6084961c875e3ac69dc9ddeb349271b0bab2038467ad49f6fc",
+    "backend/scripts/setup-dev-db.sh": "6f44fc2887e3464876163ff91493bfc3960df61a7d73bfc11db462760799b25c",
+    "backend/src/main/java/vn/edu/medmaintenance/MaintenanceApplication.java": "2a6d6bdee8c1a972c4ee61db7fde83e33acfe5d14eebc40c438dd7c2478a96c7",
+    "backend/src/main/java/vn/edu/medmaintenance/api/common/PageRequests.java": "523475b2fd25c94407f56728b1756359c4706fe8d1da59ff42606e37046976e5",
+    "backend/src/main/java/vn/edu/medmaintenance/api/controller/ApprovalController.java": "58f5b3e278ac3fc88a4904c5f8da4c7628815a00d6136eabaf04f38f76e93542",
+    "backend/src/main/java/vn/edu/medmaintenance/api/controller/EquipmentController.java": "d7aadb02a84386eda1abb297a54887cd4a576b5da31b032ec723e767c750c807",
+    "backend/src/main/java/vn/edu/medmaintenance/api/controller/EquipmentHistoryController.java": "f2d66a9a14ea8f702a89774dc26c97b1d849cecb9ce5e5bf61c519e6e7197ab1",
+    "backend/src/main/java/vn/edu/medmaintenance/api/controller/ExecutionAcceptanceController.java": "dbd100173a8cc6d191122071b495bff59a15fb8aae4a9f6e8ed74e1c79faba61",
+    "backend/src/main/java/vn/edu/medmaintenance/api/controller/MaintenanceReportController.java": "5201fb88e8b86a75f835c0912506c6920ec9730e3080a60a3c8a1a003a9bf4de",
+    "backend/src/main/java/vn/edu/medmaintenance/api/controller/PlanController.java": "6aaa8f5f86ab5a898595ec8e1d238387650f0687e24d561b1931b7a9bb6f49cf",
+    "backend/src/main/java/vn/edu/medmaintenance/api/controller/PlanItemCommandController.java": "2df4b54c23fa87645d2e6aa9cda2d510e391a7f74b6255347940f3e64ef16b72",
+    "backend/src/main/java/vn/edu/medmaintenance/api/controller/ReferenceController.java": "313b9f0d340d36dfb0a518c483d8addb61e0f02ca2c78a034a29fb5f8cfa24be",
+    "backend/src/main/java/vn/edu/medmaintenance/api/controller/VendorProposalController.java": "4cfcdf7c293883595be06c05c2fe472d1a3607e0414c4e0831bacb95b1215768",
+    "backend/src/main/java/vn/edu/medmaintenance/api/controller/WorkflowReadController.java": "da6fd1207c8855b493fd3f449b834a27a2f47b82e3648ac241b71250e3921792",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/request/CreatePlanRequest.java": "30f71af9ffac17cfe19c06d5608f1fff36910402a4581214da3bb69cae9cc8eb",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/request/CreateVendorProposalRequest.java": "f204b47242dd48191cc19811cfae671f1ff4da45e56ea19e4fbd3d5b15b69543",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/request/DecidePlanRequest.java": "f45e02d1cf7d60687a7bfbe29ad2390b27945896809204f4937402bdd222c442",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/request/EditPlanRequest.java": "c478144ec3c7218591b38e84e9e57630308efaf7e26573d94f9c636f7a2632f8",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/request/FinalizeReportRequest.java": "337c44029e2b873f0dc104911e76c6957e39c1dc4e8fbe4aee6468fea8846649",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/request/FinishExecutionRequest.java": "1b8e4d38f1bab3e732f4c7c018eab569fe22b2d4e116841529299a0f3c103046",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/request/HandoverRequest.java": "fe0cde4985ba6b95e2eb27a00712238864e26f7e26469019321f3ca596f074a0",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/request/PageQuery.java": "ab034cc3839146afb331fd060e10538006e2a94677829e6a6ffa53db050f0a12",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/request/PlanItemInput.java": "beb2bd26b2d47099893fc9a6a750e7ec1ff012057b5ef6d349fa45e5485db7f6",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/request/ProgressRequest.java": "c6623046a72a63d46528ca1cc133bc8c20c24f8fcb5d2651b85c8592bf1b2fe5",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/request/RepairHandoffRequest.java": "ef1167e3b1efe2e8460ec0626c042ef5c2d27a54c40bb84424ebeaa44fe76868",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/request/RouteItemRequest.java": "d5006a0799173ecbf12a81bf9c8f7e53dc28baa817b3fd12d9fe8fcf5b7a784f",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/request/SaveReportRequest.java": "d8b368036acfb4f5ccb453f967839641dcada2c39ae91ef16bec16ad2bbb8ade",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/request/StartExecutionRequest.java": "bfe60a96bce7b4f8a6bbd5b431fd0b0b1ba8981813e959b730c67ef0330327a3",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/request/SubmitPlanRequest.java": "59416579b9790f0ae306364b1ae41e3a4ebe8c856a1ed4b52a955faf7e953b8b",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/request/SubmitVendorProposalRequest.java": "a78516f1562e6477a87c6d1c4b031828ab4b91e2d9cbb47446a40e370ef329a5",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/request/TechnicalAcceptanceRequest.java": "3215b62bc8f5a8654078a792967a15840ccfea25054cb0c26019968bfaf15701",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/AcceptanceWorkflowResponse.java": "184efe57e95df5372cae55ea535f3a7b404de2772a139b778455043d8e0f2dc8",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/ApprovalDecisionResponse.java": "cf06c0b6fbbb562f66202dba916c632cc98824a6cd4b58421b7f3851da3725bd",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/ApprovalDecisionResult.java": "f32d17e511ecaedabfccc6279603f672a6e157e11333aaee1e112f4cb50948c1",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/ApprovalRequestResponse.java": "575434909c9c6b32215b75e6607432a2d9bca486a8398b2b9d0c85700ae2adc3",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/ApprovalReviewResponse.java": "f6a76c2b27de7b1e30d4f2954bed26fa8013833bf809332ba8f874e8618ad6f9",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/CoverageEvidenceResponse.java": "8ece855cb33165ca849ff4447415a2469bfa59937e1a3bfa28a4d701601abbfc",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/DepartmentResponse.java": "7890b79b4d3199b86bfe255c4956b1e7daf58e8cd9d69bff7ae1718b3e16cd91",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/EquipmentHistoryResponse.java": "6f995021fd7a9b478e8fcfeb1ce14f773b651d7ee60226d9ed4830e7b7f1cd9d",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/EquipmentResponse.java": "9bf836607e85ffcab10fba2e46995a0af43ce6cbecd38c40618281c2f580606e",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/ErrorResponse.java": "9b77f4312e1ccac18acdba6fffa7c43c1047104239c8dfe148d6a34de77878d3",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/ExecutionWorkflowResponse.java": "b38663dac059101d3821d5b54f25b7da82dd510a62008ceee45342a5a8519041",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/FieldErrorResponse.java": "694f38a42344e32dbb969a251f67e1727be00261a2dfa94e0f0e557a219d65c6",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/ItemWorkflowResponse.java": "8ad0c3ecdf0aa9476c6231b969505328d6062a83fdde9de04fe5af8b456dedc7",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/MaintenancePlanItemResponse.java": "635b6bc2779d6a9e8e3661a18b4d5c767dee52ecb91f8f4df32038485a975f70",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/MaintenancePlanResponse.java": "439bf6166ee3355464b673c31ac61bd665f82930b38f9c6ab8682e65c6195588",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/PageResponse.java": "fb7028d38d8bd3e2428294bba6657893cbbdcbfc679211cf287df019f07f75bb",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/PlanCommandResponse.java": "7f94dbbb7b3df77c1a887b9e158c125a6407f4b0cf9810482c8d17bf23420e66",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/ProgressResponse.java": "a65fc1613e0dfc959fbc282baad35efbb8a778e4cfa359dbb1ddd41e11e20f7e",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/ReportResponse.java": "c9f6aedc3126126639d23be638898246c0768e7bb24233b2cbac51d2277bd909",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/ServiceProviderResponse.java": "6039ac1702c66801c3e2d9581de85f9163d2ee980ecf1ced6e09b711d1d66b90",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/VendorProposalDraftResponse.java": "016c95f888129ec1fc87985e5db7b56c273b59f2f8a24854d2a396274327ecf5",
+    "backend/src/main/java/vn/edu/medmaintenance/api/exception/ApiExceptionHandler.java": "da858c0d356a2d102d4494a1c68b512a93a2454bca07b6623a4d395ab86e08ac",
+    "backend/src/main/java/vn/edu/medmaintenance/api/exception/InvalidParameterException.java": "a0a9dbe3a750c7aa54915b23d1279574ad3f294f9871ec293fdcc6610ce020e7",
+    "backend/src/main/java/vn/edu/medmaintenance/api/exception/ResourceNotFoundException.java": "e4ad105cfcffcb66cec1a57a34ddad75399ab7224cb0000de6be404f359e858b",
+    "backend/src/main/java/vn/edu/medmaintenance/api/mapper/ApprovalRequestMapper.java": "123530abd370154c6eeac76c3b659b519c2faf3d53b262af99dc59d3465f7b6b",
+    "backend/src/main/java/vn/edu/medmaintenance/api/mapper/DepartmentMapper.java": "43d2bbff63ef1b7d740f7fb585157eb0de1e3f8561efbe43b00cce3fde7bd8f0",
+    "backend/src/main/java/vn/edu/medmaintenance/api/mapper/EquipmentMapper.java": "87c4f7a259dcce5446aa9fc2ef429cb37895261ddbf26ef7e5ef9d6bd362b6ed",
+    "backend/src/main/java/vn/edu/medmaintenance/api/mapper/PlanMapper.java": "3cfbbb2dfcf12252138dc9c6726c8626cd7877d4e7b3c77a5640f351d2319357",
+    "backend/src/main/java/vn/edu/medmaintenance/api/mapper/ServiceProviderMapper.java": "8278377073aaabaf679930e9c87975f86fde4ba8a60bc02b1c03a8dbae87c002",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/entity/AcceptanceRecord.java": "5259ecc18b0ba072f90d99dd5eb64d831fd8ea0303bd9bfce3e96fa2cce3a240",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/entity/ApprovalAction.java": "0284ed4e4405a99373e589c674b0a63bc474f00364f8bcd67cc4a579c9bea9be",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/entity/ApprovalRequest.java": "4f27ccd0ba61793227551a72d81b1ba83d62c1705b506170fc45b639fea48438",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/entity/Department.java": "7488081ee4582f33c0185ace7411f23ed245418a78e7c58938461e7dd72e53b0",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/entity/Equipment.java": "9140857d119f317a3cd5d6350d8c49a37738f3a45c757d53e325a99faa5dc2f8",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/entity/MaintenanceCoverage.java": "66e173bdbdd50f44ddadcbd46a38dea351bf3aacb8151f9744a2e362a2357357",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/entity/MaintenanceExecution.java": "ca90fb7b5930126d4f21c199bb3486979f2190df2dd6f6dfadf9ed01a6a24156",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/entity/MaintenancePlan.java": "b3742f2ced44462a12e20f39bec1281cec03530430f1ccaf9a71b6f69aa92206",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/entity/MaintenancePlanItem.java": "a0119249b5e2bfc46b24d71a2ed0f8e7326ce39e09ec911963c0a80386a3d5e0",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/entity/MaintenanceProgressLog.java": "095c8b3c74a1bb11867bd0e6283477c44b8fdc157e3d9cdaf92a62116ee71fd1",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/entity/MaintenanceReport.java": "097120135bcfef9664c663f10b5fba8edf6841844dbfa702b9e1b755b2d3dad4",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/entity/ServiceProvider.java": "03313a59e1193de9cda02142192608d5171803c6911f6aa6993be7a696605f82",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/entity/StatusHistory.java": "e1979efa365b2697575eefac0d13ec20163c150d31eab2e1fd261b28591f6753",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/entity/UserAccount.java": "463ca48efe050fb3269a7810a5692a0a3f759cf33d7d9c0ea741680dc06dc859",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/enums/AcceptanceResult.java": "b2eb99edc51d94f5c80d2aedc5fea7d8989acbadc6e3078e4e29367c9085dd52",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/enums/AcceptanceType.java": "fb58127f970bab597972b100b296ae844b1b8834fecfae222cb760c91ab962bb",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/enums/ApprovalOutcome.java": "f2355a14ad7e7e97e269fb07e519e4607938957a295be580826f1b148c3b1183",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/enums/ApprovalRequestStatus.java": "f18c2adbd086c8168465d665918cd33dd5598a773eb5aa09e00a83484033f6f6",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/enums/ApprovalRequestType.java": "10e06a7878ded9c91c78eab82041742abb3067a5016f6855499ff7831e18ca62",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/enums/AssignmentRoute.java": "297b8b7fe6a2588d6c0829cc6ec76d154b4ced60edf68b2ad735e482a3b55fcd",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/enums/CoverageClassification.java": "4ec609e7ad5cf7fc62bd7a3c60c27bfef9e489bb08828cc942c7eb1a3fe53293",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/enums/PlanItemStatus.java": "ccf4e33e1240c3ec576a197fa281b9364c87c4996ff75018fdef2a09e3bfc78c",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/enums/PlanStatus.java": "b4e1e86e1b1f2cb8f703efd687778f74f058575ff61cf3e35eb8a5c5c757ac47",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/enums/ReportStatus.java": "b46c45fd95cc1d9dfb2e7f09d278ac8f5ad8b7aca4a9ee8365e51e6eedd38ef4",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/enums/UserRole.java": "e5ecd7527f46ec1f933e46d26fc61541699b13e8035b461f5278c3c272d4dc96",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/repository/AcceptanceRecordRepository.java": "f43826e1935b52e80dd3accb1841babccbb95e554462c3c282bd452995993ff4",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/repository/ApprovalActionRepository.java": "aa95bbb9c798f1fa8ec3a5c982db6a9d2117de3f355718d33331b1ed38d529eb",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/repository/ApprovalRequestRepository.java": "bc9a6207c697355b46db26053815d22bee079f7c6594a4def15459a2307257b4",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/repository/DepartmentRepository.java": "7c04b315ff1a1297e49df7ec1795e964021a30e49b79ddcf8cba64503b31ab96",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/repository/EquipmentRepository.java": "0b3c2c178e71fe1c0b0a863ac27aab61c366f6629df79fddff07a50d824bf641",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/repository/MaintenanceCoverageRepository.java": "e335aba9f84e56362d4ec464445d7d4f4250895c5a950cf6233d974988229b65",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/repository/MaintenanceExecutionRepository.java": "c7aaabd5c37d697bd213d48f55c35d3a772017cc95ba77834acab50a7b0aef57",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/repository/MaintenancePlanItemRepository.java": "246ab6b3af2f3bef0cda4f432f27b20da1cd7ed145b4c3217034487808d001cd",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/repository/MaintenancePlanRepository.java": "b5a572c0c674296fdb33d19c2e7e8f5d9e1120717aade90e2788ec3b81730bd3",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/repository/MaintenanceProgressLogRepository.java": "e4a381c2fda3cd9c0e354b989f9ba92f5ff9571f9a5bd90b4791e2adb535d1c6",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/repository/MaintenanceReportRepository.java": "3cc0fd8090c678bb6a323ffde16b23f1f9eb7bef085d0fe2c00e79240ce663e0",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/repository/ServiceProviderRepository.java": "9f7821784fdd960e36521c250c07e03e06b9f8fd346d4088c366adb223d25ca3",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/repository/StatusHistoryRepository.java": "a5a9af031473ac6f0bbb663eb23ae19533c9bf0c01e518d4f2e4755b10b45dee",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/repository/UserAccountRepository.java": "e55fb4ab1d758a55f966832625ae0ad94f0a109d57d4245ae03813747cf71644",
+    "backend/src/main/java/vn/edu/medmaintenance/security/auth/AuthenticatedUserResponse.java": "8f51ae635d743541da78eba6d8e809d59c0e4bebb2e32663606321bdab040d22",
+    "backend/src/main/java/vn/edu/medmaintenance/security/auth/AuthenticationController.java": "c850ca087782e9a206c7611f1043f9e17086a9e330fbbd743f1466d5650fcd01",
+    "backend/src/main/java/vn/edu/medmaintenance/security/auth/AuthenticationService.java": "50f2deaa725442726455350317ec771aab3b1f294785c2519c6d0b841b05523d",
+    "backend/src/main/java/vn/edu/medmaintenance/security/auth/InvalidCredentialsException.java": "f05e441b44f13b25506b888efefe18a5d9aa3e86e281d6675748056c11d8ca0e",
+    "backend/src/main/java/vn/edu/medmaintenance/security/auth/LoginRequest.java": "045814dcade0309acba6a93f94d2b2c1cc3ada5a93d93959c89d7c5d8196aabb",
+    "backend/src/main/java/vn/edu/medmaintenance/security/auth/LoginResponse.java": "622aef4aaa3aa8d37b385f91df1d2339860bd3ae7870ad1107a6f5a4535d5b65",
+    "backend/src/main/java/vn/edu/medmaintenance/security/auth/VtytCoSigner.java": "5c4036da01f2d9190b928a04331c107282e452ba886e501e30f19448981e2479",
+    "backend/src/main/java/vn/edu/medmaintenance/security/config/SecurityConfig.java": "e7f1c3f910ae7d4b92d32a94ac2bb7f949824e15b54d946251913f5f9a6466d4",
+    "backend/src/main/java/vn/edu/medmaintenance/security/exception/SecurityErrorWriter.java": "cabb4923f9d63ed2b3a56ed24d26ce0b7ae825976df4a0af72b0a7cee734e5dd",
+    "backend/src/main/java/vn/edu/medmaintenance/security/jwt/JwtAuthenticationFilter.java": "afbade826aa1e30564c22de0f8827fe93187145f91805fe1baa5c6adfddd0ee1",
+    "backend/src/main/java/vn/edu/medmaintenance/security/jwt/JwtService.java": "9d922de97485b54645e985d21e46c4fb08e31dced67e614ea5f09c77e2327a96",
+    "backend/src/main/java/vn/edu/medmaintenance/security/principal/AuthenticatedUser.java": "6e05e7e3f872e8549360072e5f9b736dab9924a12cb382ee3d8376b89604c3bb",
+    "backend/src/main/java/vn/edu/medmaintenance/security/principal/CurrentUser.java": "d850554d95d41258ab8c235b55b9a3df49278b0f2ea037bedc7cfb2c6b3d5c1a",
+    "backend/src/main/java/vn/edu/medmaintenance/service/ApprovalDecisionFacade.java": "3d10f9195e7827145dc14d528b5d91eb125bc837590f4502fb2d392ec0f39956",
+    "backend/src/main/java/vn/edu/medmaintenance/service/BusinessRuleException.java": "65f0367ad5fe2293a5efb15f56f30c06c24d82385e31eb9af6629956f14f5fef",
+    "backend/src/main/java/vn/edu/medmaintenance/service/EquipmentHistoryService.java": "11df30a8994881c75274a5e253d67fd1fa602e2104fa9eb59a3d1f6ff105880b",
+    "backend/src/main/java/vn/edu/medmaintenance/service/ExecutionAcceptanceService.java": "b7f700997ab6c7823b38bdd86a8724efbb72e743b9fda269766a87cc03b0f2f6",
+    "backend/src/main/java/vn/edu/medmaintenance/service/MaintenanceAssignmentService.java": "1c564210466494c1dc09dc8622e03703bf307611a40b45851d206bb964ee58d8",
+    "backend/src/main/java/vn/edu/medmaintenance/service/MaintenanceReportService.java": "11f0406e6864001aca9312e3d260ddcb0fc7f5cd4c224c23a703c229739d2ecd",
+    "backend/src/main/java/vn/edu/medmaintenance/service/PlanApprovalService.java": "17c8ec6b121c3e710f19fd01e6156cd436d932d9532b1b24cb68b90ee1c40e08",
+    "backend/src/main/java/vn/edu/medmaintenance/service/PlanningService.java": "1f4413935c54786a46f445bc08ce442ddf6a1027ab5c6b7e848ce0aa868d7e9a",
+    "backend/src/main/java/vn/edu/medmaintenance/service/WorkflowHistory.java": "863f779456200f2e498e25f25b84d1fc7ea525295afbe72674c809ec4a7a0fa7",
+    "backend/src/main/java/vn/edu/medmaintenance/service/WorkflowReadService.java": "0678114b3d7ef2802b2ff55d88fca2e3fd7036ddfa145ba1ab13056985bb5a51",
+    "backend/src/main/resources/application-dev.yml": "b611c3afc48407ff538a573e0948620fd9a0c9eeb03f8e0e39ff0c72aaa01f3d",
+    "backend/src/main/resources/application.yml": "5bd3f15ae7fa952866b79dc32edd6d5691b20afcb4cd6c74df6b5c1b2bc12114",
+    "backend/src/test/java/vn/edu/medmaintenance/BackendFoundationIntegrationTest.java": "46ed3c37f6a24aeda77b749b4c9e65946e96b395d8e34a3c7583abbfd8690527",
+    "backend/src/test/java/vn/edu/medmaintenance/PersistenceMappingAuditTest.java": "81077413aabc58cbee2cd2b3a964f87aa49bcbed265bf05f55255aa6c5830e0d",
+    "backend/src/test/java/vn/edu/medmaintenance/PersistenceSmokeTest.java": "72f785100cb57047742f18b43dacc746637bda56e70dc927a5074cd3e883deef",
+    "backend/src/test/java/vn/edu/medmaintenance/api/ApiExceptionHandlerTest.java": "857ae32c4c876bb940870775d1de0b4ac66e786294dd6d04367495d991e14de6",
+    "backend/src/test/java/vn/edu/medmaintenance/api/ApiIntegrationTest.java": "c43517c576b72bcb76d08fcbf74d6892749297ea88d723510d1fa47a7511c4b2",
+    "backend/src/test/java/vn/edu/medmaintenance/api/ApiQueryAuditTest.java": "6b9f3ccaad8d26ab21a1c72a30e53ef4d11b51c918a4d7d4f07b04491fca7ddd",
+    "backend/src/test/java/vn/edu/medmaintenance/persistence/repository/RepositoryIntegrationTest.java": "ae75c4c3e21c9b38f65cc6f7bcfc4c439b8cb1f6cbd2525303a6a7f79a395149",
+    "backend/src/test/java/vn/edu/medmaintenance/persistence/repository/RepositoryQueryAuditTest.java": "4875e55f92ef246431f58f328ce390d1169cca15fdcebc21ec2520aaf4570131",
+    "backend/src/test/java/vn/edu/medmaintenance/security/CorsIntegrationTest.java": "3a9d5c4652dae472ca9a92f088c41219b44c1408864e47b5fae931e2aaf80563",
+    "backend/src/test/java/vn/edu/medmaintenance/security/SecurityIntegrationTest.java": "9c97d52c26cbb08e89b07c8eddb536964d7d24dcdc7457f0ac3d77d4eb79e6e1",
+    "backend/src/test/java/vn/edu/medmaintenance/security/WorkflowReadIntegrationTest.java": "8ea3a06946de87476c2ec37475e238f367eac6e3408ec13637f804e0134951a5",
+    "backend/src/test/java/vn/edu/medmaintenance/service/BackendBusinessFinalIntegrationTest.java": "4b5cd8329e636e7b6f5c8a3a9f91b5a8b6bbc74cced171d301b217972c5a6377",
+    "backend/src/test/java/vn/edu/medmaintenance/service/ExecutionAcceptanceIntegrationTest.java": "9fa000e85132eedcd39f2a107053771d791e8c005bd7500317f7ccdad9440518",
+    "backend/src/test/java/vn/edu/medmaintenance/service/PlanningApprovalIntegrationTest.java": "0706b47cdf31d3dad52b0cee9f269002675870e78a5defb32049e304ca59ebb2",
+    "backend/src/test/java/vn/edu/medmaintenance/service/ProviderRoutingIntegrationTest.java": "0508af8bd9cd8334c8dd05a6ef15e8ec457f69e1f94185b8524b2b67f3033d91",
+    "database/README.md": "d44ac92189cb3a0c1036ef71155259aa5f6b4ee2e8e05aede79307ce899ecf9a",
+    "database/implementation_traceability.md": "32f88f6d36cddf40fbbb196d4c821f10d3376d2512dcbbb968048fad5c99ab02",
+    "database/migrations/V001__master_data.sql": "7c3ed225163cdf11f97733bc5c5964473f47bb80531cb6756716b9a1886e0966",
+    "database/migrations/V002__planning_and_coverage.sql": "7d728322bf9e97a86a25361a897315fa52951781714005daf19ae490974a7b52",
+    "database/migrations/V003__approval.sql": "e59c9909ffd0e2925155ff3020921708d9d9884bfe4875d21fc4a423ea218675",
+    "database/migrations/V004__execution_and_acceptance.sql": "c4cff4993ea088e7bb25531a4647958e293b304537979e81df1b95b31206c837",
+    "database/migrations/V005__report_and_history.sql": "175e13596e6d3d5b7dd6bf670510147ecd3d5b5789d4f297b0a3bc8f8e61aeb1",
+    "database/migrations/V006__required_indexes.sql": "8b54badd3a6f2cfb260f66c8d870d8d902edb09567ed84571fb5b3eb2414cd93",
+    "database/scripts/common.sh": "93b84231167ebb25147223deffa5575e1615d18b95a2fa55382a52aeef52f980",
+    "database/scripts/create_database.sh": "7301ac07ec47947ed5e62f4d65da2d02d661700fb1a325228571c23b5a77fb84",
+    "database/scripts/drop_database.sh": "7c61e405433af9dd4901327acb0f31e6402efcf5d6cf79bd161beb26837dc617",
+    "database/scripts/migrate.sh": "aa1335983773dc95043828d7ab5b61490ff92f06931837ca0de66d65edb96078",
+    "database/scripts/reset_database.sh": "5a94a0ffd89171fdce16fe38be663ad8efb27ab631087a3ec6b7a24a390204b0",
+    "database/scripts/seed.sh": "0de42555de8ba11b3ef36033bb4b4ee33a40b534d4a78b69a08f55db2960c2da",
+    "database/scripts/validate_demo_data.sh": "e5145b39734107814a70542acd5f4888c6403f4406c51c3e0381e4a5ffe5764c",
+    "database/scripts/verify_database.sh": "1d706e135b1a19949845647356b5811b8378e039eb8be2aefb850a51bcd1184f",
+    "database/seeds/01_master_reference.sql": "83dc9ad3bea846f4dc1283a66f97d042cfb0366a1ee0e160930b6777a1a3c6ed",
+    "database/seeds/02_equipment_coverage.sql": "df0b5ebb8f8f608f7e4b002d8f9f7ad676237107adbc793f600beaaa29004880",
+    "database/seeds/03_plans_and_items.sql": "3be0c405e9ff24e2736adc9ab8206660db24524ec9870445daebb144875123b7",
+    "database/seeds/04_approvals.sql": "21a8ad2d75490a6eec5c184863fb380fe30d5b9661b6fa80bd10d0c0cb7bcca8",
+    "database/seeds/05_execution_and_acceptance.sql": "60970727ac78bd0f32c8591269759d7ced08c8f1208449c37389ba1d6f5b64b8",
+    "database/seeds/06_reports_and_history.sql": "8d9db15936eb33ea31fb1d7542c08b00ce5f622990bdfbef7973b007ce1d91ad",
+    "database/seeds/README.md": "2ec2732a22f0646dba0c0124772ea68956036b8d2bbf333d8c97cae1ff063bc6",
+    "database/seeds/build_demo_seed.py": "0a9915ba90b06b398715244e34a04beb52dd30e3b3790e855c5796664a1a0bd4",
+    "database/seeds/data_sources.md": "743c1f9b86e877d41343f98e86b4d3f9f43e3efaa6f1d2e7e478acbba414de46",
+    "database/seeds/dataset_catalog.md": "bb42d6337abb598325c4861aa02402d7f2733652bd7e38e79708b57757b0d6fe",
+    "database/seeds/demo_scenarios.md": "a9b35f8e995d70b02739174cc3874c6dfcae9493324f64eff4ce89d61d9fcccc",
+    "database/tests/audit_schema.py": "162e6f2a6f63a5f20938d9c78aab9b92bcd4cbf08149db7ae91c1ef6beaf1811",
+    "database/tests/demo_queries.sql": "0f8f5174a64fffd176a1c2451930c98d6cbf33237e7a08b50d2245e0cae542ab",
+    "database/tests/validate_demo_data.sql": "d2c02268442a08762d8d6fffc07a3767d3ad5f41b3db44d30adfb61dee0343a3",
+    "database/tests/verify.sql": "42c116aa398322d1fef7e746c6f5edf42251bab080c98e4edd0828a86174eaa2",
+    "frontend/.env.example": "5df43efa989ffa4f3b57cf9247cb883b23c8f4a08e5a7971341c2b6ca7824001",
+    "frontend/README.md": "e429767aa964f03f8d163bf485af42fdf5e1beeabd2c86d3bd11e886d79ec5e9",
+    "frontend/docs/execution-acceptance-ui.md": "38e9ba504743bb5f14600760b052e912c629de638129a16e78ffdd690c424532",
+    "frontend/docs/frontend-v1-freeze.md": "a2c911710f2c815dc96ac8fc47d2750b9de1bd8609ec20a95c68b86e3162251e",
+    "frontend/docs/planning-provider-ui.md": "7708be88e8b0264a4b296ad1024a3c2225af9528555d64672ab4a13d92ea30d8",
+    "frontend/docs/reporting-history-ui.md": "4f0b643ad15c3cc9d99217a655d03388440a03a0bcb36195dec15521a6aab278",
+    "frontend/eslint.config.js": "b3e52656f5ab8d35e53eb8987af0087d4a2dbaab023eef65159be8c81f0c0ffe",
+    "frontend/index.html": "9e84bb2f09f48d6d672522d38814cb020068da57195285bc6d273f01bea5eab3",
+    "frontend/package-lock.json": "5f5560d09d5b4a49b62703e49c736d6ea7416b4999bcd3c53b1f68f89ddd00a9",
+    "frontend/package.json": "21be61642bc39a2594395008df6b675015941b22015d1fc23927b5f47cd97b3a",
+    "frontend/src/App.tsx": "206b3b85a52d5c491ed5c28ec22a7f6483e6b5454e6e8f5fda84ad250a84001f",
+    "frontend/src/api/acceptancesApi.ts": "7489781fddb7e01145e64c7722b10ab5a83673844a2b0216a99122cf6ae6ad7a",
+    "frontend/src/api/approvalsApi.ts": "e568f492f99712536e19610b5543cecf05acd27f0741275e03d9591cb8a4ddaf",
+    "frontend/src/api/authApi.ts": "e36c6dfd5e05e6575a0b55b9ccb0c65950bd319e91955bdd2ed23a099863624a",
+    "frontend/src/api/client.test.ts": "01cc1ced634c15cf8d9ab74be5a2b4774f941dfee1df6d7d9781bf4dbb8598bd",
+    "frontend/src/api/client.ts": "a1d94482f4676d816625287fdddef12008f48b547cbc47a09141cce15608b0ff",
+    "frontend/src/api/departmentsApi.ts": "183547060fbc79885bd568a40bfc0b8742f8824628bc92ba944f48d221f3f890",
+    "frontend/src/api/equipmentApi.ts": "6c093889fa8901c8cb66484ad2610f06730e5c10e1083328c834c876035596c2",
+    "frontend/src/api/executionApi.test.ts": "497f5acaf906fc1e85e6058a7df2b8642488818a02fffe8d0056c3f4eb16eba7",
+    "frontend/src/api/executionsApi.ts": "b978bba3132abb9d244b6177bb18a99601b3b4525b0bcd1fa1622ddfd61c9dd4",
+    "frontend/src/api/historyApi.ts": "5814b7bbc6529c9db9d935d2285b5f21919acf870aea891ee6b6b8c16467862d",
+    "frontend/src/api/plansApi.ts": "a5602d4b98298406ee7e22970943aa383a2a5135fbb152be58f198769b4769b7",
+    "frontend/src/api/providersApi.ts": "a33d0c64a03cfaba0550c0675ef5521c7b7bbeb1ac359fe6103c9cecaa743c76",
+    "frontend/src/api/reportHistoryApi.test.ts": "8bc9976881411ad84275bdcf7535007d9eeedbed57e6750077d2b51d19503072",
+    "frontend/src/api/reportsApi.ts": "652870337fdd5474ef8ff290e2c4c1f53fe385fc093d0582c688522031456366",
+    "frontend/src/api/types.ts": "a07294713c72c8cc3148c10e98ae61cce768a6ba045b36b577f42948b4834689",
+    "frontend/src/api/workflowApi.test.ts": "82dc02e3138ae8e171bab32803fa55536ed4f7ce838a86843532263521e7deb4",
+    "frontend/src/auth/AuthContext.ts": "11381f0a86d63ad5900c7e21b0009032a071a90ee580bae8908f0e36daccf396",
+    "frontend/src/auth/AuthProvider.tsx": "51b040ab391bfbb492bd94dcd83c305bb6dfb7e311a732825f31c720ef39022b",
+    "frontend/src/auth/ProtectedRoute.tsx": "89c4e28547a098d91d138f67a4381ef210e3ef79d9c10126788059965324ad7f",
+    "frontend/src/auth/RoleGuard.tsx": "d27095192197eb53a5757a48d53d6df95fc8dd3d1f045a0c4340b5b25012dbfe",
+    "frontend/src/auth/authStorage.ts": "7fc2c94a23ad696fcc5798663d9309a6503b07f536f9c61556ac072e8cfc03b8",
+    "frontend/src/auth/useAuth.ts": "940b39fd9c088d3f56e8650bd1e66aa4774ccd4f348266dcc2cabd361660dce2",
+    "frontend/src/components/AttemptHistory.test.tsx": "29d1f7282c319b145da6c085639f198c887d5109f3bb6c75655e3dedabd2ed14",
+    "frontend/src/components/AttemptHistory.tsx": "baae41fbe4be0ec8b1b2d06b1724c2e39bec790d976c6b475a096ca5341bc69c",
+    "frontend/src/components/ErrorBoundary.tsx": "505920cc3153ad661a83fd8652225f3ae1469b43f9f0c836a06fe83468e46540",
+    "frontend/src/components/LoadingState.tsx": "368eba299e3c8a609a8b54a743bfbfde84a21f46692dac7f471d9162721707bc",
+    "frontend/src/components/Pagination.tsx": "7dad242e14a235bc7464db7e0da0cd632f2fe1148515d73346fe14e4fc5329c4",
+    "frontend/src/components/StatusBadge.tsx": "acbe51f66682cff73c08c5eaec36b42ab629b11254cf318a68f9b3a97ed4448e",
+    "frontend/src/components/WorkflowFeedback.test.tsx": "c73bb75fd7e11b3b8f9f537852f93be460ee237d3acbb1874bc4ec5d265273a3",
+    "frontend/src/components/WorkflowFeedback.tsx": "d1ffcb6ba916c7c765a1560345482b761f361823afd9734eefb529b6b280678b",
+    "frontend/src/layouts/AppLayout.tsx": "0ae786f8bb31d23ac95fb2c569090ef68920532468e4fae98ca0044d4d705ac6",
+    "frontend/src/main.tsx": "c10c160dd10642e6b67dba37e4d78924cdf2e8231c334c1b64fa7ee5d1593452",
+    "frontend/src/pages/ApprovalDetailPage.tsx": "07a8e353cfaa9ebf0a78fce81882cc2e7d042af8fa33e975961a6d4d94f52f23",
+    "frontend/src/pages/ApprovalQueuePage.tsx": "4acffcdc64106d12e7052cd825c97bb77da57201bee2d767dc67fab7474b2621",
+    "frontend/src/pages/DashboardPage.tsx": "e4ac52f68c87b55e26fa124378a0844b515c1cbedcb1f4689e39927af215bc80",
+    "frontend/src/pages/EquipmentHistoryPage.tsx": "efd4666e8884621bdc5778021826fe252b3b42ea4a38f5f6ba0e5636254349f6",
+    "frontend/src/pages/EquipmentListPage.tsx": "24c2d48e35d1298e65474810a66c2ddf14084b66e49ff4e8c5076b4e0356e14c",
+    "frontend/src/pages/ExecutionItemPage.tsx": "bbe420ff69ffd05d1fe490f7d9b3494cd7cadb500fd178c7706e80d6cc77a489",
+    "frontend/src/pages/ExecutionQueuePage.tsx": "70def2f2a575537935409e7b648fd0f133fea2aa266099da2686cf8386e0b602",
+    "frontend/src/pages/LoginPage.tsx": "c63bdb73cb3a5f16369686050c56d9f28a34bceb9d5cea7f19e11c5b9008c197",
+    "frontend/src/pages/PlaceholderPage.tsx": "48294f2fd7402d7200205f64e2933544da56c9f2ec8c42627af0da039be5d740",
+    "frontend/src/pages/PlanDetailPage.tsx": "f67c735b18578aba170fa9ccba2ce9032037bc9ef6855bda95f4ca3b121e187a",
+    "frontend/src/pages/PlanFormPage.tsx": "fa8b91273f44a848e0fb6e98415ef9732295ef4e3ad74227d76d7e11fecf79bf",
+    "frontend/src/pages/PlanListPage.tsx": "e99ace798f6a45b56997723cb6eaf9b76e69a68eb869fef13ffc2d2951938869",
+    "frontend/src/pages/ReportDetailPage.tsx": "767cb40fe2559494d5a7a6fa269be6fd55ea588a1d0279129cfd513b58d17c2e",
+    "frontend/src/pages/ReportListPage.tsx": "7c51ae2dffcf97abf15d863a650e1f68b4774df2a9c5b30227c03d75a6efb295",
+    "frontend/src/pages/ReportingHistoryPage.test.tsx": "9303cf1204d5a84ec68c0fd22b5f999269fe512b1fc4adb7a0580a6fb94667fa",
+    "frontend/src/routes/navigation.ts": "f70c9e747c9fc9deff62150f7fecd8e558137672d3be8ac48e785f422d382221",
+    "frontend/src/styles.css": "0a2e71f7de34725a076619f21c0b86e06088c7b42f9f58cfb12b788e89a047b5",
+    "frontend/src/types/auth.ts": "269829e1fec55f94a8433d65f1b8f032ba3cf920115f674a33019cac2b2d51f5",
+    "frontend/src/types/execution.ts": "cda05b540c7bde10340ce867a7f7bb649d9406f11ae81dae6c497b104e8cbca8",
+    "frontend/src/types/report.ts": "220f62d8d12613411b825ab15bfd9fd22743451f013e042892993c1240406d94",
+    "frontend/src/types/workflow.ts": "d7e4c7fe79689519fd5d9d9d9344a54847d9c3db53cb7a2236caf8514fee11c9",
+    "frontend/src/utils/UserInputError.ts": "5befb7f38f34a560af1b32d4ca95509d0873804322647bb6ab5a156a7f430aa8",
+    "frontend/src/utils/attempts.ts": "f69e1fd09882efa9964ec0d9eec39f0bfac9092e2e776519b3b1e5814aa59750",
+    "frontend/src/utils/errorMessages.ts": "e8d32cc6107dac26f1845798c2a8c25127863a0c4fb86a872574fb9bf6a9215d",
+    "frontend/src/utils/roleLabels.ts": "68ebbfdd366cf361df3410107cb7575a33983c897cdce9807bb27f1e6cfcf151",
+    "frontend/src/utils/workflowLabels.test.ts": "f66e9e3decd42ff671528baec34b2a11255041660a9d03f44bac3b10af589a8d",
+    "frontend/src/utils/workflowLabels.ts": "039d207c7e44774e388d0dd199694f6ab8034fcdf87450fc3b804f34b92f9a2b",
+    "frontend/src/vite-env.d.ts": "65996936fbb042915f7b74a200fcdde7e410f32a669b1ab9597cfaa4b0faddb5",
+    "frontend/tsconfig.app.json": "b1155a1bda8d96920c52165d95a20b83f2416cb6a7fa2d1d4edf796ea37358f5",
+    "frontend/tsconfig.json": "e8d6f7b50828db3953e21c7e92584f9206b3cd2551b4012507372afbb7fe9ce3",
+    "frontend/tsconfig.node.json": "6bf5a8fa931bd3818deacdeb1706f31f45f68b35fef39e7dfb49f121ef4c29a9",
+    "frontend/vite.config.ts": "e4e4d2474e677fe87c7ee0951b95653657aae5f28a39aad9ab1e2bbfdbd3d225",
+    "scripts/setup-toolchain.sh": "7c829b1df8ae3be9e4328cc943bf70de8468467097985faba67e6271f5cb414a",
+    "scripts/use-toolchain.sh": "ca6ba8e95850d00df5f95388db631a2b3db17299dc587055095fd0e94e9e95cb"
+  },
+  "reviewed_integration_hashes": {
+    "reports/version1/integration/version1_source_freeze_manifest.json": "f22f9baf37103e53234a1375d671b02a512691287a3405111070a7d6bd7ffbae",
+    "reports/version1/integration/verify_phase_5_2.py": "04948d377de730a00355a8ab15859c16f40d035d623330a25dde4cd4fb698913",
+    "reports/version1/integration/phase_5_1_integration_audit.md": "9cb36817c6b3e7752bd8f4f02a088f770ff6215dcc1a151bbd5b6903f1fa7c03",
+    "reports/version1/integration/phase_5_1_full_system_integration_report.md": "d252f62f26b4b926a024e07c6e110c5e9158dc79b589d4fb46e87317f433ba8b",
+    "reports/version1/integration/verify_phase_5_1.py": "ed22b1cd9973fb8e82d18f50075adb513d48b625a7c132915551b0d0be8cefa2",
+    "reports/version1/integration/version1_integration_freeze.md": "eba2693f12d908769d7ca03965bac10120bc2674578ca33c884926aae2af95d0",
+    "reports/version1/integration/phase_5_2_integration_regression_v1_freeze_report.md": "37ac13e46ffc5385600f7076dd373bf8751c95336590aa3c0626bece84283f8e",
+    "reports/version1/integration/phase_5_2_evidence.json": "e69a48528b94323c8576c3f0a7157609a7afe51a2063a5c585ff1721eef38484",
+    "reports/version1/integration/phase_5_1_evidence.json": "8fa96de0cd9c682b8c360d07e9fc1693dfc5df130cc5dc7eb996326df03f0ce8"
+  },
+  "allowed_existing_file_changes": [
+    ".gitignore"
+  ],
+  "first_managed_pids": {
+    "backend": "72216 730866",
+    "frontend": "72561 731621"
+  },
+  "network": [
+    {
+      "path": "/api/auth/me",
+      "method": "GET",
+      "authorization": true,
+      "secondary_authorization": false,
+      "status": 200
+    },
+    {
+      "path": "/api/auth/login",
+      "method": "POST",
+      "authorization": false,
+      "secondary_authorization": false,
+      "status": 200
+    },
+    {
+      "path": "/api/auth/me",
+      "method": "GET",
+      "authorization": true,
+      "secondary_authorization": false,
+      "status": 200
+    },
+    {
+      "path": "/api/auth/me",
+      "method": "GET",
+      "authorization": true,
+      "secondary_authorization": false,
+      "status": 200
+    },
+    {
+      "path": "/api/auth/login",
+      "method": "POST",
+      "authorization": false,
+      "secondary_authorization": false,
+      "status": 200
+    },
+    {
+      "path": "/api/auth/me",
+      "method": "GET",
+      "authorization": true,
+      "secondary_authorization": false,
+      "status": 200
+    },
+    {
+      "path": "/api/auth/me",
+      "method": "GET",
+      "authorization": true,
+      "secondary_authorization": false,
+      "status": 200
+    },
+    {
+      "path": "/api/auth/login",
+      "method": "POST",
+      "authorization": false,
+      "secondary_authorization": false,
+      "status": 200
+    },
+    {
+      "path": "/api/auth/me",
+      "method": "GET",
+      "authorization": true,
+      "secondary_authorization": false,
+      "status": 200
+    },
+    {
+      "path": "/api/auth/me",
+      "method": "GET",
+      "authorization": true,
+      "secondary_authorization": false,
+      "status": 200
+    },
+    {
+      "path": "/api/auth/login",
+      "method": "POST",
+      "authorization": false,
+      "secondary_authorization": false,
+      "status": 200
+    },
+    {
+      "path": "/api/auth/me",
+      "method": "GET",
+      "authorization": true,
+      "secondary_authorization": false,
+      "status": 200
+    },
+    {
+      "path": "/api/auth/login",
+      "method": "POST",
+      "authorization": false,
+      "secondary_authorization": false,
+      "status": 200
+    },
+    {
+      "path": "/api/auth/me",
+      "method": "GET",
+      "authorization": true,
+      "secondary_authorization": false,
+      "status": 200
+    },
+    {
+      "path": "/api/auth/me",
+      "method": "GET",
+      "authorization": true,
+      "secondary_authorization": false,
+      "status": 200
+    },
+    {
+      "path": "/api/auth/me",
+      "method": "GET",
+      "authorization": true,
+      "secondary_authorization": false,
+      "status": 200
+    }
+  ],
+  "navigation": {
+    "vtyt": [
+      {
+        "text": "Tổng quan",
+        "path": "/"
+      },
+      {
+        "text": "Kế hoạch bảo trì",
+        "path": "/plans"
+      },
+      {
+        "text": "Thực hiện bảo trì",
+        "path": "/execution"
+      },
+      {
+        "text": "Báo cáo",
+        "path": "/reports"
+      },
+      {
+        "text": "Thiết bị & lịch sử",
+        "path": "/equipment"
+      }
+    ],
+    "bgd": [
+      {
+        "text": "Tổng quan",
+        "path": "/"
+      },
+      {
+        "text": "Báo cáo",
+        "path": "/reports"
+      },
+      {
+        "text": "Thiết bị & lịch sử",
+        "path": "/equipment"
+      },
+      {
+        "text": "Phê duyệt",
+        "path": "/approvals"
+      }
+    ]
+  },
+  "restart_managed_pids": {
+    "backend": "74090 736024",
+    "frontend": "74340 736782"
+  },
+  "final_managed_pids": {
+    "backend": "74523 737149",
+    "frontend": "74747 737903"
+  },
+  "frontend_regression": {
+    "build": "PASS",
+    "lint": "PASS",
+    "tests": 20,
+    "test_files": 8,
+    "failures": 0
+  },
+  "session_observations": {
+    "storage": "sessionStorage",
+    "fresh_tabs_independent": true,
+    "roles_observed": [
+      "PHONG_VTYT",
+      "BAN_GIAM_DOC"
+    ],
+    "opener_initial_copy": true,
+    "copies_diverge": true
+  },
+  "demo_accounts": [
+    {
+      "id": 1,
+      "username": "demo_vtyt",
+      "role_code": "PHONG_VTYT",
+      "department_id": 2,
+      "department": "Phòng Vật tư Y tế",
+      "active": true
+    },
+    {
+      "id": 2,
+      "username": "demo_bgd",
+      "role_code": "BAN_GIAM_DOC",
+      "department_id": null,
+      "department": null,
+      "active": true
+    },
+    {
+      "id": 3,
+      "username": "demo_khoa_noi",
+      "role_code": "KHOA_PHONG",
+      "department_id": 1,
+      "department": "Khoa Nội",
+      "active": true
+    },
+    {
+      "id": 4,
+      "username": "demo_admin",
+      "role_code": "ADMIN",
+      "department_id": 2,
+      "department": "Phòng Vật tư Y tế",
+      "active": true
+    }
+  ],
+  "final_database_baseline": {
+    "counts": {
+      "department": 8,
+      "service_provider": 7,
+      "user_account": 15,
+      "equipment": 40,
+      "maintenance_coverage": 35,
+      "maintenance_plan": 8,
+      "maintenance_plan_item": 52,
+      "approval_request": 19,
+      "approval_action": 15,
+      "maintenance_execution": 30,
+      "maintenance_progress_log": 90,
+      "acceptance_record": 40,
+      "maintenance_report": 4,
+      "status_history": 240
+    },
+    "rows": 603,
+    "fingerprints": {
+      "department": "344b2a9ce14a58083dc4b35979f92f58",
+      "service_provider": "9ecd3f714e28fa8f6ce31fdf68e11a6f",
+      "user_account": "56e5c0fe9b1313953e17ce398c809137",
+      "equipment": "79f8759ea8622132981c21d648874487",
+      "maintenance_coverage": "6b37e9de5113d107a9b1162fa9ed0cc0",
+      "maintenance_plan": "eeb1ceb7d86023625c5aadb53633b126",
+      "maintenance_plan_item": "4ee7d488f577788862506a59f91ef43a",
+      "approval_request": "e92afc5893442eb969718b425c35ee4e",
+      "approval_action": "8e0dcf9919614e2da66c4c8ac9c4fa82",
+      "maintenance_execution": "211de515b307ea6f6476d5a7d053ff55",
+      "maintenance_progress_log": "04d2b9b4ad51bc7a1aac179d68a84e74",
+      "acceptance_record": "3d5f82b7c403370ee6ec0d8cacf17c86",
+      "maintenance_report": "01f60954bda4b58a6ac2c1f02f2ccb14",
+      "status_history": "0e2397c6c9cecf701e8faf2d5d87065f"
+    },
+    "schema": {
+      "columns": 117,
+      "tables": 14,
+      "foreign_keys": 31,
+      "migrations": [
+        {
+          "version": "001",
+          "description": "master data",
+          "success": true
+        },
+        {
+          "version": "002",
+          "description": "planning and coverage",
+          "success": true
+        },
+        {
+          "version": "003",
+          "description": "approval",
+          "success": true
+        },
+        {
+          "version": "004",
+          "description": "execution and acceptance",
+          "success": true
+        },
+        {
+          "version": "005",
+          "description": "report and history",
+          "success": true
+        },
+        {
+          "version": "006",
+          "description": "required indexes",
+          "success": true
+        }
+      ]
+    }
+  },
+  "final_status": "PASS",
+  "completed_at": "2026-09-28",
+  "new_script_hashes": {
+    "v1-common.sh": "5a387c25cd067a3f9587b3ea59f5dd6b25455e1c9b457ed851981c8a261f6c98",
+    "start-v1.sh": "fcb91df397e9c66a4b07be80d373b82ca984afa65d36bb39b904eee1f8838d01",
+    "status-v1.sh": "604b68cd6fbb845f285aecfc0da11a7e0984643f5fd721d68fe991d0b03b48a5",
+    "stop-v1.sh": "af70fec76c898265178dc88b16b5f72276c88e9f706d626d8a1680a4c5dedb73"
+  }
+}

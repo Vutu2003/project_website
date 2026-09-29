@@ -1,0 +1,31 @@
+{
+  "status": "PASS",
+  "database": "medical_maintenance_db",
+  "tables": 14,
+  "columns": 117,
+  "foreign_keys": 31,
+  "primary_keys": 14,
+  "unique_constraints": 8,
+  "check_constraints": 46,
+  "indexes": 30,
+  "plan_states": 8,
+  "item_states": 11,
+  "total_constraints": 99,
+  "expected_tables": [
+    "acceptance_record",
+    "approval_action",
+    "approval_request",
+    "department",
+    "equipment",
+    "maintenance_coverage",
+    "maintenance_execution",
+    "maintenance_plan",
+    "maintenance_plan_item",
+    "maintenance_progress_log",
+    "maintenance_report",
+    "service_provider",
+    "status_history",
+    "user_account"
+  ],
+  "errors": []
+}
