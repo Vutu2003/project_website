@@ -25,7 +25,8 @@ public class ReferenceController {
 
     @GetMapping("/departments")
     public List<DepartmentResponse> departments() {
-        return departments.findAll(Sort.by("code").ascending().and(Sort.by("id"))).stream()
+        return departments.findAll((root, query, cb) -> cb.isTrue(root.get("active")),
+                Sort.by("code").ascending().and(Sort.by("id"))).stream()
                 .map(DepartmentMapper::toResponse).toList();
     }
 

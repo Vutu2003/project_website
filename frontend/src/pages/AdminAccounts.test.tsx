@@ -5,6 +5,7 @@ import App from '../App'
 import { AppLayout } from '../layouts/AppLayout'
 import { adminAccountsApi } from '../api/adminAccountsApi'
 import { departmentsApi } from '../api/departmentsApi'
+import { adminCatalogsApi } from '../api/adminCatalogsApi'
 import { ApiError } from '../api/types'
 import { AdminAccountListPage } from './AdminAccountListPage'
 import { AdminAccountFormPage } from './AdminAccountFormPage'
@@ -17,6 +18,7 @@ const auth = vi.hoisted(() => ({ user: { id: 4, username: 'demo_admin', role: 'A
 vi.mock('../auth/useAuth', () => ({ useAuth: () => auth }))
 vi.mock('../api/adminAccountsApi', () => ({ adminAccountsApi: { list: vi.fn(), detail: vi.fn(), create: vi.fn(), edit: vi.fn(), activate: vi.fn(), deactivate: vi.fn(), resetPassword: vi.fn() } }))
 vi.mock('../api/departmentsApi', () => ({ departmentsApi: { list: vi.fn() } }))
+vi.mock('../api/adminCatalogsApi', () => ({ adminCatalogsApi: { allDepartments: vi.fn(), detail: vi.fn() } }))
 const account: AccountDetail = { id: 44, username: 'SMOKE-V2-ADMIN-UI', role: 'KHOA_PHONG', departmentId: 1, departmentCode: 'KHOA_NOI', departmentName: 'Khoa Nội', active: true }
 const page = { content: [account], page: 0, size: 10, totalElements: 11, totalPages: 2, last: false }
 const refs = [{ id: 1, code: 'KHOA_NOI', name: 'Khoa Nội', active: true }, { id: 8, code: 'KHOA_NGOAI', name: 'Khoa Ngoại', active: true }]
@@ -39,6 +41,8 @@ beforeEach(() => {
   vi.mocked(adminAccountsApi.deactivate).mockResolvedValue({ ...account, active: false })
   vi.mocked(adminAccountsApi.resetPassword).mockResolvedValue(account)
   vi.mocked(departmentsApi.list).mockResolvedValue(refs)
+  vi.mocked(adminCatalogsApi.allDepartments).mockResolvedValue(refs)
+  vi.mocked(adminCatalogsApi.detail).mockResolvedValue(refs[0])
   vi.spyOn(window, 'confirm').mockReturnValue(true)
 })
 

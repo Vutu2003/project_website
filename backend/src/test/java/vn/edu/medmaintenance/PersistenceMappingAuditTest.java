@@ -182,7 +182,7 @@ class PersistenceMappingAuditTest {
                     + mappedColumns.size() + " | " + dbFkCount + " | " + fkCount + " | PASS |");
             mappedColumnCount += mappedColumns.size();
         }
-        assertThat(mappedColumnCount).isEqualTo(117);
+        assertThat(mappedColumnCount).isEqualTo(118);
         assertThat(mappedForeignKeys).hasSize(31);
         assertThat(mappedForeignKeys.keySet()).containsExactlyInAnyOrderElementsOf(databaseForeignKeys.keySet());
         for (var entry : databaseForeignKeys.entrySet()) {
@@ -209,10 +209,10 @@ class PersistenceMappingAuditTest {
         assertThat(mappedEnums.get("maintenance_plan.status")).hasSize(8);
         assertThat(mappedEnums.get("maintenance_plan_item.status")).hasSize(11);
 
-        StringBuilder audit = new StringBuilder("# Phase 2.2 Mapping Audit\n\n"
+        StringBuilder audit = new StringBuilder("# ADM-03 Mapping Audit\n\n"
                 + "Automated comparison of the JPA metamodel and annotations with PostgreSQL `public` metadata. "
-                + "Run `mvn -f backend/pom.xml test` with the Phase 2.1 development database to regenerate.\n\n"
-                + "**Result: PASS — 14 entities / 14 tables; 117 / 117 columns; 31 / 31 FK associations; "
+                + "Run `mvn -f backend/pom.xml test` with the V007 PostgreSQL database to regenerate.\n\n"
+                + "**Result: PASS — 14 entities / 14 tables; 118 / 118 columns; 31 / 31 FK associations; "
                 + "11 / 11 constrained enums; 2 / 2 version fields.**\n\n"
                 + "## Table and column coverage\n\n"
                 + "| Table | DB columns | Mapped fields | DB FKs | Association fields | Result |\n"
@@ -232,7 +232,7 @@ class PersistenceMappingAuditTest {
                 + "No removed table or Flyway metadata table is mapped.\n");
         Path cwd = Path.of(System.getProperty("user.dir"));
         Path projectRoot = cwd.getFileName().toString().equals("backend") ? cwd.getParent() : cwd;
-        Path output = projectRoot.resolve("reports/backend/phase_2_2_mapping_audit.md");
+        Path output = projectRoot.resolve("backend/target/v2_system_catalog_mapping_audit.md");
         Files.createDirectories(output.getParent());
         Files.writeString(output, audit.toString());
     }

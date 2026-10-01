@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { adminAccountsApi } from '../api/adminAccountsApi'
 import { departmentsApi } from '../api/departmentsApi'
+import { adminCatalogsApi } from '../api/adminCatalogsApi'
 import { useAuth } from '../auth/useAuth'
 import { WorkflowError } from '../components/WorkflowFeedback'
 import { PasswordInput } from '../components/PasswordInput'
@@ -34,9 +35,15 @@ export function AdminAccountFormPage({ mode }: { mode: 'create' | 'edit' }) {
       return () => { current = false }
     }
     Promise.all([departmentsApi.list(), mode === 'edit' ? adminAccountsApi.detail(id) : Promise.resolve(null)])
-      .then(([refs, existing]) => {
+      .then(async ([refs, existing]) => {
         if (!current) return
-        setDepartments(refs); setAccount(existing)
+        let available = refs
+        if (existing?.departmentId && !refs.some(row => row.id === existing.departmentId)) {
+          const historical = await adminCatalogsApi.detail('departments', existing.departmentId)
+          available = [...refs, historical]
+        }
+        if (!current) return
+        setDepartments(available); setAccount(existing)
         if (existing) { setUsername(existing.username); setRole(existing.role); setDepartment(existing.departmentId == null ? '' : String(existing.departmentId)); setActive(existing.active) }
         setError(null); setLoading(false)
       }).catch(failure => { if (current) { setError(failure); setLoading(false) } })

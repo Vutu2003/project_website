@@ -62,7 +62,7 @@ export interface Equipment {
   departmentName: string | null
 }
 export interface Department { id: number; code: string; name: string; active: boolean }
-export interface Provider { id: number; name: string; active: boolean }
+export interface Provider { id: number; code: string; name: string; contactDetails?: string | null; active: boolean }
 
 export interface ApprovalQueueItem {
   id: number

@@ -22,7 +22,7 @@ public class Department {
     @Column(name = "active", nullable = false)
     private Boolean active;
 
-    protected Department() {
+    public Department() {
     }
 
     public Long getId() {

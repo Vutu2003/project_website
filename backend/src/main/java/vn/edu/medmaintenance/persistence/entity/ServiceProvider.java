@@ -13,6 +13,9 @@ public class ServiceProvider {
     @Column(name = "id", nullable = false)
     private Long id;
 
+    @Column(name = "code", nullable = false, columnDefinition = "text")
+    private String code;
+
     @Column(name = "name", nullable = false, columnDefinition = "text")
     private String name;
 
@@ -22,12 +25,15 @@ public class ServiceProvider {
     @Column(name = "active", nullable = false)
     private Boolean active;
 
-    protected ServiceProvider() {
+    public ServiceProvider() {
     }
 
     public Long getId() {
         return id;
     }
+
+    public String getCode() { return code; }
+    public void setCode(String code) { this.code = code; }
 
     public String getName() {
         return name;

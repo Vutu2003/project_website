@@ -64,14 +64,14 @@ BEGIN
 
     PERFORM pg_temp.assert_true('A: exactly 14 expected public tables',
         (SELECT COUNT(*)=14 AND ARRAY_AGG(table_name::TEXT ORDER BY table_name)=ARRAY(SELECT UNNEST(expected_tables) ORDER BY 1)
-         FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'));
+         FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' AND table_name<>'flyway_schema_history'));
     PERFORM pg_temp.assert_true('A: removed tables absent',
         NOT EXISTS (SELECT 1 FROM information_schema.tables
                     WHERE table_schema='public' AND table_name = ANY(ARRAY['role','user_role','vendor_proposal','maintenance_assignment','acceptance_participant','attachment'])));
-    PERFORM pg_temp.assert_true('A: exactly 117 frozen columns',
-        (SELECT COUNT(*)=117 FROM information_schema.columns WHERE table_schema='public' AND table_name=ANY(expected_tables)));
+    PERFORM pg_temp.assert_true('A: 118 columns including ADM-03 provider code',
+        (SELECT COUNT(*)=118 FROM information_schema.columns WHERE table_schema='public' AND table_name=ANY(expected_tables)));
     PERFORM pg_temp.assert_true('B: 14 primary keys and 31 foreign keys',
-        (SELECT COUNT(*)=14 FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='public' AND c.contype='p')
+        (SELECT COUNT(*)=14 FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='public' AND c.contype='p' AND c.conrelid::regclass::text <> 'flyway_schema_history')
         AND (SELECT COUNT(*)=31 FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='public' AND c.contype='f'));
     PERFORM pg_temp.assert_true('B: all FK delete/update actions are restrictive',
         (SELECT COUNT(*)=31 FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace

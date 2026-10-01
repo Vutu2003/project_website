@@ -66,7 +66,7 @@ public class AdminAccountService {
         if (username.isBlank() || username.length() > 100)
             bad("INVALID_USERNAME", "Tên đăng nhập bắt buộc, tối đa 100 ký tự.");
         validatePassword(command.password());
-        Department department = department(command.role(), command.departmentId());
+        Department department = department(command.role(), command.departmentId(), null);
         if (command.active() == null) bad("INVALID_ACCOUNT_STATUS", "Trạng thái tài khoản bắt buộc.");
         if (users.findByUsername(username).isPresent()) duplicate();
         var account = UserAccount.createLoginAccount(username, passwords.encode(command.password()),
@@ -83,8 +83,8 @@ public class AdminAccountService {
     @Transactional
     public AccountResponse edit(Long id, UpdateAccountRequest command) {
         requireAdmin();
-        Department department = department(command.role(), command.departmentId());
         var account = locked(id);
+        Department department = department(command.role(), command.departmentId(), account);
         account.setRoleCode(command.role()); account.setDepartment(department);
         users.flush();
         return AccountResponse.from(account);
@@ -119,7 +119,7 @@ public class AdminAccountService {
         return users.findForUpdateById(id).orElseThrow(this::notFound);
     }
 
-    private Department department(UserRole role, Long id) {
+    private Department department(UserRole role, Long id, UserAccount existing) {
         if (role == null) bad("INVALID_ACCOUNT_ROLE", "Vai trò tài khoản bắt buộc.");
         if (id == null) {
             if (role == UserRole.KHOA_PHONG) bad("DEPARTMENT_REQUIRED", "Khoa/Phòng bắt buộc với vai trò Khoa/Phòng.");
@@ -128,7 +128,12 @@ public class AdminAccountService {
         if (id <= 0) bad("INVALID_DEPARTMENT", "Khoa/Phòng không hợp lệ.");
         var department = departments.findById(id).orElseThrow(() ->
                 new BusinessRuleException(HttpStatus.BAD_REQUEST, "INVALID_DEPARTMENT", "Khoa/Phòng không tồn tại."));
-        if (!Boolean.TRUE.equals(department.getActive())) bad("INVALID_DEPARTMENT", "Khoa/Phòng không còn hoạt động.");
+        boolean unchangedHistoricalAssignment = existing != null
+                && existing.getDepartment() != null
+                && existing.getDepartment().getId().equals(id)
+                && existing.getRoleCode() == role;
+        if (!Boolean.TRUE.equals(department.getActive()) && !unchangedHistoricalAssignment)
+            bad("INVALID_DEPARTMENT", "Khoa/Phòng không còn hoạt động.");
         return department;
     }
 

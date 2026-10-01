@@ -35,7 +35,7 @@ class BackendFoundationIntegrationTest {
     void connectsToTheRealPostgresqlDatabase() throws Exception {
         try (Connection connection = dataSource.getConnection()) {
             assertThat(connection.getMetaData().getDatabaseProductName()).isEqualTo("PostgreSQL");
-            assertThat(connection.getCatalog()).isEqualTo("medical_maintenance_backend_dev");
+            assertThat(connection.getCatalog()).isEqualTo(System.getenv().getOrDefault("DB_NAME", "medical_maintenance_backend_dev"));
         }
         assertThat(jdbc.queryForObject("SELECT 1", Integer.class)).isEqualTo(1);
     }
@@ -56,7 +56,7 @@ class BackendFoundationIntegrationTest {
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM information_schema.columns
                 WHERE table_schema = 'public' AND table_name <> 'flyway_schema_history'
-                """, Integer.class)).isEqualTo(117);
+                """, Integer.class)).isEqualTo(118);
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM pg_constraint c
                 JOIN pg_namespace n ON n.oid = c.connamespace
@@ -65,7 +65,7 @@ class BackendFoundationIntegrationTest {
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM flyway_schema_history
                 WHERE success = true AND type = 'SQL'
-                """, Integer.class)).isEqualTo(6);
+                """, Integer.class)).isEqualTo(7);
     }
 
     @Test

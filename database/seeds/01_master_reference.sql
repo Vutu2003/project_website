@@ -14,15 +14,15 @@ VALUES
 
 -- All provider organizations are fictional demo labels; no actual contract is implied.
 
-INSERT INTO service_provider (name, contact_details, active)
+INSERT INTO service_provider (code, name, contact_details, active)
 VALUES
-  ('Đơn vị bảo trì hợp đồng demo', 'Liên hệ giả lập; không dùng để liên hệ thực tế', TRUE),
-  ('Đơn vị bảo trì ngoài demo', 'Liên hệ giả lập; không dùng để liên hệ thực tế', TRUE),
-  ('Công ty Kỹ thuật Y sinh Minh An (Demo)', 'Liên hệ giả lập; không dùng để liên hệ thực tế', TRUE),
-  ('Dịch vụ Thiết bị An Tâm (Demo)', 'Liên hệ giả lập; không dùng để liên hệ thực tế', TRUE),
-  ('Kỹ thuật Chẩn đoán Sao Việt (Demo)', 'Liên hệ giả lập; không dùng để liên hệ thực tế', TRUE),
-  ('Bảo trì Xét nghiệm Minh Khoa (Demo)', 'Liên hệ giả lập; không dùng để liên hệ thực tế', TRUE),
-  ('Giải pháp Trang thiết bị Hòa Bình (Demo)', 'Liên hệ giả lập; không dùng để liên hệ thực tế', TRUE);
+  ('DEMO_PROVIDER_01', 'Đơn vị bảo trì hợp đồng demo', 'Liên hệ giả lập; không dùng để liên hệ thực tế', TRUE),
+  ('DEMO_PROVIDER_02', 'Đơn vị bảo trì ngoài demo', 'Liên hệ giả lập; không dùng để liên hệ thực tế', TRUE),
+  ('DEMO_PROVIDER_03', 'Công ty Kỹ thuật Y sinh Minh An (Demo)', 'Liên hệ giả lập; không dùng để liên hệ thực tế', TRUE),
+  ('DEMO_PROVIDER_04', 'Dịch vụ Thiết bị An Tâm (Demo)', 'Liên hệ giả lập; không dùng để liên hệ thực tế', TRUE),
+  ('DEMO_PROVIDER_05', 'Kỹ thuật Chẩn đoán Sao Việt (Demo)', 'Liên hệ giả lập; không dùng để liên hệ thực tế', TRUE),
+  ('DEMO_PROVIDER_06', 'Bảo trì Xét nghiệm Minh Khoa (Demo)', 'Liên hệ giả lập; không dùng để liên hệ thực tế', TRUE),
+  ('DEMO_PROVIDER_07', 'Giải pháp Trang thiết bị Hòa Bình (Demo)', 'Liên hệ giả lập; không dùng để liên hệ thực tế', TRUE);
 
 -- Bcrypt hashes came from discarded random inputs; no login password is available.
 

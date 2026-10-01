@@ -17,6 +17,7 @@ for section in re.split(r'^### ', dictionary, flags=re.MULTILINE)[1:]:
     for column, kind, nullable in re.findall(r'^\| ([a-z_]+) \| ([a-z]+) \| ([NY]) \|', section, flags=re.MULTILINE):
         columns[column] = (kind, nullable)
     expected_tables[name] = columns
+expected_tables['service_provider']['code'] = ('string', 'N')  # ADM-03 V007 overlay; Phase 1 dictionary remains frozen.
 expected_fks = set(re.findall(r'^\| ([a-z_]+) → ([a-z_]+) \| ([a-z_]+) \|', erd, flags=re.MULTILINE))
 
 def query(sql):
@@ -26,8 +27,8 @@ def query(sql):
     )
     return [tuple(line.split('\t')) for line in proc.stdout.splitlines() if line]
 
-actual_table_names = {row[0] for row in query("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'")}
-column_rows = query("SELECT table_name,column_name,data_type,is_nullable FROM information_schema.columns WHERE table_schema='public' ORDER BY table_name,ordinal_position")
+actual_table_names = {row[0] for row in query("SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' AND table_name<>'flyway_schema_history'")}
+column_rows = query("SELECT table_name,column_name,data_type,is_nullable FROM information_schema.columns WHERE table_schema='public' AND table_name<>'flyway_schema_history' ORDER BY table_name,ordinal_position")
 actual_columns = {(table, column): (dtype, nullable) for table, column, dtype, nullable in column_rows}
 fk_rows = query("""SELECT parent.relname,child.relname,attr.attname
 FROM pg_constraint con
@@ -67,7 +68,7 @@ for key, constraint_name in [('plan', 'ck_plan_status'), ('item', 'ck_item_statu
     if actual_states[key] != expected_states[key]:
         errors.append({'state_vocabulary': key, 'missing': sorted(expected_states[key]-actual_states[key]), 'extra': sorted(actual_states[key]-expected_states[key])})
 pk, unique, checks, indexes = query("""SELECT
-(SELECT count(*) FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='public' AND c.contype='p'),
+(SELECT count(*) FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='public' AND c.contype='p' AND c.conrelid::regclass::text <> 'flyway_schema_history'),
 (SELECT count(*) FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='public' AND c.contype='u'),
 (SELECT count(*) FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='public' AND c.contype='c'),
 (SELECT count(*) FROM pg_indexes WHERE schemaname='public')""")[0]
@@ -79,7 +80,8 @@ summary = {
     'indexes': int(indexes), 'plan_states': len(actual_states['plan']), 'item_states': len(actual_states['item']), 'total_constraints': int(pk)+int(unique)+int(checks)+len(actual_fks),
     'expected_tables': sorted(expected_tables), 'errors': errors,
 }
-output = root / 'reports/phase_1_2_database_schema_audit.json'
+output = root / 'reports/version2/admin/v2_system_catalog_schema_audit.json'
+output.parent.mkdir(parents=True, exist_ok=True)
 output.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
 print(f"SCHEMA AUDIT {summary['status']}: {summary['tables']} tables, {summary['columns']} columns, {summary['foreign_keys']} FKs, {summary['indexes']} indexes, {summary['total_constraints']} constraints")
 if errors:

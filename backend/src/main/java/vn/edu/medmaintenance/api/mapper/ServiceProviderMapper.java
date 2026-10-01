@@ -7,6 +7,7 @@ public final class ServiceProviderMapper {
     private ServiceProviderMapper() { }
 
     public static ServiceProviderResponse toResponse(ServiceProvider provider) {
-        return new ServiceProviderResponse(provider.getId(), provider.getName(), provider.getActive());
+        return new ServiceProviderResponse(provider.getId(), provider.getCode(), provider.getName(),
+                provider.getContactDetails(), provider.getActive());
     }
 }

@@ -86,6 +86,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/approvals/pending")
                             .hasRole("BAN_GIAM_DOC")
                         .requestMatchers("/api/admin/accounts", "/api/admin/accounts/**").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/departments", "/api/admin/departments/**",
+                                "/api/admin/providers", "/api/admin/providers/**").hasRole("ADMIN")
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().denyAll())
                 .exceptionHandling(ex -> ex

@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../auth/useAuth'
 import { navigationItems } from '../routes/navigation'
@@ -21,9 +22,12 @@ export function AppLayout() {
         <span className="nav-heading">KHÔNG GIAN LÀM VIỆC</span>
         <NavLink end to="/" className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}>Tổng quan</NavLink>
         {items.length > 0 && <span className="nav-heading nav-heading-gap">CHỨC NĂNG THEO VAI TRÒ</span>}
-        {items.map(item => <NavLink key={item.path} to={item.path} className={({ isActive }) => `nav-link${(reportDetail ? item.path === '/reports' : executionDetail ? item.path === '/execution' : isActive) ? ' active' : ''}`} >
+        {items.map(item => <Fragment key={item.path}>
+          {user.role === 'ADMIN' && item.path === '/admin/accounts' && <span className="nav-heading nav-heading-gap">QUẢN TRỊ</span>}
+          {user.role === 'ADMIN' && item.path === '/admin/catalogs/departments' && <span className="nav-heading nav-heading-gap">DANH MỤC HỆ THỐNG</span>}
+          <NavLink to={item.path} className={({ isActive }) => `nav-link${(reportDetail ? item.path === '/reports' : executionDetail ? item.path === '/execution' : isActive) ? ' active' : ''}`} >
           {item.label}
-        </NavLink>)}
+        </NavLink></Fragment>)}
       </nav>
       <div className="sidebar-foot">Quy trình bảo trì V1 · Phase 4.4</div>
     </aside>

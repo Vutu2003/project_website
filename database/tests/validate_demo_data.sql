@@ -35,9 +35,9 @@ BEGIN
         IF expected_count <> actual_count THEN RAISE EXCEPTION 'FAIL dataset count: expected %, actual %', expected_count, actual_count; END IF;
     END LOOP;
     PERFORM pg_temp.assert_demo('01 exact medium dataset counts', TRUE);
-    PERFORM pg_temp.assert_demo('02 14 tables / 117 columns / 31 validated FKs',
-        (SELECT COUNT(*)=14 FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE') AND
-        (SELECT COUNT(*)=117 FROM information_schema.columns WHERE table_schema='public') AND
+    PERFORM pg_temp.assert_demo('02 14 tables / 118 columns / 31 validated FKs',
+        (SELECT COUNT(*)=14 FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' AND table_name<>'flyway_schema_history') AND
+        (SELECT COUNT(*)=118 FROM information_schema.columns WHERE table_schema='public' AND table_name<>'flyway_schema_history') AND
         (SELECT COUNT(*)=31 FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='public' AND c.contype='f' AND c.convalidated));
 
     -- 3. All synthetic business keys and department scopes are coherent.

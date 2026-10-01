@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useLocation } from 'react-router'
 import { adminAccountsApi } from '../api/adminAccountsApi'
-import { departmentsApi } from '../api/departmentsApi'
+import { adminCatalogsApi } from '../api/adminCatalogsApi'
 import { Pagination } from '../components/Pagination'
 import { StatusBadge } from '../components/StatusBadge'
 import { WorkflowError, WorkflowSuccess } from '../components/WorkflowFeedback'
@@ -29,7 +29,7 @@ export function AdminAccountListPage() {
   const flash = (location.state as { flash?: string } | null)?.flash ?? null
   useEffect(() => {
     let current = true
-    departmentsApi.list().then(rows => { if (current) { setDepartments(rows); setReferenceError(null) } })
+    adminCatalogsApi.allDepartments().then(rows => { if (current) { setDepartments(rows); setReferenceError(null) } })
       .catch(failure => { if (current) setReferenceError(failure) })
     return () => { current = false }
   }, [refresh])

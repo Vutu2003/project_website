@@ -348,7 +348,7 @@ for it in items:
 sec=['-- Hospital-style department names are generic; all entities/ownership are synthetic.',
      batch('department',['code','name','active'],[(code,name,True) for code,name in depts]),
      '-- All provider organizations are fictional demo labels; no actual contract is implied.',
-     batch('service_provider',['name','contact_details','active'],[(name,'Liên hệ giả lập; không dùng để liên hệ thực tế',True) for name in providers]),
+     batch('service_provider',['code','name','contact_details','active'],[(f'DEMO_PROVIDER_{i + 1:02d}',name,'Liên hệ giả lập; không dùng để liên hệ thực tế',True) for i,name in enumerate(providers)]),
      '-- Bcrypt hashes came from discarded random inputs; no login password is available.',
      batch('user_account',['department_id','role_code','username','password_hash','display_name','active'],
            [(dept(d) if d else None,role,username,hashes[i],label,True) for i,(username,role,d,label) in enumerate(users)]),

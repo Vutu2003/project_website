@@ -17,6 +17,7 @@ import { ReportDetailPage } from './pages/ReportDetailPage'
 import { EquipmentListPage } from './pages/EquipmentListPage'
 import { EquipmentHistoryPage } from './pages/EquipmentHistoryPage'
 
+import { AdminCatalogListPage, AdminCatalogDetailPage, AdminCatalogFormPage } from './pages/AdminCatalogPages'
 import { AdminAccountListPage } from './pages/AdminAccountListPage'
 import { AdminAccountFormPage } from './pages/AdminAccountFormPage'
 import { AdminAccountDetailPage } from './pages/AdminAccountDetailPage'
@@ -40,6 +41,14 @@ export default function App() {
         <Route path="/plans/:planId/report" element={<RoleGuard roles={['PHONG_VTYT', 'BAN_GIAM_DOC']}><ReportDetailPage /></RoleGuard>} />
         <Route path="/equipment" element={<RoleGuard roles={['PHONG_VTYT', 'BAN_GIAM_DOC', 'KHOA_PHONG']}><EquipmentListPage /></RoleGuard>} />
         <Route path="/equipment/:equipmentId/history" element={<RoleGuard roles={['PHONG_VTYT', 'BAN_GIAM_DOC', 'KHOA_PHONG']}><EquipmentHistoryPage /></RoleGuard>} />
+        <Route path="/admin/catalogs/departments" element={<RoleGuard roles={['ADMIN']}><AdminCatalogListPage kind="departments" /></RoleGuard>} />
+        <Route path="/admin/catalogs/departments/new" element={<RoleGuard roles={['ADMIN']}><AdminCatalogFormPage kind="departments" mode="create" /></RoleGuard>} />
+        <Route path="/admin/catalogs/departments/:id" element={<RoleGuard roles={['ADMIN']}><AdminCatalogDetailPage kind="departments" /></RoleGuard>} />
+        <Route path="/admin/catalogs/departments/:id/edit" element={<RoleGuard roles={['ADMIN']}><AdminCatalogFormPage kind="departments" mode="edit" /></RoleGuard>} />
+        <Route path="/admin/catalogs/providers" element={<RoleGuard roles={['ADMIN']}><AdminCatalogListPage kind="providers" /></RoleGuard>} />
+        <Route path="/admin/catalogs/providers/new" element={<RoleGuard roles={['ADMIN']}><AdminCatalogFormPage kind="providers" mode="create" /></RoleGuard>} />
+        <Route path="/admin/catalogs/providers/:id" element={<RoleGuard roles={['ADMIN']}><AdminCatalogDetailPage kind="providers" /></RoleGuard>} />
+        <Route path="/admin/catalogs/providers/:id/edit" element={<RoleGuard roles={['ADMIN']}><AdminCatalogFormPage kind="providers" mode="edit" /></RoleGuard>} />
         <Route path="/admin/accounts" element={<RoleGuard roles={['ADMIN']}><AdminAccountListPage /></RoleGuard>} />
         <Route path="/admin/accounts/new" element={<RoleGuard roles={['ADMIN']}><AdminAccountFormPage mode="create" /></RoleGuard>} />
         <Route path="/admin/accounts/:id" element={<RoleGuard roles={['ADMIN']}><AdminAccountDetailPage /></RoleGuard>} />
