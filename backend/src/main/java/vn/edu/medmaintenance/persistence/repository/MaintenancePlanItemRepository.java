@@ -10,6 +10,17 @@ import vn.edu.medmaintenance.persistence.entity.MaintenancePlanItem;
 import vn.edu.medmaintenance.persistence.enums.PlanItemStatus;
 
 public interface MaintenancePlanItemRepository extends JpaRepository<MaintenancePlanItem, Long> {
+    @EntityGraph(attributePaths = {"equipment", "departmentAtPlan", "assignedProvider"})
+    @org.springframework.data.jpa.repository.Query("""
+            select i from MaintenancePlanItem i where i.plan.id = :planId
+            and (:departmentId is null or i.departmentAtPlan.id = :departmentId)
+            and i.status = :status
+            """)
+    Page<MaintenancePlanItem> findVisibleInStatus(
+            @org.springframework.data.repository.query.Param("planId") Long planId,
+            @org.springframework.data.repository.query.Param("departmentId") Long departmentId,
+            @org.springframework.data.repository.query.Param("status") PlanItemStatus status, Pageable pageable);
+
     @EntityGraph(attributePaths = {"plan", "departmentAtPlan", "assignedProvider", "coverage"})
     @org.springframework.data.jpa.repository.Query("""
             select i from MaintenancePlanItem i join i.plan p

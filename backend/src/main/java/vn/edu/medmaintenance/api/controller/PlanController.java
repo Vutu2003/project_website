@@ -58,10 +58,17 @@ public class PlanController {
 
     @GetMapping
     public PageResponse<MaintenancePlanResponse> list(@Valid @ModelAttribute PageQuery query,
-            @RequestParam(required = false) PlanStatus status) {
+            @RequestParam(required = false) PlanStatus status,
+            @RequestParam(required = false) vn.edu.medmaintenance.persistence.enums.PlanItemStatus itemStatus) {
         Pageable pageable = PageRequests.create(query, PLAN_SORT, "createdAt", Sort.Direction.DESC);
         var viewer = currentUser.get();
-        var result = viewer.role() == UserRole.KHOA_PHONG
+        if (viewer.role() == UserRole.KHOA_PHONG && viewer.departmentId() == null)
+            throw new BusinessRuleException(HttpStatus.FORBIDDEN, "DEPARTMENT_SCOPE_VIOLATION",
+                    "Department membership required");
+        var result = itemStatus != null
+                ? plans.findWithItemsInStatus(viewer.role() == UserRole.KHOA_PHONG
+                        ? viewer.departmentId() : null, status, itemStatus, pageable)
+                : viewer.role() == UserRole.KHOA_PHONG
                 ? plans.findVisibleForDepartment(viewer.departmentId(), status, pageable)
                 : status == null ? plans.findAllBy(pageable) : plans.findByStatus(status, pageable);
         return PageResponse.from(result, PlanMapper::toResponse);
@@ -81,12 +88,16 @@ public class PlanController {
     @org.springframework.transaction.annotation.Transactional(readOnly=true)
     @GetMapping("/{planId}/items")
     public PageResponse<MaintenancePlanItemResponse> items(@PathVariable Long planId,
-            @Valid @ModelAttribute PageQuery query) {
+            @Valid @ModelAttribute PageQuery query,
+            @RequestParam(required = false) vn.edu.medmaintenance.persistence.enums.PlanItemStatus status) {
         PageRequests.requirePositive(planId, "planId");
         requireVisiblePlan(planId);
         Pageable pageable = PageRequests.create(query, ITEM_SORT, "id", Sort.Direction.ASC);
         var viewer = currentUser.get();
-        var result = viewer.role() == UserRole.KHOA_PHONG
+        var result = status != null
+                ? items.findVisibleInStatus(planId, viewer.role() == UserRole.KHOA_PHONG
+                        ? viewer.departmentId() : null, status, pageable)
+                : viewer.role() == UserRole.KHOA_PHONG
                 ? items.findByPlan_IdAndDepartmentAtPlan_Id(planId, viewer.departmentId(), pageable)
                 : items.findByPlan_Id(planId, pageable);
         var proposals=new java.util.HashMap<Long,vn.edu.medmaintenance.persistence.entity.ApprovalRequest>();

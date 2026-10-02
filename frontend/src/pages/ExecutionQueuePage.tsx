@@ -25,7 +25,7 @@ export function ExecutionQueuePage() {
   useEffect(() => {
     if (isVtyt) return
     let active = true
-    const request = inPlan ? Promise.all([plansApi.detail(id), plansApi.items(id, page, 20)]) : plansApi.list(page, 10)
+    const request = inPlan ? Promise.all([plansApi.detail(id), plansApi.items(id, page, 20, 'AWAITING_HANDOVER')]) : plansApi.list(page, 10, undefined, 'AWAITING_HANDOVER')
     request.then(result => {
       if (!active) return
       if (Array.isArray(result)) { setPlan(result[0]); setItems(result[1]) }
@@ -37,13 +37,13 @@ export function ExecutionQueuePage() {
   function reload() { setLoading(true); setRefresh(value => value + 1) }
   if (isVtyt) return <Navigate replace to={inPlan ? `/maintenance-progress/plans/${planId}` : "/maintenance-progress"} />
   return <div className="page-stack">
-    <div className="page-title-block"><p className="eyebrow">UC08–UC10 · THỰC HIỆN & NGHIỆM THU</p>
-      <h1>{inPlan ? plan?.title || 'Hạng mục kế hoạch' : 'Kế hoạch có thể theo dõi'}</h1>
-      <p>{inPlan ? 'Chọn một hạng mục để xem mọi lần thực hiện và thao tác được phép.' : 'Chọn kế hoạch trong phạm vi truy cập để xem các hạng mục. Danh sách lấy từ backend.'}</p></div>
+    <div className="page-title-block"><p className="eyebrow">UC10 · NGHIỆM THU & BÀN GIAO</p>
+      <h1>{inPlan ? plan?.title || 'Hạng mục kế hoạch' : 'Thiết bị chờ bàn giao'}</h1>
+      <p>{inPlan ? 'Chỉ hiển thị hạng mục chờ bàn giao thuộc khoa/phòng của bạn.' : 'Chọn kế hoạch có thiết bị thuộc khoa/phòng của bạn đang chờ bàn giao. Lịch sử đã hoàn tất có tại Thiết bị & lịch sử.'}</p></div>
     <WorkflowError error={error} onReload={reload} />
     {loading ? <p className="muted">Đang tải dữ liệu…</p> : !inPlan && plans ? <section className="panel business-panel">
       <div className="panel-heading"><h2>Danh sách kế hoạch</h2></div>
-      {plans.content.length === 0 ? <p className="empty-state">Chưa có kế hoạch trong phạm vi hiển thị.</p> : <div className="table-scroll"><table className="data-table"><thead><tr><th>Kế hoạch</th><th>Thời gian</th><th>Trạng thái</th><th></th></tr></thead><tbody>
+      {plans.content.length === 0 ? <p className="empty-state">Không có thiết bị đang chờ bàn giao trong khoa/phòng của bạn.</p> : <div className="table-scroll"><table className="data-table"><thead><tr><th>Kế hoạch</th><th>Thời gian</th><th>Trạng thái</th><th></th></tr></thead><tbody>
         {plans.content.map(row => <tr key={row.id}><td><strong>{row.title}</strong><span className="row-sub">#{row.id}</span></td><td>{businessDate(row.periodStart)} – {businessDate(row.periodEnd)}</td>
           <td><StatusBadge label={planStatusLabels[row.status]} /></td><td><Link className="table-link" to={`/execution/plans/${row.id}`}>Xem hạng mục</Link></td></tr>)}</tbody></table></div>}
       <Pagination data={plans} onPage={next => { setPage(next); setLoading(true) }} />

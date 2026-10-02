@@ -327,6 +327,20 @@ class BackendBusinessFinalIntegrationTest {
                 department, null, null), 200);
         for (JsonNode row : equipmentPage.path("content"))
             assertThat(row.path("id").asLong()).isNotEqualTo(other);
+        JsonNode broadSearch = ok(send(HttpMethod.GET, "/api/equipment?size=100&search=demo-eq",
+                director, null, null), 200);
+        assertThat(broadSearch.path("content").size()).isEqualTo(count("equipment"));
+        JsonNode scopedSearch = ok(send(HttpMethod.GET, "/api/equipment?size=100&search=DEMO-EQ",
+                department, null, null), 200);
+        assertThat(scopedSearch.path("totalElements")).isEqualTo(equipmentPage.path("totalElements"));
+        for (JsonNode row : scopedSearch.path("content"))
+            assertThat(row.path("id").asLong()).isNotEqualTo(other);
+        assertThat(ok(send(HttpMethod.GET, "/api/equipment?search=%25", director, null, null), 200)
+                .path("totalElements").asInt()).isZero();
+        String serial = jdbc.queryForObject("SELECT serial_number FROM equipment WHERE id=?", String.class, freeEq);
+        assertThat(ok(send(HttpMethod.GET, "/api/equipment?search=" + serial, director, null, null), 200)
+                .path("content").get(0).path("id").asLong()).isEqualTo(freeEq);
+
         fail(send(HttpMethod.GET, "/api/equipment/" + other, department, null, null),
                 403, "DEPARTMENT_SCOPE_VIOLATION");
         long otherDepartment = jdbc.queryForObject("SELECT department_id FROM equipment WHERE id=?",
@@ -343,6 +357,18 @@ class BackendBusinessFinalIntegrationTest {
         assertThat(scopedItems.path("content").get(0).path("equipmentId").asLong()).isEqualTo(freeEq);
         for (JsonNode row : scopedItems.path("content"))
             assertThat(row.path("equipmentId").asLong()).isNotEqualTo(other);
+        jdbc.update("UPDATE maintenance_plan_item SET status='AWAITING_HANDOVER' WHERE plan_id=? AND equipment_id=?", plan, other);
+        JsonNode queue = ok(send(HttpMethod.GET, "/api/plans?size=100&itemStatus=AWAITING_HANDOVER", department, null, null), 200);
+        for (JsonNode row : queue.path("content")) assertThat(row.path("id").asLong()).isNotEqualTo(plan);
+        jdbc.update("UPDATE maintenance_plan_item SET status='AWAITING_HANDOVER' WHERE plan_id=? AND equipment_id=?", plan, freeEq);
+        JsonNode waiting = ok(send(HttpMethod.GET, "/api/plans/" + plan + "/items?status=AWAITING_HANDOVER&size=100", department, null, null), 200);
+        assertThat(waiting.path("content").size()).isEqualTo(1);
+        assertThat(waiting.path("content").get(0).path("equipmentId").asLong()).isEqualTo(freeEq);
+        queue = ok(send(HttpMethod.GET, "/api/plans?size=100&itemStatus=AWAITING_HANDOVER", department, null, null), 200);
+        boolean found = false;
+        for (JsonNode row : queue.path("content")) if (row.path("id").asLong() == plan) found = true;
+        assertThat(found).isTrue();
+
         long foreignPlan = jdbc.queryForObject("""
                 SELECT p.id FROM maintenance_plan p
                 WHERE NOT EXISTS (

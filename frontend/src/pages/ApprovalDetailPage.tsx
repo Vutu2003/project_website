@@ -5,6 +5,7 @@ import { ApiError } from '../api/types'
 import { approvalsApi } from '../api/approvalsApi'
 import { plansApi } from '../api/plansApi'
 import { StatusBadge } from '../components/StatusBadge'
+import { Pagination } from '../components/Pagination'
 import { WorkflowError } from '../components/WorkflowFeedback'
 import type { ApprovalOutcome, ApprovalReview, PageResponse, Plan, PlanItem } from '../types/workflow'
 import { approvalTypeLabels, businessDate, coverageLabels, dateTime, itemStatusLabels, planStatusLabels } from '../utils/workflowLabels'
@@ -23,17 +24,18 @@ export function ApprovalDetailPage() {
   const [error, setError] = useState<unknown>(null)
   const [validation, setValidation] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [itemPage, setItemPage] = useState(0)
   const reload = useCallback(() => { setLoading(true); setReloadKey(value => value + 1) }, [])
   useEffect(() => {
     if (!Number.isInteger(id) || id <= 0) { setError(new ApiError(404, 'APPROVAL_REQUEST_NOT_FOUND', 'Không tìm thấy yêu cầu.')); setLoading(false); return }
     let active = true
     approvalsApi.review(id).then(async current => {
-      const details = current.planId ? await Promise.all([plansApi.detail(current.planId), plansApi.items(current.planId, 0, 100)]) : [null, null] as const
+      const details = current.planId ? await Promise.all([plansApi.detail(current.planId), plansApi.items(current.planId, itemPage, 20)]) : [null, null] as const
       if (!active) return
       setReview(current); setPlan(details[0]); setItems(details[1]); setError(null); setLoading(false)
     }).catch(failure => { if (active) { setError(failure); setLoading(false) } })
     return () => { active = false }
-  }, [id, reloadKey])
+  }, [id, reloadKey, itemPage])
 
   async function decide() {
     if (!review) return
@@ -62,9 +64,13 @@ export function ApprovalDetailPage() {
       <button className="button secondary" type="button" onClick={reload}>Tải lại</button></section>
     {plan && <section className="panel business-panel"><div className="panel-heading"><div><h2>Thông tin kế hoạch</h2><p>{businessDate(plan.periodStart)} – {businessDate(plan.periodEnd)} · {planStatusLabels[plan.status]}</p></div>
       <Link className="table-link" to={`/plans/${plan.id}`}>Xem kế hoạch</Link></div>
-      {items && <><p className="muted">{items.totalElements} hạng mục; hiển thị {items.content.length} hạng mục đầu để tham khảo.</p>
-        <div className="table-scroll"><table className="data-table"><thead><tr><th>Thiết bị</th><th>Ngày dự kiến</th><th>Trạng thái</th></tr></thead>
-          <tbody>{items.content.map(item => <tr key={item.id}><td>{item.equipmentCode} · {item.equipmentName}</td><td>{businessDate(item.plannedDate)}</td><td>{itemStatusLabels[item.status]}</td></tr>)}</tbody></table></div></>}
+      {items && <><p className="muted">{items.totalElements} hạng mục · hình thức và đơn vị do Phòng VTYT chuẩn bị.</p>
+        <div className="table-scroll"><table className="data-table"><thead><tr><th>Thiết bị / khoa</th><th>Ngày dự kiến</th><th>Trạng thái</th><th>Hình thức</th><th>Đơn vị / căn cứ</th></tr></thead>
+          <tbody>{items.content.map(item => <tr key={item.id}><td>{item.equipmentCode} · {item.equipmentName}<span className="row-sub">{item.departmentNameAtPlan}</span></td><td>{businessDate(item.plannedDate)}</td><td>{itemStatusLabels[item.status]}</td>
+            <td>{item.classification ? coverageLabels[item.classification] : 'Chưa xác định'}{item.coverageId && <span className="row-sub">Hồ sơ hợp đồng #{item.coverageId}</span>}</td>
+            <td>{item.classification === 'FREE' ? item.assignedProviderName || '—' : item.proposedProviderName || item.assignedProviderName || '—'}
+              {item.rationale && <span className="row-sub">Căn cứ: {item.rationale}</span>}{item.warrantyImpactNote && <span className="row-sub">Ghi chú bảo hành: {item.warrantyImpactNote}</span>}</td>
+          </tr>)}</tbody></table></div><Pagination data={items} onPage={next => { setLoading(true); setItemPage(next) }} /></>}
     </section>}
     {review.requestType === 'VENDOR_SELECTION' && <section className="panel business-panel"><div className="panel-heading"><h2>Đề xuất đơn vị bảo trì</h2></div>
       <dl className="detail-list"><div><dt>Thiết bị</dt><dd>{review.equipmentCode} · {review.equipmentName}</dd></div>

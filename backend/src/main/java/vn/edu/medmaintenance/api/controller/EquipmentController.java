@@ -39,7 +39,8 @@ public class EquipmentController {
     @GetMapping
     public PageResponse<EquipmentResponse> list(@Valid @ModelAttribute PageQuery query,
             @RequestParam(required = false) Long departmentId,
-            @RequestParam(required = false) Boolean active) {
+            @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) String search) {
         if (departmentId != null) PageRequests.requirePositive(departmentId, "departmentId");
         Pageable pageable = PageRequests.create(query, SORT_FIELDS, "equipmentCode", Sort.Direction.ASC);
         Page<Equipment> result;
@@ -49,6 +50,14 @@ public class EquipmentController {
                     || (departmentId != null && !departmentId.equals(viewer.departmentId())))
                 throw new BusinessRuleException(HttpStatus.FORBIDDEN, "DEPARTMENT_SCOPE_VIOLATION",
                         "Equipment is outside department scope");
+        }
+        if (search != null && !search.isBlank()) {
+            String pattern = "%" + search.trim().toLowerCase(java.util.Locale.ROOT)
+                    .replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
+            result = equipment.searchVisible(viewer.role() == UserRole.KHOA_PHONG
+                    ? viewer.departmentId() : departmentId, active,
+                    viewer.role() == UserRole.KHOA_PHONG, pattern, pageable);
+        } else if (viewer.role() == UserRole.KHOA_PHONG) {
             result = equipment.findVisibleForDepartment(viewer.departmentId(), active, pageable);
         } else if (departmentId != null && active != null) {
             result = equipment.findByDepartment_IdAndActive(departmentId, active, pageable);

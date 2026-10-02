@@ -11,6 +11,23 @@ public interface EquipmentRepository extends JpaRepository<Equipment, Long> {
     @EntityGraph(attributePaths = "department")
     @org.springframework.data.jpa.repository.Query("""
             select e from Equipment e where
+            (:departmentId is null or e.department.id = :departmentId or (:historicalScope = true and exists (
+                select i.id from MaintenancePlanItem i
+                where i.equipment = e and i.departmentAtPlan.id = :departmentId)))
+            and (:active is null or e.active = :active)
+            and (lower(e.equipmentCode) like :pattern escape '!'
+                or lower(e.name) like :pattern escape '!'
+                or lower(e.serialNumber) like :pattern escape '!')
+            """)
+    Page<Equipment> searchVisible(
+            @org.springframework.data.repository.query.Param("departmentId") Long departmentId,
+            @org.springframework.data.repository.query.Param("active") Boolean active,
+            @org.springframework.data.repository.query.Param("historicalScope") boolean historicalScope,
+            @org.springframework.data.repository.query.Param("pattern") String pattern, Pageable pageable);
+
+    @EntityGraph(attributePaths = "department")
+    @org.springframework.data.jpa.repository.Query("""
+            select e from Equipment e where
             (e.department.id = :departmentId or exists (
                 select i.id from MaintenancePlanItem i
                 where i.equipment = e and i.departmentAtPlan.id = :departmentId))

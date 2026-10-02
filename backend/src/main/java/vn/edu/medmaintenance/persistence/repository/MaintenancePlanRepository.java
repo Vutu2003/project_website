@@ -13,6 +13,18 @@ import vn.edu.medmaintenance.persistence.enums.PlanStatus;
 public interface MaintenancePlanRepository extends JpaRepository<MaintenancePlan, Long> {
     @EntityGraph(attributePaths = "createdByUser")
     @Query("""
+            select p from MaintenancePlan p where (:status is null or p.status = :status)
+            and exists (select i.id from MaintenancePlanItem i where i.plan = p
+                and i.status = :itemStatus
+                and (:departmentId is null or i.departmentAtPlan.id = :departmentId))
+            """)
+    Page<MaintenancePlan> findWithItemsInStatus(@Param("departmentId") Long departmentId,
+            @Param("status") PlanStatus status,
+            @Param("itemStatus") vn.edu.medmaintenance.persistence.enums.PlanItemStatus itemStatus,
+            Pageable pageable);
+
+    @EntityGraph(attributePaths = "createdByUser")
+    @Query("""
             select p from MaintenancePlan p where exists (
                 select i.id from MaintenancePlanItem i
                 where i.plan = p and i.departmentAtPlan.id = :departmentId)
