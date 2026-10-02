@@ -5,7 +5,7 @@ DB_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 DB_CLUSTER_DIR="${DB_ROOT}/.local-postgres"
 DB_DATA_DIR="${DB_CLUSTER_DIR}/data"
 DB_SOCKET_DIR="${DB_CLUSTER_DIR}/run"
-DB_NAME='medical_maintenance_db'
+DB_NAME='medical_maintenance_v2'
 DB_PORT='55432'
 # A copied cluster may retain the original initdb administrator name.
 if [[ -f "${DB_CLUSTER_DIR}/admin.env" ]]; then

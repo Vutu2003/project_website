@@ -4,7 +4,7 @@ set -euo pipefail
 PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "${PROJECT_ROOT}/database/scripts/common.sh"
 
-BACKEND_DB_NAME='medical_maintenance_backend_dev'
+BACKEND_DB_NAME='medical_maintenance_v2'
 BACKEND_DB_USER='ltnc_backend_dev'
 BACKEND_ENV_FILE="${DB_CLUSTER_DIR}/backend-dev.env"
 HBA_FILE="${DB_DATA_DIR}/pg_hba.conf"

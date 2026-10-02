@@ -82,7 +82,7 @@ v1_postgres_ready() {
     "${V1_PG_BIN}/pg_ctl" -D "${V1_PG_DATA}" status >/dev/null 2>&1 || return 1
     (
         source "${V1_DB_ENV}"
-        [[ "${DB_HOST}" == '127.0.0.1' && "${DB_PORT}" == '55432' && "${DB_NAME}" == 'medical_maintenance_backend_dev' ]] || exit 1
+        [[ "${DB_HOST}" == '127.0.0.1' && "${DB_PORT}" == '55432' && "${DB_NAME}" == 'medical_maintenance_v2' ]] || exit 1
         PGPASSWORD="${DB_PASSWORD}" psql -X -At -w -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USERNAME}" -d "${DB_NAME}" -c 'SELECT 1' 2>/dev/null | rg -qx '1'
     )
 }

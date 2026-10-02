@@ -1,5 +1,31 @@
 # Chạy project trên máy hiện tại
 
+## Môi trường local Version 2
+
+Database chính: `medical_maintenance_v2`. Khởi tạo trên máy mới:
+
+```bash
+source scripts/use-toolchain.sh
+./backend/scripts/setup-v2.sh
+./scripts/start.sh
+./scripts/status.sh
+```
+
+Seed canonical gồm 5 tài khoản, 8 thiết bị ở nhiều khoa và 2 đợt lịch sử hoàn tất. Thông tin đăng nhập nằm trong `.local-postgres/backend-security.env` (ignored, mode 600). Tài khoản ADMIN local theo yêu cầu: `admin / admin`.
+
+Regression backend dùng cluster tạm và fixture riêng, tự cleanup, không chạy mutation tests trên database chính:
+
+```bash
+./backend/scripts/test-v2.sh
+npm run build --prefix frontend
+npm run lint --prefix frontend
+npm run test --prefix frontend
+```
+
+Các hướng dẫn Version 1 bên dưới là tài liệu lịch sử; dùng các lệnh Version 2 ở trên cho runtime hiện tại.
+
+## Hướng dẫn Version 1 (lịch sử)
+
 Đã cài và kiểm tra ngày 29/09/2026 trên Ubuntu 24.04.5 LTS, trong thư mục `/home/vutu0809/Desktop/LTNC/project_website`.
 
 ## Khởi động

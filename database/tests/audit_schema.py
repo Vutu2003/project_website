@@ -18,11 +18,19 @@ for section in re.split(r'^### ', dictionary, flags=re.MULTILINE)[1:]:
         columns[column] = (kind, nullable)
     expected_tables[name] = columns
 expected_tables['service_provider']['code'] = ('string', 'N')  # ADM-03 V007 overlay; Phase 1 dictionary remains frozen.
+expected_tables['user_notification'] = {
+    'id': ('identifier', 'N'), 'user_account_id': ('reference', 'N'),
+    'notification_type': ('string', 'N'), 'title': ('string', 'N'),
+    'message': ('string', 'N'), 'target_url': ('string', 'N'),
+    'created_at': ('datetime', 'N'), 'read_at': ('datetime', 'Y'),
+}  # V008 overlay; the original dictionary remains historical.
+
 expected_fks = set(re.findall(r'^\| ([a-z_]+) → ([a-z_]+) \| ([a-z_]+) \|', erd, flags=re.MULTILINE))
+expected_fks.add(('user_account', 'user_notification', 'user_account_id'))
 
 def query(sql):
     proc = subprocess.run(
-        ['psql', '-X', '-At', '-F', '\t', '-d', os.environ.get('DB_NAME', 'medical_maintenance_db'), '-c', sql],
+        ['psql', '-X', '-At', '-F', '\t', '-d', os.environ.get('DB_NAME', 'medical_maintenance_v2'), '-c', sql],
         text=True, capture_output=True, check=True, env=os.environ,
     )
     return [tuple(line.split('\t')) for line in proc.stdout.splitlines() if line]
@@ -74,15 +82,27 @@ pk, unique, checks, indexes = query("""SELECT
 (SELECT count(*) FROM pg_indexes WHERE schemaname='public')""")[0]
 summary = {
     'status': 'PASS' if not errors else 'FAIL',
-    'database': os.environ.get('DB_NAME', 'medical_maintenance_db'),
+    'database': os.environ.get('DB_NAME', 'medical_maintenance_v2'),
     'tables': len(actual_table_names), 'columns': len(actual_columns), 'foreign_keys': len(actual_fks),
     'primary_keys': int(pk), 'unique_constraints': int(unique), 'check_constraints': int(checks),
     'indexes': int(indexes), 'plan_states': len(actual_states['plan']), 'item_states': len(actual_states['item']), 'total_constraints': int(pk)+int(unique)+int(checks)+len(actual_fks),
     'expected_tables': sorted(expected_tables), 'errors': errors,
 }
-output = root / 'reports/version2/admin/v2_system_catalog_schema_audit.json'
-output.parent.mkdir(parents=True, exist_ok=True)
-output.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + '\n', encoding='utf-8')
+# Terminal-only audit: database preparation does not create report artifacts.
+for constraint, vocabulary in [('ck_coverage_classification', {'FREE','NOT_FREE'}),
+                               ('ck_request_status', {'DRAFT','PENDING','DECIDED','CANCELLED'})]:
+    definition=query("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname='"+constraint+"'")[0][0]
+    if set(re.findall(r"'([^']+)'::text", definition)) != vocabulary:
+        errors.append({'enum_constraint': constraint})
+expected_indexes=set()
+for migration in (root/'database/migrations').glob('V*.sql'):
+    expected_indexes.update(re.findall(r'CREATE (?:UNIQUE )?INDEX ([a-z_]+)', migration.read_text(), re.I))
+actual_indexes={r[0] for r in query("SELECT indexname FROM pg_indexes WHERE schemaname='public'")}
+if not expected_indexes <= actual_indexes:
+    errors.append({'missing_indexes': sorted(expected_indexes-actual_indexes)})
+if query("SELECT i.indexrelid::regclass::text FROM pg_index i JOIN pg_class t ON t.oid=i.indrelid JOIN pg_namespace n ON n.oid=t.relnamespace WHERE n.nspname='public' AND NOT i.indisvalid"):
+    errors.append({'invalid_indexes': True})
+summary['status']='PASS' if not errors else 'FAIL'
 print(f"SCHEMA AUDIT {summary['status']}: {summary['tables']} tables, {summary['columns']} columns, {summary['foreign_keys']} FKs, {summary['indexes']} indexes, {summary['total_constraints']} constraints")
 if errors:
     print(json.dumps(errors, indent=2, ensure_ascii=False), file=sys.stderr)

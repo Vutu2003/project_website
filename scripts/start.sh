@@ -13,7 +13,7 @@ v1_lock
 "${V1_ROOT}/backend/scripts/setup-dev-db.sh" 9>&- >"${V1_RUN}/postgres-setup.log" 2>&1 || { v1_error 'PostgreSQL setup failed. See .local-run/postgres-setup.log.'; exit 1; }
 source "${V1_DB_ENV}"
 source "${V1_SECURITY_ENV}"
-[[ "${DB_HOST}" == '127.0.0.1' && "${DB_PORT}" == '55432' && "${DB_NAME}" == 'medical_maintenance_backend_dev' ]] || { v1_error 'Unexpected database environment; use the project local database.'; exit 1; }
+[[ "${DB_HOST}" == '127.0.0.1' && "${DB_PORT}" == '55432' && "${DB_NAME}" == 'medical_maintenance_v2' ]] || { v1_error 'Unexpected database environment; use the project local database.'; exit 1; }
 [[ "${APP_PORT:-8080}" == '8080' && "${FRONTEND_ORIGIN:-http://localhost:5173}" == 'http://localhost:5173' ]] || { v1_error 'Local helper requires backend port 8080 and frontend origin http://localhost:5173.'; exit 1; }
 v1_postgres_ready || { v1_error 'PostgreSQL connection failed.'; exit 1; }
 # Refuse unrelated listeners on either app port before launching an app.
@@ -50,12 +50,12 @@ for service in backend frontend; do
             printf '[INFO] Building existing backend package; see .local-run/build.log.\n'
             env -u DEBUG mvn -f "${V1_ROOT}/backend/pom.xml" -DskipTests package >"${V1_RUN}/build.log" 2>&1 || { v1_error 'Backend packaging failed. See .local-run/build.log.'; exit 1; }
         fi
-        v1_launch backend "${V1_ROOT}" env -u DEBUG -u DEMO_VTYT_PASSWORD -u DEMO_BGD_PASSWORD -u DEMO_KHOA_PASSWORD -u DEMO_ADMIN_PASSWORD "${V1_JAVA}" -jar "${V1_JAR}"
+        v1_launch backend "${V1_ROOT}" env -u DEBUG -u LOCAL_VTYT_PASSWORD -u LOCAL_BGD_PASSWORD -u LOCAL_KHOA_NOI_PASSWORD -u LOCAL_KHOA_NGOAI_PASSWORD -u LOCAL_ADMIN_PASSWORD "${V1_JAVA}" -jar "${V1_JAR}"
         v1_wait_ready backend 120
     else
         # Existing package.json dev command is Vite --host 127.0.0.1. Execute
         # that same installed CLI directly so the stored PID is the actual server.
-        v1_launch frontend "${V1_ROOT}/frontend" env -u DB_PASSWORD -u DB_USERNAME -u DB_HOST -u DB_PORT -u DB_NAME -u JWT_SECRET -u JWT_EXPIRATION_SECONDS -u DEMO_VTYT_PASSWORD -u DEMO_BGD_PASSWORD -u DEMO_KHOA_PASSWORD -u DEMO_ADMIN_PASSWORD "${V1_NODE}" "${V1_VITE}" --host 127.0.0.1
+        v1_launch frontend "${V1_ROOT}/frontend" env -u DB_PASSWORD -u DB_USERNAME -u DB_HOST -u DB_PORT -u DB_NAME -u JWT_SECRET -u JWT_EXPIRATION_SECONDS -u LOCAL_VTYT_PASSWORD -u LOCAL_BGD_PASSWORD -u LOCAL_KHOA_NOI_PASSWORD -u LOCAL_KHOA_NGOAI_PASSWORD -u LOCAL_ADMIN_PASSWORD "${V1_NODE}" "${V1_VITE}" --host 127.0.0.1
         v1_wait_ready frontend 60
     fi
 done

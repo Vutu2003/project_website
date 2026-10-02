@@ -1,31 +1,19 @@
 #!/usr/bin/env bash
+set +x
 set -euo pipefail
-
 PROJECT_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
-ENV_FILE="${PROJECT_ROOT}/.local-postgres/backend-dev.env"
-[[ -f "${ENV_FILE}" ]] || {
-    echo 'Run ./backend/scripts/setup-dev-db.sh first.' >&2
-    exit 1
-}
-source "${ENV_FILE}"
-[[ "${DB_NAME}" == 'medical_maintenance_backend_dev' && "${DB_HOST}" == '127.0.0.1' ]] || {
-    echo 'Refusing to seed a database other than the isolated backend dev database.' >&2
-    exit 1
-}
+source "${PROJECT_ROOT}/scripts/use-toolchain.sh"
+if [[ "${1:-}" == '--test-env' ]]; then
+    [[ $# == 1 && "${DB_NAME:-}" =~ ^medical_maintenance_[a-z0-9_]+_test$ ]] || exit 2
+else
+    [[ $# == 0 ]] || exit 2
+    source "${PROJECT_ROOT}/.local-postgres/backend-dev.env"
+fi
+source "${PROJECT_ROOT}/.local-postgres/backend-security.env"
+[[ "${DB_HOST}" == 127.0.0.1 && ("${DB_NAME}" == medical_maintenance_v2 || "${DB_NAME}" =~ ^medical_maintenance_[a-z0-9_]+_test$) ]] || exit 1
 export PGPASSWORD="${DB_PASSWORD}"
-PSQL=(psql -X -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USERNAME}" -d "${DB_NAME}")
-
-applied="$("${PSQL[@]}" -At -c 'SELECT count(*) FROM flyway_schema_history WHERE success = true')"
-existing="$("${PSQL[@]}" -At -c 'SELECT count(*) FROM department')"
-[[ "${applied}" == '6' && "${existing}" == '0' ]] || {
-    echo 'Demo seed requires all six Flyway migrations and empty business tables.' >&2
-    exit 1
-}
-
-args=()
-for seed_file in "${PROJECT_ROOT}"/database/seeds/0[1-6]_*.sql; do
-    [[ -f "${seed_file}" ]] || { echo 'Missing Phase 1.3 seed SQL.' >&2; exit 1; }
-    args+=(-f "${seed_file}")
-done
-"${PSQL[@]}" -q --single-transaction -v ON_ERROR_STOP=1 "${args[@]}"
-echo 'Loaded Phase 1.3 synthetic demo data separately from Flyway migrations.'
+PSQL=(psql -X -At -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USERNAME}" -d "${DB_NAME}")
+[[ "$("${PSQL[@]}" -c 'SELECT count(*) FROM department')" == 0 ]] || { echo 'Canonical seed requires empty business tables; existing data left untouched.' >&2; exit 1; }
+expected="$(find "${PROJECT_ROOT}/database/migrations" -maxdepth 1 -name 'V*.sql' | wc -l)"
+[[ "$("${PSQL[@]}" -c 'SELECT count(*) FROM flyway_schema_history WHERE success')" == "${expected}" ]] || { echo 'Run all Flyway migrations first.' >&2; exit 1; }
+python3 "${PROJECT_ROOT}/database/seeds/local_credentials.py"
