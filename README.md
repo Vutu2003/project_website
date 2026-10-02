@@ -1,5 +1,44 @@
 # Chạy project trên máy hiện tại
 
+## Nền tảng dữ liệu Version 3
+
+Runtime tiếp tục dùng `medical_maintenance_v2`. Baseline V3 có 10 khoa/phòng, 32 thiết bị,
+5 tài khoản và 3 đơn vị bảo trì; không seed kế hoạch, lịch sử hoặc thông báo.
+
+Khởi tạo trên máy mới hoặc bổ sung danh mục trên database hiện có:
+
+```bash
+./backend/scripts/setup-v3.sh
+./scripts/start.sh
+./scripts/status.sh
+```
+
+Chạy lại `setup-v3.sh` giữ nguyên kế hoạch và dữ liệu người dùng đã tạo.
+Để chủ động xóa **toàn bộ kế hoạch và workflow hiện tại**, chuẩn bị lại cho một lượt E2E:
+
+```bash
+./scripts/stop.sh
+./backend/scripts/prepare-v3.sh --yes
+./scripts/start.sh
+```
+
+`prepare-v3.sh` tạo và kiểm tra backup tại `.local-postgres/backups/` trước khi xóa.
+Khoa, thiết bị, coverage, đơn vị bảo trì và tài khoản hiện có được giữ nguyên.
+Không đặt lại ID, nên kế hoạch mới có thể bắt đầu từ ID lớn hơn 1.
+Đăng nhập ADMIN local: `admin / admin`. Tài khoản được tạo mới lấy mật khẩu từ env ignored.
+Trên database đã sử dụng, setup và cleanup giữ nguyên mật khẩu hiện có; dùng mật khẩu đang đăng nhập.
+Hai tài khoản khoa sẵn có là `khoa_noi` và `khoa_ngoai`; ADMIN có thể tạo tài khoản cho các khoa bổ sung.
+
+Sau cleanup có thể kiểm tra baseline trước khi bắt đầu E2E:
+
+```bash
+source scripts/use-toolchain.sh
+source .local-postgres/backend-dev.env
+export PGPASSWORD="$DB_PASSWORD"
+psql -X -v ON_ERROR_STOP=1 -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USERNAME" -d "$DB_NAME" \
+  -f database/tests/validate_v3_baseline.sql
+```
+
 ## Môi trường local Version 2
 
 Database chính: `medical_maintenance_v2`. Khởi tạo trên máy mới:

@@ -16,7 +16,10 @@ def hashes():
             for user,key in ACCOUNTS}
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('--update',action='store_true');args=parser.parse_args()
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--update',action='store_true')
+    parser.add_argument('--baseline',choices=['v2','v3'],default='v2')
+    args=parser.parse_args()
     assert os.environ['DB_HOST']=='127.0.0.1'
     database=os.environ['DB_NAME']
     assert database=='medical_maintenance_v2' or (database.startswith('medical_maintenance_') and database.endswith('_test'))
@@ -32,6 +35,7 @@ if __name__=='__main__':
         # Only hashes travel via stdin into psql variables, never command arguments.
         sql='\n'.join(f"\\set hash_{user} '{digest}'" for user,digest in values.items())
         from pathlib import Path
-        sql+='\nBEGIN;\n'+(Path(__file__).parent/'v2_canonical.sql').read_text()+'\nCOMMIT;'
-        subprocess.run(connection(),input=sql,text=True,check=True,env=env,stdout=subprocess.DEVNULL)
+        sql+=f'\nBEGIN;\n\\ir {args.baseline}_canonical.sql\nCOMMIT;'
+        subprocess.run(connection(),input=sql,text=True,check=True,env=env,
+                       cwd=Path(__file__).resolve().parent,stdout=subprocess.DEVNULL)
     print('Canonical local accounts configured with BCrypt hashes.')
