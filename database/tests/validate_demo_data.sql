@@ -35,10 +35,10 @@ BEGIN
         IF expected_count <> actual_count THEN RAISE EXCEPTION 'FAIL dataset count: expected %, actual %', expected_count, actual_count; END IF;
     END LOOP;
     PERFORM pg_temp.assert_demo('01 exact medium dataset counts', TRUE);
-    PERFORM pg_temp.assert_demo('02 14 tables / 118 columns / 31 validated FKs',
-        (SELECT COUNT(*)=14 FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' AND table_name<>'flyway_schema_history') AND
-        (SELECT COUNT(*)=118 FROM information_schema.columns WHERE table_schema='public' AND table_name<>'flyway_schema_history') AND
-        (SELECT COUNT(*)=31 FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='public' AND c.contype='f' AND c.convalidated));
+    PERFORM pg_temp.assert_demo('02 15 tables / 126 columns / 32 validated FKs',
+        (SELECT COUNT(*)=15 FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' AND table_name<>'flyway_schema_history') AND
+        (SELECT COUNT(*)=126 FROM information_schema.columns WHERE table_schema='public' AND table_name<>'flyway_schema_history') AND
+        (SELECT COUNT(*)=32 FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='public' AND c.contype='f' AND c.convalidated));
 
     -- 3. All synthetic business keys and department scopes are coherent.
     PERFORM pg_temp.assert_demo('03 no duplicate frozen business keys',
@@ -59,19 +59,19 @@ BEGIN
             'Roche cobas c 311','Sysmex XN-1000')));
 
     -- 6. Coverage distinguishes missing/unknown from verified free/non-free.
-    PERFORM pg_temp.assert_demo('06 FREE/NOT_FREE/UNKNOWN distribution',
+    PERFORM pg_temp.assert_demo('06 FREE/NOT_FREE distribution',
         (SELECT COUNT(*)=16 FROM maintenance_coverage WHERE classification='FREE') AND
-        (SELECT COUNT(*)=14 FROM maintenance_coverage WHERE classification='NOT_FREE') AND
-        (SELECT COUNT(*)=5 FROM maintenance_coverage WHERE classification='UNKNOWN'));
-    PERFORM pg_temp.assert_demo('07 verified FREE and NOT_FREE have evidence',
-        NOT EXISTS (SELECT 1 FROM maintenance_coverage c WHERE c.classification IN ('FREE','NOT_FREE')
+        (SELECT COUNT(*)=19 FROM maintenance_coverage WHERE classification='NOT_FREE') AND
+        (SELECT COUNT(*)=0 FROM maintenance_coverage WHERE classification NOT IN ('FREE','NOT_FREE')));
+    PERFORM pg_temp.assert_demo('07 FREE contracts have verified evidence',
+        NOT EXISTS (SELECT 1 FROM maintenance_coverage c WHERE c.classification='FREE'
                     AND (c.verified_by_user_id IS NULL OR c.verified_at IS NULL OR NULLIF(BTRIM(c.basis_note),'') IS NULL
                          OR (c.classification='FREE' AND c.provider_id IS NULL))));
-    PERFORM pg_temp.assert_demo('08 UNKNOWN coverage never creates an assignment route',
+    PERFORM pg_temp.assert_demo('08 Incomplete legacy contract is NOT_FREE without assignment',
         NOT EXISTS (SELECT 1 FROM maintenance_plan_item i JOIN maintenance_coverage c ON c.id=i.coverage_id
-                    WHERE c.classification='UNKNOWN' AND (i.assignment_route IS NOT NULL OR i.assigned_provider_id IS NOT NULL)) AND
+                    WHERE c.classification='NOT_FREE' AND c.verified_at IS NULL AND (i.assignment_route IS NOT NULL OR i.assigned_provider_id IS NOT NULL)) AND
         EXISTS (SELECT 1 FROM maintenance_plan_item i JOIN maintenance_coverage c ON c.id=i.coverage_id
-                WHERE c.classification='UNKNOWN' AND i.status='PLANNED'));
+                WHERE c.classification='NOT_FREE' AND c.verified_at IS NULL AND i.status='PLANNED'));
     PERFORM pg_temp.assert_demo('09 coverage matches item equipment and provider route',
         NOT EXISTS (SELECT 1 FROM maintenance_plan_item i JOIN maintenance_coverage c ON c.id=i.coverage_id
                     WHERE c.equipment_id<>i.equipment_id OR

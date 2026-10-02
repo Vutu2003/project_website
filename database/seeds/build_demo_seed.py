@@ -144,14 +144,14 @@ C={}
 # Compatibility records from Phase 1.2 keep its assertion fixtures stable.
 C[1]={'class':'FREE','provider':providers[0],'verified':T(2026,9,1,8),'from':'2026-01-01','to':'2026-12-31'}
 C[2]={'class':'NOT_FREE','provider':None,'verified':T(2026,9,1,8),'from':'2026-01-01','to':'2026-12-31'}
-C[3]={'class':'UNKNOWN','provider':None,'verified':None,'from':None,'to':None}
-pattern=['FREE','FREE','NOT_FREE','FREE','NOT_FREE','UNKNOWN','NOT_FREE']
+C[3]={'class':'NOT_FREE','provider':None,'verified':None,'from':None,'to':None}
+pattern=['FREE','FREE','NOT_FREE','FREE','NOT_FREE','NOT_FREE','NOT_FREE']
 for n in range(4,36):
     cl=pattern[(n-4)%7]
     C[n]={'class':cl,'provider':providers[2+(n%5)] if cl=='FREE' else None,
-          'verified':T(2025,12,15,10,n%50) if cl!='UNKNOWN' else None,
-          'from':'2025-01-01' if cl!='UNKNOWN' else None,
-          'to':'2026-12-31' if cl!='UNKNOWN' else None}
+          'verified':T(2025,12,15,10,n%50) if (n-4)%7!=5 else None,
+          'from':'2025-01-01' if (n-4)%7!=5 else None,
+          'to':'2026-12-31' if (n-4)%7!=5 else None}
 assert len(C)==35
 
 P={
@@ -357,7 +357,7 @@ sec=['-- Hospital-style department names are generic; all entities/ownership are
            [(dept(e['dept']),e['code'],e['name'],f'SYN-SN-{int(e["code"][-3:]):04d}',e['model'],None,True) for e in E])]
 write('01_master_reference.sql',sec)
 
-# 02: coverage, one row per selected equipment; UNKNOWN stays unverified.
+# 02: coverage, one row per selected equipment; incomplete legacy evidence is outside contract.
 cover_rows=[]
 for n,c in C.items():
     free=c['class']=='FREE'; verified=c['verified'] is not None
@@ -367,7 +367,7 @@ for n,c in C.items():
                        D(c['from']) if c['from'] else None,D(c['to']) if c['to'] else None,
                        c['class'],user('demo_vtyt') if verified else None,TS(c['verified']) if verified else None,
                        ('Xác minh bảo trì miễn phí theo hợp đồng giả lập' if free else 'Xác minh không thuộc diện miễn phí; cần duyệt đơn vị ngoài') if verified else None))
-write('02_equipment_coverage.sql',['-- FREE/NOT_FREE are verified synthetic decisions; UNKNOWN is intentionally unrouted.',
+write('02_equipment_coverage.sql',['-- FREE evidence is verified; incomplete contracts are NOT_FREE and intentionally unrouted.',
       batch('maintenance_coverage',['equipment_id','provider_id','contract_reference','coverage_scope','effective_from','effective_to','classification','verified_by_user_id','verified_at','basis_note'],cover_rows)])
 
 # 03: plans/items, current state aligned with later evidence; version equals transition count.

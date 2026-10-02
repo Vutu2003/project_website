@@ -3,9 +3,9 @@ export type PlanStatus = (typeof planStatuses)[number]
 export const itemStatuses = ['PLANNED', 'UNDER_CONTRACT', 'PENDING_PROPOSAL', 'WAITING_VENDOR_APPROVAL', 'ASSIGNED_EXTERNAL', 'IN_MAINTENANCE', 'AWAITING_TECHNICAL_ACCEPTANCE', 'AWAITING_HANDOVER', 'COMPLETED', 'REWORK_REQUIRED', 'REPAIR_REQUIRED'] as const
 export type PlanItemStatus = (typeof itemStatuses)[number]
 export type ApprovalRequestType = 'PLAN_APPROVAL' | 'VENDOR_SELECTION'
-export type ApprovalRequestStatus = 'DRAFT' | 'PENDING' | 'DECIDED'
+export type ApprovalRequestStatus = 'DRAFT' | 'PENDING' | 'DECIDED' | 'CANCELLED'
 export type ApprovalOutcome = 'APPROVE' | 'REVISION_REQUIRED'
-export type CoverageClassification = 'UNKNOWN' | 'FREE' | 'NOT_FREE'
+export type CoverageClassification = 'FREE' | 'NOT_FREE'
 export type AssignmentRoute = 'UNDER_CONTRACT' | 'EXTERNAL_APPROVED'
 
 export interface PageResponse<T> {
@@ -26,6 +26,7 @@ export interface Plan {
   createdAt: string
   createdByUserId: number
   createdByName: string
+  pendingVendorApproval?: boolean | null
   version: number
 }
 
@@ -43,9 +44,15 @@ export interface PlanItem {
   assignedProviderName: string | null
   assignmentRoute: AssignmentRoute | null
   version: number
+  classification?: CoverageClassification | null
+  coverageId?: number | null
+  proposedProviderId?: number | null
+  proposedProviderName?: string | null
+  rationale?: string | null
+  warrantyImpactNote?: string | null
 }
 
-export interface PlanItemInput { equipmentId: number; plannedDate: string | null }
+export interface PlanItemInput { equipmentId: number; plannedDate: string | null; classification?: CoverageClassification | null; coverageId?: number | null; proposedProviderId?: number | null; rationale?: string | null; warrantyImpactNote?: string | null; version?: number }
 export interface CreatePlanRequest { title: string; periodStart: string; periodEnd: string; items: PlanItemInput[] }
 export interface EditPlanRequest extends CreatePlanRequest { version: number }
 export interface PlanCommandResponse { id: number; status: PlanStatus; version: number; approvalRequestId: number | null }
@@ -118,11 +125,16 @@ export interface CoverageEvidence {
   coverageScope: string | null
   effectiveFrom: string | null
   effectiveTo: string | null
+  verifiedByRole: 'PHONG_VTYT' | 'BAN_GIAM_DOC' | 'KHOA_PHONG' | 'ADMIN' | null
   verifiedByName: string | null
   verifiedAt: string | null
   basisNote: string | null
 }
 export interface ItemWorkflowResponse {
+  planId: number
+  planStatus: PlanStatus
+  planVersion: number
+  providerName: string | null
   itemId: number
   status: PlanItemStatus
   version: number
@@ -148,4 +160,15 @@ export interface VendorProposalRequest {
   providerId: number | null
   rationale: string | null
   warrantyImpactNote: string | null
+}
+
+export interface MaintenanceSuggestion {
+ equipmentId: number; equipmentCode: string; equipmentName: string; departmentId: number; departmentName: string;
+ lastMaintenanceDate: string | null; latestResult: string | null; latestStatus: PlanItemStatus | null;
+ classification: CoverageClassification; coverageId: number | null; contractReference: string | null;
+ contractualProviderName: string | null; lastExternalProviderName: string | null;
+ suggestedDate: string | null; referenceDate: string; suggestionBasis: string; coverageNote: string; openPlanIds: number[];
+}
+export interface UserNotification {
+ id: number; notificationType: string; title: string; message: string; targetUrl: string; createdAt: string; readAt: string | null;
 }

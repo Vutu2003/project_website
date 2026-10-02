@@ -6,4 +6,4 @@ import vn.edu.medmaintenance.persistence.enums.PlanStatus;
 
 public record MaintenancePlanResponse(
         Long id, String title, LocalDate periodStart, LocalDate periodEnd, PlanStatus status,
-        OffsetDateTime createdAt, Long createdByUserId, String createdByName, Integer version) { }
+        OffsetDateTime createdAt, Long createdByUserId, String createdByName, Integer version, Boolean pendingVendorApproval) { }

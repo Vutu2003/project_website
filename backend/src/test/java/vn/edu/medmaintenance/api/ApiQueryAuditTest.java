@@ -105,9 +105,8 @@ class ApiQueryAuditTest {
                 + "Successful JSON responses contain DTO fields, not Hibernate proxies or password hashes.\n");
         Path cwd = Path.of(System.getProperty("user.dir"));
         Path root = cwd.getFileName().toString().equals("backend") ? cwd.getParent() : cwd;
-        Path output = root.resolve("reports/backend/phase_2_4_api_audit.md");
-        Files.createDirectories(output.getParent());
-        Files.writeString(output, audit.toString());
+
+        // Audit assertions remain executable; no report artifact is emitted.
     }
 
     private Result measure(Statistics stats, String path, String name) {

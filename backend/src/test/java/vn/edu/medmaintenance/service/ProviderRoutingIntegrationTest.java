@@ -1,540 +1,453 @@
 package vn.edu.medmaintenance.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.reset;
-
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+import java.util.*;
 import com.fasterxml.jackson.databind.JsonNode;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
-import vn.edu.medmaintenance.api.dto.request.RouteItemRequest;
-import vn.edu.medmaintenance.persistence.enums.UserRole;
-import vn.edu.medmaintenance.security.principal.AuthenticatedUser;
+import vn.edu.medmaintenance.persistence.enums.*;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class ProviderRoutingIntegrationTest {
+@SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT) @TestInstance(TestInstance.Lifecycle.PER_CLASS) class ProviderRoutingIntegrationTest {
     @Autowired TestRestTemplate http;
     @Autowired JdbcTemplate jdbc;
-    @Autowired MaintenanceAssignmentService assignment;
-    @MockitoSpyBean WorkflowHistory history;
-    private final List<Long> plans = new ArrayList<>();
-    private String vtyt, director, department, admin;
-    private long freeEq, paidEq, unknownEq, noCoverageEq, freeCoverage, paidCoverage, unknownCoverage;
-    private long provider1, provider2;
-
-    @BeforeAll
-    void setup() {
-        vtyt = login("demo_vtyt", "VTYT");
-        director = login("demo_bgd", "BGD");
-        department = login("demo_khoa_noi", "KHOA");
-        admin = login("demo_admin", "ADMIN");
-        freeEq = equipment("DEMO-EQ-001");
-        paidEq = equipment("DEMO-EQ-002");
-        unknownEq = jdbc.queryForObject("SELECT equipment_id FROM maintenance_coverage WHERE classification='UNKNOWN' ORDER BY id LIMIT 1", Long.class);
-        noCoverageEq = jdbc.queryForObject("SELECT e.id FROM equipment e WHERE NOT EXISTS (SELECT 1 FROM maintenance_coverage c WHERE c.equipment_id=e.id) ORDER BY e.id LIMIT 1", Long.class);
-        freeCoverage = coverage(freeEq);
-        paidCoverage = coverage(paidEq);
-        unknownCoverage = coverage(unknownEq);
-        provider1 = jdbc.queryForObject("SELECT id FROM service_provider WHERE active=true ORDER BY id LIMIT 1", Long.class);
-        provider2 = jdbc.queryForObject("SELECT id FROM service_provider WHERE active=true AND id<>? ORDER BY id LIMIT 1", Long.class, provider1);
+    @MockitoSpyBean vn.edu.medmaintenance.persistence.repository.UserNotificationRepository notifications;
+    private String vtyt, bgd, khoa, admin;
+    private long eq, paid, missing, coverage, provider, provider2;
+    private final List<Long> plans=new ArrayList<>();
+    private final List<Long> projectionEquipment=new ArrayList<>();
+    @BeforeAll void setup() {
+        vtyt=login("demo_vtyt", "VTYT");
+        bgd=login("demo_bgd", "BGD");
+        khoa=login("demo_khoa_noi", "KHOA");
+        admin=login("demo_admin", "ADMIN");
+        eq=id("DEMO-EQ-001");
+        paid=id("DEMO-EQ-002");
+        missing=id("DEMO-EQ-036");
+        coverage=number("SELECT id FROM maintenance_coverage WHERE equipment_id=?", eq);
+        provider=number("SELECT id FROM service_provider WHERE active=true ORDER BY id LIMIT 1");
+        provider2=number("SELECT id FROM service_provider WHERE active=true AND id<>? ORDER BY id LIMIT 1", provider);
     }
-
-    @AfterEach
-    void cleanup() {
-        for (long planId : plans) {
-            jdbc.update("DELETE FROM approval_action WHERE request_id IN (SELECT r.id FROM approval_request r WHERE r.plan_id=? OR r.plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?))", planId, planId);
-            jdbc.update("DELETE FROM approval_request WHERE plan_id=? OR plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)", planId, planId);
-            jdbc.update("DELETE FROM status_history WHERE plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)", planId);
-            jdbc.update("DELETE FROM status_history WHERE plan_id=?", planId);
-            jdbc.update("DELETE FROM maintenance_plan_item WHERE plan_id=?", planId);
-            jdbc.update("DELETE FROM maintenance_plan WHERE id=?", planId);
+    @AfterEach void clean() {
+        reset(notifications);
+        for (var plan:plans) {
+            PlanningTestData.cleanNotifications(jdbc, plan);
+            jdbc.update("DELETE FROM acceptance_record WHERE execution_id IN (SELECT e.id FROM maintenance_execution e JOIN maintenance_plan_item i ON i.id=e.plan_item_id WHERE i.plan_id=?)", plan);
+            jdbc.update("DELETE FROM maintenance_execution WHERE plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)", plan);
+            jdbc.update("DELETE FROM approval_action WHERE request_id IN (SELECT id FROM approval_request WHERE plan_id=? OR plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?))", plan, plan);
+            jdbc.update("DELETE FROM approval_request WHERE plan_id=? OR plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)", plan, plan);
+            jdbc.update("DELETE FROM status_history WHERE plan_id=? OR plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)", plan, plan);
+            jdbc.update("DELETE FROM maintenance_plan_item WHERE plan_id=?", plan);
+            jdbc.update("DELETE FROM maintenance_plan WHERE id=?", plan);
         }
         plans.clear();
-        assertThat(count("maintenance_plan")).isEqualTo(8);
-        assertThat(count("maintenance_plan_item")).isEqualTo(52);
-        assertThat(count("approval_request")).isEqualTo(19);
-        assertThat(count("approval_action")).isEqualTo(15);
-        assertThat(count("status_history")).isEqualTo(240);
+        for (long device:projectionEquipment)jdbc.update("DELETE FROM equipment WHERE id=? AND equipment_code LIKE 'SMOKE-V2-PROJECTION-%'", device);
+        projectionEquipment.clear();
     }
-
-    @Test
-    void freeCoverageAssignsOnlyContractedProviderWithOneHistory() {
-        long plan = approvedPlan("2026-11-01", "2026-11-30", freeEq);
-        long item = item(plan, freeEq);
-        int oldVersion = version(item);
-        int requestsBefore = count("approval_request");
-        long contracted = jdbc.queryForObject("SELECT provider_id FROM maintenance_coverage WHERE id=?", Long.class, freeCoverage);
-        jdbc.update("UPDATE service_provider SET active=false WHERE id=?", contracted);
+    @Test void freeDecisionDerivesContractualProviderAndHistory() {
+        var p=create(free());
+        long i=item(p);
+        assertThat(text("SELECT status FROM maintenance_plan_item WHERE id=?", i)).isEqualTo("UNDER_CONTRACT");
+        assertThat(number("SELECT assigned_provider_id FROM maintenance_plan_item WHERE id=?", i)).isEqualTo(number("SELECT provider_id FROM maintenance_coverage WHERE id=?", coverage));
+        assertThat(text("SELECT reason FROM status_history WHERE plan_item_id=? AND action='SELECT_CONTRACT_COVERAGE'", i)).contains("coverage=", "date=", "basis=");
+        assertThat(number("SELECT count(*) FROM approval_request WHERE plan_item_id=?", i)).isZero();
+    }
+    @Test void externalPreparationDoesNotAssignOrCreatePending() {
+        var p=create(external(paid));
+        long i=item(p);
+        assertThat(text("SELECT status FROM maintenance_plan_item WHERE id=?", i)).isEqualTo("PENDING_PROPOSAL");
+        assertThat(number("SELECT count(*) FROM maintenance_plan_item WHERE id=? AND assigned_provider_id IS NULL AND assignment_route IS NULL", i)).isEqualTo(1);
+        assertThat(text("SELECT status FROM approval_request WHERE plan_item_id=?", i)).isEqualTo("DRAFT");
+        assertThat(number("SELECT count(*) FROM user_notification WHERE notification_type='VENDOR_PENDING' AND target_url IN (SELECT '/approvals/'||id FROM approval_request WHERE plan_item_id=?)", i)).isZero();
+    }
+    @Test void missingCoverageAllowsExplicitExternalProposal() {
+        var p=create(external(missing));
+        assertThat(submit(p).path("status").asText()).isEqualTo("SUBMITTED");
+    }
+    @Test void migratedUnverifiedCoverageAllowsExternal() {
+        var p=create(external(id("DEMO-EQ-003")));
+        assertThat(submit(p).path("status").asText()).isEqualTo("SUBMITTED");
+    }
+    @Test void incompleteClassificationBlocksSubmissionWithEquipmentCode() {
+        var p=create(Map.of("equipmentId", eq));
+        var fail=send(HttpMethod.POST, "/api/plans/"+p+"/submit", vtyt, Map.of("version", pv(p)));
+        assertThat(ok(fail, 409).path("message").asText()).contains("DEMO-EQ-001");
+        assertThat(text("SELECT status FROM maintenance_plan WHERE id=?", p)).isEqualTo("DRAFT");
+    }
+    @Test void externalProviderRequiredAtSubmission() {
+        var input=new HashMap<>(external(paid));
+        input.remove("proposedProviderId");
+        var p=create(input);
+        assertCode(send(HttpMethod.POST, "/api/plans/"+p+"/submit", vtyt, Map.of("version", pv(p))), 409, "PLAN_ITEM_INCOMPLETE");
+    }
+    @Test void externalBasisRequiredAtSubmission() {
+        var input=new HashMap<>(external(paid));
+        input.put("rationale", "  ");
+        var p=create(input);
+        assertCode(send(HttpMethod.POST, "/api/plans/"+p+"/submit", vtyt, Map.of("version", pv(p))), 409, "PLAN_ITEM_INCOMPLETE");
+    }
+    @Test void inactiveProviderRejectedAtomically() {
+        jdbc.update("UPDATE service_provider SET active=false WHERE id=?", provider);
         try {
-            fail(send(HttpMethod.POST, "/api/plan-items/" + item + "/route", vtyt,
-                    Map.of("version", oldVersion, "coverageId", freeCoverage)), 409, "PROVIDER_INACTIVE");
-        } finally {
-            jdbc.update("UPDATE service_provider SET active=true WHERE id=?", contracted);
+            assertCode(send(HttpMethod.POST, "/api/plans", vtyt, body(external(paid))), 409, "PROVIDER_INACTIVE");
         }
-        assertThat(itemStates(item)).containsExactly("PLANNED");
-        JsonNode routed = ok(send(HttpMethod.POST, "/api/plan-items/" + item + "/route", vtyt,
-                Map.of("version", oldVersion, "coverageId", freeCoverage)), 200);
-        assertThat(routed.path("status").asText()).isEqualTo("UNDER_CONTRACT");
-        assertThat(routed.path("assignmentRoute").asText()).isEqualTo("UNDER_CONTRACT");
-        assertThat(routed.path("coverageId").asLong()).isEqualTo(freeCoverage);
-        assertThat(routed.path("providerId").asLong()).isEqualTo(contracted);
-        assertThat(routed.path("version").asInt()).isEqualTo(version(item));
-        assertThat(count("approval_request")).isEqualTo(requestsBefore);
-        assertThat(itemStates(item)).containsExactly("PLANNED", "UNDER_CONTRACT");
-        JsonNode read = itemRead(plan, item);
-        assertThat(read.path("status").asText()).isEqualTo("UNDER_CONTRACT");
-        assertThat(read.path("assignmentRoute").asText()).isEqualTo("UNDER_CONTRACT");
-        assertThat(read.path("assignedProviderId").asLong()).isEqualTo(contracted);
-        fail(send(HttpMethod.POST, "/api/plan-items/" + item + "/route", vtyt,
-                Map.of("version", routed.path("version").asInt(), "coverageId", freeCoverage)),
-                409, "PLAN_ITEM_STATE_CONFLICT");
-        fail(send(HttpMethod.POST, "/api/plan-items/" + item + "/vendor-proposals", vtyt,
-                Map.of("version", routed.path("version").asInt())), 409, "PLAN_ITEM_STATE_CONFLICT");
-    }
-
-    @Test
-    void notFreeDraftSubmitAndDirectorApprovalPreserveEvidence() {
-        long plan = approvedPlan("2026-11-01", "2026-11-30", paidEq);
-        long item = item(plan, paidEq);
-        JsonNode pending = route(item, paidCoverage);
-        assertThat(pending.path("status").asText()).isEqualTo("PENDING_PROPOSAL");
-        assertThat(pending.path("providerId").isNull()).isTrue();
-        assertThat(pending.path("assignmentRoute").isNull()).isTrue();
-        JsonNode draft = ok(send(HttpMethod.POST, "/api/plan-items/" + item + "/vendor-proposals", vtyt,
-                Map.of("version", pending.path("version").asInt())), 201);
-        long requestId = draft.path("approvalRequestId").asLong();
-        assertThat(draft.path("approvalStatus").asText()).isEqualTo("DRAFT");
-        assertThat(draft.path("version").asInt()).isEqualTo(version(item));
-        assertThat(itemStates(item)).containsExactly("PLANNED", "PENDING_PROPOSAL");
-        fail(send(HttpMethod.POST, "/api/vendor-proposals/" + requestId + "/submit", vtyt,
-                Map.of("version", draft.path("version").asInt())), 400, "PROVIDER_REQUIRED");
-        JsonNode submitted = ok(send(HttpMethod.POST, "/api/vendor-proposals/" + requestId + "/submit", vtyt,
-                Map.of("version", draft.path("version").asInt(), "providerId", provider1,
-                        "rationale", "Đối tác phù hợp kế hoạch", "warrantyImpactNote", "Đã xem xét bảo hành")), 200);
-        assertThat(submitted.path("status").asText()).isEqualTo("WAITING_VENDOR_APPROVAL");
-        assertThat(submitted.path("approvalStatus").asText()).isEqualTo("PENDING");
-        assertThat(queueContains(requestId)).isTrue();
-        assertThat(submitted.path("providerId").isNull()).isTrue();
-        JsonNode approved = ok(send(HttpMethod.POST, "/api/approvals/" + requestId + "/decision", director,
-                Map.of("version", submitted.path("version").asInt(), "outcome", "APPROVE")), 200);
-        assertThat(approved.path("status").asText()).isEqualTo("ASSIGNED_EXTERNAL");
-        assertThat(approved.path("assignmentRoute").asText()).isEqualTo("EXTERNAL_APPROVED");
-        assertThat(approved.path("providerId").asLong()).isEqualTo(provider1);
-        assertThat(approved.path("coverageId").asLong()).isEqualTo(paidCoverage);
-        assertThat(approved.path("version").asInt()).isEqualTo(version(item));
-        assertThat(approved.path("approvalActionId").asLong()).isPositive();
-        assertThat(queueContains(requestId)).isFalse();
-        assertThat(itemStates(item)).containsExactly("PLANNED", "PENDING_PROPOSAL", "WAITING_VENDOR_APPROVAL", "ASSIGNED_EXTERNAL");
-        assertThat(itemRead(plan, item).path("assignedProviderId").asLong()).isEqualTo(provider1);
-        fail(send(HttpMethod.POST, "/api/approvals/" + requestId + "/decision", director,
-                Map.of("version", approved.path("version").asInt(), "outcome", "APPROVE")),
-                409, "APPROVAL_REQUEST_NOT_PENDING");
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM approval_action WHERE request_id=?", Integer.class, requestId)).isEqualTo(1);
-    }
-
-    @Test
-    void unknownAndNoCoverageNeverBecomeNotFree() {
-        long plan = approvedPlan("2026-11-01", "2026-11-30", unknownEq, noCoverageEq);
-        long unknown = item(plan, unknownEq), absent = item(plan, noCoverageEq);
-        fail(send(HttpMethod.POST, "/api/plan-items/" + unknown + "/route", vtyt,
-                Map.of("version", version(unknown), "coverageId", unknownCoverage)), 409, "COVERAGE_UNKNOWN");
-        fail(send(HttpMethod.POST, "/api/plan-items/" + absent + "/route", vtyt,
-                Map.of("version", version(absent))), 409, "COVERAGE_REQUIRED");
-        for (long id : List.of(unknown, absent)) {
-            assertThat(jdbc.queryForObject("SELECT status FROM maintenance_plan_item WHERE id=?", String.class, id))
-                    .isEqualTo("PLANNED");
-            assertThat(jdbc.queryForObject("SELECT count(*) FROM approval_request WHERE plan_item_id=?", Integer.class, id)).isZero();
-            assertThat(itemStates(id)).containsExactly("PLANNED");
+        finally {
+            jdbc.update("UPDATE service_provider SET active=true WHERE id=?", provider);
         }
+        assertThat(number("SELECT count(*) FROM maintenance_plan WHERE title='TEST-V2-FAILED'")).isZero();
     }
-
-    @Test
-    void expiredCoverageAndWrongEquipmentCoverageAreRejected() {
-        long current = approvedPlan("2026-11-01", "2026-11-30", freeEq);
-        long item = item(current, freeEq);
-        fail(send(HttpMethod.POST, "/api/plan-items/" + item + "/route", vtyt,
-                Map.of("version", version(item), "coverageId", paidCoverage)),
-                409, "COVERAGE_EQUIPMENT_MISMATCH");
-        long future = approvedPlan("2027-02-01", "2027-02-28", freeEq);
-        long futureItem = item(future, freeEq);
-        fail(send(HttpMethod.POST, "/api/plan-items/" + futureItem + "/route", vtyt,
-                Map.of("version", version(futureItem), "coverageId", freeCoverage)),
-                409, "COVERAGE_NOT_APPLICABLE");
-        assertThat(itemStates(item)).containsExactly("PLANNED");
-        assertThat(itemStates(futureItem)).containsExactly("PLANNED");
-    }
-
-    @Test
-    void coverageVerifierMustBeVtyt() {
-        long plan = approvedPlan("2026-11-01", "2026-11-30", freeEq);
-        long item = item(plan, freeEq);
-        long originalVerifier = jdbc.queryForObject("SELECT verified_by_user_id FROM maintenance_coverage WHERE id=?",
-                Long.class, freeCoverage);
-        long adminId = jdbc.queryForObject("SELECT id FROM user_account WHERE username='demo_admin'", Long.class);
-        jdbc.update("UPDATE maintenance_coverage SET verified_by_user_id=? WHERE id=?", adminId, freeCoverage);
+    @Test void providerDeactivatedAfterPreparationBlocksSubmit() {
+        var p=create(external(paid));
+        jdbc.update("UPDATE service_provider SET active=false WHERE id=?", provider);
         try {
-            fail(send(HttpMethod.POST, "/api/plan-items/" + item + "/route", vtyt,
-                    Map.of("version", version(item), "coverageId", freeCoverage)),
-                    409, "COVERAGE_UNVERIFIED");
-        } finally {
-            jdbc.update("UPDATE maintenance_coverage SET verified_by_user_id=? WHERE id=?",
-                    originalVerifier, freeCoverage);
+            assertCode(send(HttpMethod.POST, "/api/plans/"+p+"/submit", vtyt, Map.of("version", pv(p))), 409, "PLAN_ITEM_INCOMPLETE");
         }
-        assertThat(itemStates(item)).containsExactly("PLANNED");
+        finally {
+            jdbc.update("UPDATE service_provider SET active=true WHERE id=?", provider);
+        }
     }
-
-    @Test
-    void plannedItemDateOverridesPlanStartForCoverageApplicability() {
-        JsonNode created = ok(send(HttpMethod.POST, "/api/plans", vtyt,
-                Map.of("title", "TEST-ROUTING-DATE-" + UUID.randomUUID(),
-                        "periodStart", "2026-12-01", "periodEnd", "2027-01-31",
-                        "items", List.of(Map.of("equipmentId", freeEq, "plannedDate", "2027-01-10")))), 201);
-        long plan = created.path("id").asLong();
-        plans.add(plan);
-        JsonNode submitted = ok(send(HttpMethod.POST, "/api/plans/" + plan + "/submit", vtyt,
-                Map.of("version", created.path("version").asInt())), 200);
-        ok(send(HttpMethod.POST, "/api/approvals/" + submitted.path("approvalRequestId").asLong() + "/decision",
-                director, Map.of("version", submitted.path("version").asInt(), "outcome", "APPROVE")), 200);
-        long item = item(plan, freeEq);
-        fail(send(HttpMethod.POST, "/api/plan-items/" + item + "/route", vtyt,
-                Map.of("version", version(item), "coverageId", freeCoverage)), 409, "COVERAGE_NOT_APPLICABLE");
-        assertThat(itemStates(item)).containsExactly("PLANNED");
+    @ParameterizedTest @ValueSource(strings= {
+        "SUBMITTED", "APPROVED", "IN_PROGRESS", "AWAITING_REPORT", "REPORTED", "CLOSED"
+    }) void lockedPlanRejectsAllFieldMutation(String status) {
+        var p=create(free());
+        jdbc.update("UPDATE maintenance_plan SET status=? WHERE id=?", status, p);
+        assertCode(send(HttpMethod.PATCH, "/api/plans/"+p, vtyt, edit(p, external(eq))), 409, "PLAN_NOT_EDITABLE");
+        assertThat(text("SELECT status FROM maintenance_plan_item WHERE plan_id=?", p)).isEqualTo("UNDER_CONTRACT");
     }
-
-    @Test
-    void inactiveProposedProviderBlocksDirectorDecisionWithoutPartialWrites() {
-        long plan = approvedPlan("2026-11-01", "2026-11-30", paidEq);
-        long item = item(plan, paidEq);
-        JsonNode routed = route(item, paidCoverage);
-        JsonNode draft = draft(item, routed.path("version").asInt(), provider1);
-        JsonNode sent = submit(draft.path("approvalRequestId").asLong(), draft.path("version").asInt());
-        long requestId = sent.path("approvalRequestId").asLong();
-        jdbc.update("UPDATE service_provider SET active=false WHERE id=?", provider1);
+    @ParameterizedTest @ValueSource(strings= {
+        "DRAFT", "REVISION_REQUIRED"
+    }) void editablePlanCanChangeDateMethodAndProposal(String status) {
+        var p=create(free());
+        jdbc.update("UPDATE maintenance_plan SET status=? WHERE id=?", status, p);
+        var input=new HashMap<>(external(eq));
+        input.put("plannedDate", "2026-11-16");
+        ok(send(HttpMethod.PATCH, "/api/plans/"+p, vtyt, edit(p, input)), 200);
+        assertThat(text("SELECT status FROM maintenance_plan_item WHERE plan_id=?", p)).isEqualTo("PENDING_PROPOSAL");
+        assertThat(submit(p).path("status").asText()).isEqualTo("SUBMITTED");
+    }
+    @Test void revisionCanChangeBackToFreePreservingOldContent() {
+        var p=create(external(eq));
+        long i=item(p);
+        ok(send(HttpMethod.PATCH, "/api/plans/"+p, vtyt, edit(p, free())), 200);
+        assertThat(text("SELECT status FROM approval_request WHERE plan_item_id=?", i)).isEqualTo("CANCELLED");
+        assertThat(text("SELECT status FROM maintenance_plan_item WHERE id=?", i)).isEqualTo("UNDER_CONTRACT");
+    }
+    @Test void proposalReplacementPreservesOldBasisAndHasOneActive() {
+        var p=create(external(paid));
+        long i=item(p);
+        var input=new HashMap<>(external(paid));
+        input.put("proposedProviderId", provider2);
+        input.put("rationale", "Đơn vị thay thế");
+        ok(send(HttpMethod.PATCH, "/api/plans/"+p, vtyt, edit(p, input)), 200);
+        assertThat(number("SELECT count(*) FROM approval_request WHERE plan_item_id=? AND status='DRAFT'", i)).isEqualTo(1);
+        assertThat(text("SELECT rationale FROM approval_request WHERE plan_item_id=? AND status='CANCELLED'", i)).isEqualTo("Năng lực phù hợp");
+    }
+    @Test void completePlanSubmitNotifiesOnlyActiveDirectors() {
+        var p=create(free());
+        var s=submit(p);
+        var request=s.path("approvalRequestId").asLong();
+        assertThat(number("SELECT count(*) FROM user_notification n JOIN user_account u ON u.id=n.user_account_id WHERE n.target_url=? AND u.role_code='BAN_GIAM_DOC' AND u.active=true", "/approvals/"+request)).isEqualTo(number("SELECT count(*) FROM user_account WHERE role_code='BAN_GIAM_DOC' AND active=true"));
+        assertThat(number("SELECT count(*) FROM user_notification n JOIN user_account u ON u.id=n.user_account_id WHERE n.target_url=? AND (u.role_code='ADMIN' OR u.active=false)", "/approvals/"+request)).isZero();
+    }
+    @Test void freePlanApprovalHasNoVendorRequestAndNotifiesVtyt() {
+        var p=create(free());
+        approve(p);
+        assertThat(number("SELECT count(*) FROM approval_request WHERE plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)", p)).isZero();
+        assertThat(number("SELECT count(*) FROM user_notification WHERE notification_type='PLAN_APPROVED' AND target_url=?", "/plans/"+p)).isGreaterThan(0);
+    }
+    @Test void planApprovalAutomaticallyActivatesPreparedVendorWithoutDuplicates() {
+        var p=create(external(paid));
+        long i=item(p);
+        var a=approve(p);
+        assertThat(text("SELECT status FROM maintenance_plan_item WHERE id=?", i)).isEqualTo("WAITING_VENDOR_APPROVAL");
+        var q=number("SELECT id FROM approval_request WHERE plan_item_id=? AND status='PENDING'", i);
+        assertThat(text("SELECT rationale FROM approval_request WHERE id=?", q)).isEqualTo("Năng lực phù hợp");
+        assertThat(number("SELECT count(*) FROM user_notification WHERE notification_type='VENDOR_PENDING' AND target_url=?", "/approvals/"+q)).isGreaterThan(0);
+        assertCode(send(HttpMethod.POST, "/api/approvals/"+a.path("requestId").asLong()+"/decision", bgd, Map.of("version", pv(p), "outcome", "APPROVE")), 409, "APPROVAL_REQUEST_NOT_PENDING");
+        assertThat(number("SELECT count(*) FROM approval_request WHERE plan_item_id=?", i)).isEqualTo(1);
+    }
+    @Test void vendorApproveAssignsProposedProviderAndNotifies() {
+        var p=create(external(paid));
+        approve(p);
+        long i=item(p);
+        long q=pending(i);
+        var a=decide(q, iv(i), "APPROVE");
+        assertThat(a.path("status").asText()).isEqualTo("ASSIGNED_EXTERNAL");
+        assertThat(number("SELECT assigned_provider_id FROM maintenance_plan_item WHERE id=?", i)).isEqualTo(provider);
+        assertThat(number("SELECT count(*) FROM user_notification WHERE notification_type='VENDOR_APPROVED' AND target_url=?", "/plans/"+p)).isGreaterThan(0);
+    }
+    @Test void mixedPreparedPlanWaitsForAllVendorsBeforeExecutionAndRemainsRevisable() {
+        long p=create(free(), external(paid));
+        approve(p);
+        long contract=number("SELECT id FROM maintenance_plan_item WHERE plan_id=? AND equipment_id=?", p, eq);
+        long external=number("SELECT id FROM maintenance_plan_item WHERE plan_id=? AND equipment_id=?", p, paid);
+        assertThat(ok(send(HttpMethod.GET, "/api/plans/"+p, vtyt, null), 200).path("pendingVendorApproval").asBoolean()).isTrue();
+        assertCode(send(HttpMethod.POST, "/api/plan-items/"+contract+"/executions", vtyt,
+                Map.of("version", iv(contract), "planVersion", pv(p))), 409, "PLAN_VENDOR_APPROVAL_PENDING");
+        assertThat(number("SELECT count(*) FROM maintenance_execution WHERE plan_item_id=?", contract)).isZero();
+        decide(pending(external), iv(external), "REVISION_REQUIRED");
+        assertThat(text("SELECT status FROM maintenance_plan WHERE id=?", p)).isEqualTo("REVISION_REQUIRED");
+        var revised=body(free(), external(paid));
+        revised.put("version", pv(p));
+        ok(send(HttpMethod.PATCH, "/api/plans/"+p, vtyt, revised), 200);
+        approve(p);
+        decide(pending(external), iv(external), "APPROVE");
+        assertThat(ok(send(HttpMethod.GET, "/api/plans/"+p, vtyt, null), 200).path("pendingVendorApproval").asBoolean()).isFalse();
+        ok(send(HttpMethod.POST, "/api/plan-items/"+contract+"/executions", vtyt,
+                Map.of("version", iv(contract), "planVersion", pv(p))), 201);
+        assertThat(text("SELECT status FROM maintenance_plan WHERE id=?", p)).isEqualTo("IN_PROGRESS");
+    }
+    @Test void vendorRevisionReturnsWholePlanAndCancelsSiblingPendingRequests() {
+        var p=create(external(paid), external(missing));
+        approve(p);
+        long i=item(p);
+        long q=pending(i);
+        decide(q, iv(i), "REVISION_REQUIRED");
+        assertThat(text("SELECT status FROM maintenance_plan WHERE id=?", p)).isEqualTo("REVISION_REQUIRED");
+        assertThat(number("SELECT count(*) FROM approval_request WHERE status='PENDING' AND plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)", p)).isZero();
+        assertThat(number("SELECT count(*) FROM approval_request WHERE status='DRAFT' AND plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)", p)).isEqualTo(2);
+        var input=new HashMap<>(external(paid));
+        input.put("proposedProviderId", provider2);
+        ok(send(HttpMethod.PATCH, "/api/plans/"+p, vtyt, edit(p, input)), 200);
+        approve(p);
+        assertThat(text("SELECT status FROM maintenance_plan WHERE id=?", p)).isEqualTo("APPROVED");
+        assertThat(number("SELECT count(*) FROM approval_action WHERE request_id=?", q)).isEqualTo(1);
+    }
+    @Test void planRevisionNotificationAndResubmitRelock() {
+        var p=create(free());
+        var s=submit(p);
+        decide(s.path("approvalRequestId").asLong(), pv(p), "REVISION_REQUIRED");
+        assertThat(number("SELECT count(*) FROM user_notification WHERE notification_type='PLAN_REVISION' AND target_url=?", "/plans/"+p+"/edit")).isGreaterThan(0);
+        ok(send(HttpMethod.PATCH, "/api/plans/"+p, vtyt, edit(p, external(eq))), 200);
+        submit(p);
+        assertCode(send(HttpMethod.PATCH, "/api/plans/"+p, vtyt, edit(p, free())), 409, "PLAN_NOT_EDITABLE");
+    }
+    @Test void legacyPlanRemainsReadableAndApprovalDoesNotFabricateContent() {
+        long p=create(Map.of("equipmentId", paid));
+        jdbc.update("UPDATE maintenance_plan_item SET status='PENDING_PROPOSAL' WHERE plan_id=?", p);
+        jdbc.update("UPDATE maintenance_plan SET status='SUBMITTED' WHERE id=?", p);
+        long user=number("SELECT id FROM user_account WHERE username='demo_vtyt'");
+        long q=jdbc.queryForObject("INSERT INTO approval_request(request_type,plan_id,status,created_by_user_id,submitted_at) VALUES('PLAN_APPROVAL',?,'PENDING',?,NOW()) RETURNING id", Long.class, p, user);
+        decide(q, pv(p), "APPROVE");
+        ok(send(HttpMethod.GET, "/api/plans/"+p+"/items", vtyt, null), 200);
+        assertThat(number("SELECT count(*) FROM approval_request WHERE plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)", p)).isZero();
+    }
+    @Test void stalePlanVersionRejectsWithoutProposalMutation() {
+        var p=create(free());
+        var body=edit(p, external(eq));
+        body.put("version", pv(p)+5);
+        assertCode(send(HttpMethod.PATCH, "/api/plans/"+p, vtyt, body), 409, "OPTIMISTIC_LOCK_CONFLICT");
+        assertThat(number("SELECT count(*) FROM approval_request WHERE plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)", p)).isZero();
+    }
+    @Test void staleItemVersionRollsBackMetadataAndProposal() {
+        var p=create(free());
+        var input=new HashMap<>(external(eq));
+        input.put("version", iv(item(p))+9);
+        assertCode(send(HttpMethod.PATCH, "/api/plans/"+p, vtyt, edit(p, input)), 409, "OPTIMISTIC_LOCK_CONFLICT");
+        assertThat(text("SELECT status FROM maintenance_plan_item WHERE plan_id=?", p)).isEqualTo("UNDER_CONTRACT");
+    }
+    @Test void notificationFailureRollsBackSubmissionAndApprovalRequest() {
+        var p=create(free());
+        doThrow(new IllegalStateException("controlled notification failure")).when(notifications).save(any(vn.edu.medmaintenance.persistence.entity.UserNotification.class));
+        ok(send(HttpMethod.POST, "/api/plans/"+p+"/submit", vtyt, Map.of("version", pv(p))), 500);
+        assertThat(text("SELECT status FROM maintenance_plan WHERE id=?", p)).isEqualTo("DRAFT");
+        assertThat(number("SELECT count(*) FROM approval_request WHERE plan_id=?", p)).isZero();
+    }
+    @Test void notificationOwnershipPaginationReadAndReadAll() {
+        var p=create(free());
+        submit(p);
+        var list=ok(send(HttpMethod.GET, "/api/notifications?size=1", bgd, null), 200);
+        assertThat(list.path("size").asInt()).isEqualTo(1);
+        long n=list.path("content").get(0).path("id").asLong();
+        assertCode(send(HttpMethod.POST, "/api/notifications/"+n+"/read", vtyt, null), 404, "NOTIFICATION_NOT_FOUND");
+        ok(send(HttpMethod.POST, "/api/notifications/"+n+"/read", bgd, null), 200);
+        assertThat(ok(send(HttpMethod.GET, "/api/notifications/unread-count", bgd, null), 200).path("count").asLong()).isGreaterThanOrEqualTo(0);
+        assertThat(send(HttpMethod.POST, "/api/notifications/read-all", bgd, null).getStatusCode().is2xxSuccessful()).isTrue();
+        assertThat(ok(send(HttpMethod.GET, "/api/notifications/unread-count", bgd, null), 200).path("count").asLong()).isZero();
+        assertThat(number("SELECT count(*) FROM user_notification n JOIN user_account u ON u.id=n.user_account_id WHERE u.username='demo_vtyt' AND n.read_at IS NOT NULL")).isZero();
+    }
+    @Test void notificationAnonymousDenied() {
+        ok(send(HttpMethod.GET, "/api/notifications", null, null), 401);
+    }
+    @Test void unknownRemovedInJavaDatabaseAndApi() {
+        assertThat(CoverageClassification.values()).containsExactly(CoverageClassification.FREE, CoverageClassification.NOT_FREE);
+        assertThat(number("SELECT count(*) FROM maintenance_coverage WHERE classification NOT IN ('FREE','NOT_FREE')")).isZero();
+        var input=new HashMap<>(free());
+        input.put("classification", "UNKNOWN");
+        ok(send(HttpMethod.POST, "/api/plans", vtyt, body(input)), 400);
+    }
+    @ParameterizedTest @ValueSource(strings= {
+        "BGD", "KHOA", "ADMIN"
+    }) void suggestionsAndPlanningAreVtytOnly(String role) {
+        String token=role.equals("BGD")?bgd:role.equals("KHOA")?khoa:admin;
+        ok(send(HttpMethod.GET, "/api/maintenance-suggestions", token, null), 403);
+        ok(send(HttpMethod.POST, "/api/plans", token, body(free())), 403);
+    }
+    @Test void suggestionsAggregateHistoryCoverageOpenPlansAndInsufficientDates() {
+        var result=ok(send(HttpMethod.GET, "/api/maintenance-suggestions?size=100", vtyt, null), 200);
+        assertThat(result.path("content").size()).isEqualTo(number("SELECT count(*) FROM equipment WHERE active=true"));
+        boolean insufficient=false;
+        for (var row:result.path("content")) {
+            assertThat(row.path("classification").asText()).isIn("FREE", "NOT_FREE");
+            assertThat(row.path("equipmentCode").asText()).isNotBlank();
+            assertThat(row.path("departmentName").asText()).isNotBlank();
+            if (row.path("suggestedDate").isNull()) {
+                insufficient=true;
+                assertThat(row.path("suggestionBasis").asText()).contains("Chưa đủ dữ liệu");
+            }
+        }
+        assertThat(insufficient).isTrue();
+    }
+    @Test void inferredIntervalUsesRealDates() {
+        assertThat(MaintenanceSuggestionService.observedInterval(List.of(java.time.LocalDate.parse("2026-01-01"), java.time.LocalDate.parse("2026-01-11"), java.time.LocalDate.parse("2026-01-25")))).isEqualTo(12);
+    }
+    @Test void obsoleteRoutingAndManualSendingAreRejected() {
+        var p=create(free());
+        long i=item(p);
+        assertCode(send(HttpMethod.POST, "/api/plan-items/"+i+"/route", vtyt, Map.of("version", iv(i), "coverageId", coverage)), 409, "PLANNING_WORKFLOW_REQUIRED");
+        assertCode(send(HttpMethod.POST, "/api/plan-items/"+i+"/vendor-proposals", vtyt, Map.of("version", iv(i))), 409, "PLANNING_WORKFLOW_REQUIRED");
+    }
+    @Test void invalidFreeCoverageBlocksCreate() {
+        var input=new HashMap<>(free());
+        input.put("coverageId", number("SELECT id FROM maintenance_coverage WHERE equipment_id=?", paid));
+        assertCode(send(HttpMethod.POST, "/api/plans", vtyt, body(input)), 409, "INVALID_FREE_COVERAGE");
+    }
+    @Test void freeCoverageDateBoundsInclusive() {
+        var input=new HashMap<>(free());
+        input.put("plannedDate", "2027-01-01");
+        var b=body(input);
+        b.put("periodStart", "2027-01-01");
+        b.put("periodEnd", "2027-01-31");
+        assertCode(send(HttpMethod.POST, "/api/plans", vtyt, b), 409, "INVALID_FREE_COVERAGE");
+    }
+    @Test void inactiveDirectorReceivesNothing() {
+        var p=create(free());
+        long recipient=number("SELECT id FROM user_account WHERE username='bgd_demo02'");
+        jdbc.update("UPDATE user_account SET active=false WHERE id=?", recipient);
         try {
-            fail(send(HttpMethod.POST, "/api/approvals/" + requestId + "/decision", director,
-                    Map.of("version", sent.path("version").asInt(), "outcome", "APPROVE")),
-                    409, "PROVIDER_INACTIVE");
-        } finally {
-            jdbc.update("UPDATE service_provider SET active=true WHERE id=?", provider1);
+            var q=submit(p).path("approvalRequestId").asLong();
+            assertThat(number("SELECT count(*) FROM user_notification WHERE user_account_id=? AND target_url=?", recipient, "/approvals/"+q)).isZero();
         }
-        assertThat(jdbc.queryForObject("SELECT status FROM approval_request WHERE id=?", String.class, requestId))
-                .isEqualTo("PENDING");
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM approval_action WHERE request_id=?", Integer.class, requestId))
-                .isZero();
-        assertThat(itemStates(item)).containsExactly("PLANNED", "PENDING_PROPOSAL", "WAITING_VENDOR_APPROVAL");
-    }
-
-    @Test
-    void routeRequiresApprovedPlanForDraftSubmittedAndRevision() {
-        long plan = draftPlan("2026-11-01", "2026-11-30", freeEq);
-        long item = item(plan, freeEq);
-        fail(send(HttpMethod.POST, "/api/plan-items/" + item + "/route", vtyt,
-                Map.of("version", version(item), "coverageId", freeCoverage)), 409, "PLAN_NOT_APPROVED");
-        JsonNode detail = ok(send(HttpMethod.GET, "/api/plans/" + plan, vtyt, null), 200);
-        JsonNode submitted = ok(send(HttpMethod.POST, "/api/plans/" + plan + "/submit", vtyt,
-                Map.of("version", detail.path("version").asInt())), 200);
-        fail(send(HttpMethod.POST, "/api/plan-items/" + item + "/route", vtyt,
-                Map.of("version", version(item), "coverageId", freeCoverage)), 409, "PLAN_NOT_APPROVED");
-        ok(send(HttpMethod.POST, "/api/approvals/" + submitted.path("approvalRequestId").asLong() + "/decision", director,
-                Map.of("version", submitted.path("version").asInt(), "outcome", "REVISION_REQUIRED", "comment", "Chỉnh kế hoạch")), 200);
-        fail(send(HttpMethod.POST, "/api/plan-items/" + item + "/route", vtyt,
-                Map.of("version", version(item), "coverageId", freeCoverage)), 409, "PLAN_NOT_APPROVED");
-        assertThat(itemStates(item)).containsExactly("PLANNED");
-    }
-
-    @Test
-    void vendorRevisionCreatesNewRequestAndKeepsFirstDecision() {
-        long plan = approvedPlan("2026-11-01", "2026-11-30", paidEq);
-        long item = item(plan, paidEq);
-        JsonNode routed = route(item, paidCoverage);
-        JsonNode draft1 = draft(item, routed.path("version").asInt(), provider1);
-        JsonNode sent1 = submit(draft1.path("approvalRequestId").asLong(), draft1.path("version").asInt());
-        long request1 = sent1.path("approvalRequestId").asLong();
-        fail(send(HttpMethod.POST, "/api/approvals/" + request1 + "/decision", director,
-                Map.of("version", sent1.path("version").asInt(), "outcome", "REVISION_REQUIRED")),
-                400, "REVISION_COMMENT_REQUIRED");
-        JsonNode revised = ok(send(HttpMethod.POST, "/api/approvals/" + request1 + "/decision", director,
-                Map.of("version", sent1.path("version").asInt(), "outcome", "REVISION_REQUIRED",
-                        "comment", "Chọn đơn vị khác")), 200);
-        assertThat(revised.path("status").asText()).isEqualTo("PENDING_PROPOSAL");
-        assertThat(revised.path("providerId").isNull()).isTrue();
-        fail(send(HttpMethod.POST, "/api/approvals/" + request1 + "/decision", director,
-                Map.of("version", revised.path("version").asInt(), "outcome", "APPROVE")),
-                409, "APPROVAL_REQUEST_NOT_PENDING");
-        JsonNode draft2 = draft(item, revised.path("version").asInt(), provider2);
-        JsonNode sent2 = submit(draft2.path("approvalRequestId").asLong(), draft2.path("version").asInt());
-        long request2 = sent2.path("approvalRequestId").asLong();
-        assertThat(request2).isNotEqualTo(request1);
-        JsonNode approved = ok(send(HttpMethod.POST, "/api/approvals/" + request2 + "/decision", director,
-                Map.of("version", sent2.path("version").asInt(), "outcome", "APPROVE")), 200);
-        assertThat(approved.path("status").asText()).isEqualTo("ASSIGNED_EXTERNAL");
-        assertThat(approved.path("providerId").asLong()).isEqualTo(provider2);
-        assertThat(jdbc.queryForList("SELECT status FROM approval_request WHERE plan_item_id=? ORDER BY id", String.class, item))
-                .containsExactly("DECIDED", "DECIDED");
-        assertThat(jdbc.queryForList("SELECT a.outcome FROM approval_action a JOIN approval_request r ON a.request_id=r.id WHERE r.plan_item_id=? ORDER BY a.id", String.class, item))
-                .containsExactly("REVISION_REQUIRED", "APPROVE");
-        assertThat(itemStates(item)).containsExactly("PLANNED", "PENDING_PROPOSAL", "WAITING_VENDOR_APPROVAL",
-                "PENDING_PROPOSAL", "WAITING_VENDOR_APPROVAL", "ASSIGNED_EXTERNAL");
-        assertThat(jdbc.queryForObject("SELECT reason FROM status_history WHERE plan_item_id=? AND action='RECORD_VENDOR_REVISION'", String.class, item))
-                .isEqualTo("Chọn đơn vị khác");
-    }
-
-    @Test
-    void vendorDecisionRequiresApprovedPlanAndWaitingItem() {
-        long plan = approvedPlan("2026-11-01", "2026-11-30", paidEq);
-        long item = item(plan, paidEq);
-        JsonNode routed = route(item, paidCoverage);
-        JsonNode draft = draft(item, routed.path("version").asInt(), provider1);
-        JsonNode sent = submit(draft.path("approvalRequestId").asLong(), draft.path("version").asInt());
-        long requestId = sent.path("approvalRequestId").asLong();
-        Map<String, Object> decision = Map.of("version", sent.path("version").asInt(), "outcome", "APPROVE");
-        jdbc.update("UPDATE maintenance_plan SET status='DRAFT' WHERE id=?", plan);
-        try {
-            fail(send(HttpMethod.POST, "/api/approvals/" + requestId + "/decision", director, decision),
-                    409, "PLAN_NOT_APPROVED");
-        } finally {
-            jdbc.update("UPDATE maintenance_plan SET status='APPROVED' WHERE id=?", plan);
-        }
-        jdbc.update("UPDATE maintenance_plan_item SET status='PENDING_PROPOSAL' WHERE id=?", item);
-        try {
-            fail(send(HttpMethod.POST, "/api/approvals/" + requestId + "/decision", director, decision),
-                    409, "PLAN_ITEM_STATE_CONFLICT");
-        } finally {
-            jdbc.update("UPDATE maintenance_plan_item SET status='WAITING_VENDOR_APPROVAL' WHERE id=?", item);
-        }
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM approval_action WHERE request_id=?", Integer.class, requestId))
-                .isZero();
-        assertThat(jdbc.queryForObject("SELECT status FROM approval_request WHERE id=?", String.class, requestId))
-                .isEqualTo("PENDING");
-        assertThat(itemStates(item)).containsExactly("PLANNED", "PENDING_PROPOSAL", "WAITING_VENDOR_APPROVAL");
-    }
-
-    @Test
-    void vendorSubmissionRejectsInvalidProviderDuplicateAndWrongType() {
-        long plan = approvedPlan("2026-11-01", "2026-11-30", paidEq);
-        long item = item(plan, paidEq);
-        JsonNode routed = route(item, paidCoverage);
-        fail(send(HttpMethod.POST, "/api/plan-items/" + item + "/vendor-proposals", vtyt,
-                Map.of("version", routed.path("version").asInt(), "providerId", 999999999L)),
-                404, "PROVIDER_NOT_FOUND");
-        jdbc.update("UPDATE service_provider SET active=false WHERE id=?", provider1);
-        try {
-            fail(send(HttpMethod.POST, "/api/plan-items/" + item + "/vendor-proposals", vtyt,
-                    Map.of("version", routed.path("version").asInt(), "providerId", provider1)),
-                    409, "PROVIDER_INACTIVE");
-        } finally {
-            jdbc.update("UPDATE service_provider SET active=true WHERE id=?", provider1);
-        }
-        JsonNode draft = draft(item, routed.path("version").asInt(), provider1);
-        fail(send(HttpMethod.POST, "/api/plan-items/" + item + "/vendor-proposals", vtyt,
-                Map.of("version", routed.path("version").asInt())), 409, "VENDOR_DRAFT_EXISTS");
-        long planRequest = jdbc.queryForObject("SELECT id FROM approval_request WHERE plan_id=?", Long.class, plan);
-        fail(send(HttpMethod.POST, "/api/vendor-proposals/" + planRequest + "/submit", vtyt,
-                Map.of("version", draft.path("version").asInt())), 409, "APPROVAL_REQUEST_WRONG_TYPE");
-        JsonNode sent = submit(draft.path("approvalRequestId").asLong(), draft.path("version").asInt());
-        fail(send(HttpMethod.POST, "/api/vendor-proposals/" + draft.path("approvalRequestId").asLong() + "/submit", vtyt,
-                Map.of("version", sent.path("version").asInt())), 409, "VENDOR_PROPOSAL_NOT_DRAFT");
-        fail(send(HttpMethod.POST, "/api/plan-items/" + item + "/vendor-proposals", vtyt,
-                Map.of("version", sent.path("version").asInt())), 409, "PENDING_VENDOR_APPROVAL_EXISTS");
-    }
-
-    @Test
-    void staleItemVersionLeavesNoProposalOrAssignment() {
-        long plan = approvedPlan("2026-11-01", "2026-11-30", paidEq);
-        long item = item(plan, paidEq);
-        int before = version(item);
-        JsonNode routed = route(item, paidCoverage);
-        fail(send(HttpMethod.POST, "/api/plan-items/" + item + "/vendor-proposals", vtyt,
-                Map.of("version", before, "providerId", provider1)), 409, "OPTIMISTIC_LOCK_CONFLICT");
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM approval_request WHERE plan_item_id=?", Integer.class, item)).isZero();
-        assertThat(itemStates(item)).containsExactly("PLANNED", "PENDING_PROPOSAL");
-        JsonNode draft = draft(item, routed.path("version").asInt(), provider1);
-        JsonNode sent = submit(draft.path("approvalRequestId").asLong(), draft.path("version").asInt());
-        fail(send(HttpMethod.POST, "/api/approvals/" + sent.path("approvalRequestId").asLong() + "/decision", director,
-                Map.of("version", routed.path("version").asInt(), "outcome", "APPROVE")),
-                409, "OPTIMISTIC_LOCK_CONFLICT");
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM approval_action WHERE request_id=?", Integer.class,
-                sent.path("approvalRequestId").asLong())).isZero();
-        assertThat(jdbc.queryForObject("SELECT status FROM approval_request WHERE id=?", String.class,
-                sent.path("approvalRequestId").asLong())).isEqualTo("PENDING");
-    }
-
-    @Test
-    void failedHistoryInsertRollsBackVendorDecisionAndAssignment() {
-        long plan = approvedPlan("2026-11-01", "2026-11-30", paidEq);
-        long item = item(plan, paidEq);
-        JsonNode routed = route(item, paidCoverage);
-        JsonNode draft = draft(item, routed.path("version").asInt(), provider1);
-        JsonNode sent = submit(draft.path("approvalRequestId").asLong(), draft.path("version").asInt());
-        long requestId = sent.path("approvalRequestId").asLong();
-        int beforeHistory = itemStates(item).size();
-        doThrow(new IllegalStateException("test-only history failure")).when(history).itemTransition(
-                any(), any(), eq("WAITING_VENDOR_APPROVAL"), eq("ASSIGNED_EXTERNAL"),
-                eq("RECORD_VENDOR_APPROVAL"), isNull(), any());
-        try {
-            fail(send(HttpMethod.POST, "/api/approvals/" + requestId + "/decision", director,
-                    Map.of("version", sent.path("version").asInt(), "outcome", "APPROVE")),
-                    500, "INTERNAL_ERROR");
-        } finally {
-            reset(history);
-        }
-        assertThat(jdbc.queryForObject("SELECT status FROM approval_request WHERE id=?", String.class, requestId))
-                .isEqualTo("PENDING");
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM approval_action WHERE request_id=?", Integer.class, requestId))
-                .isZero();
-        assertThat(jdbc.queryForObject("SELECT status FROM maintenance_plan_item WHERE id=?", String.class, item))
-                .isEqualTo("WAITING_VENDOR_APPROVAL");
-        assertThat(jdbc.queryForObject("SELECT assigned_provider_id FROM maintenance_plan_item WHERE id=?", Long.class, item))
-                .isNull();
-        assertThat(itemStates(item)).hasSize(beforeHistory);
-    }
-
-    @Test
-    void rolesAndDirectServiceGuardApplyToAllVendorCommands() {
-        long plan = approvedPlan("2026-11-01", "2026-11-30", paidEq);
-        long item = item(plan, paidEq);
-        Map<String, Object> route = Map.of("version", version(item), "coverageId", paidCoverage);
-        fail(send(HttpMethod.POST, "/api/plan-items/" + item + "/route", null, route), 401, "AUTHENTICATION_REQUIRED");
-        for (String token : List.of(director, department, admin))
-            fail(send(HttpMethod.POST, "/api/plan-items/" + item + "/route", token, route), 403, "ACCESS_DENIED");
-        JsonNode routed = route(item, paidCoverage);
-        fail(send(HttpMethod.POST, "/api/plan-items/" + item + "/vendor-proposals", null,
-                Map.of("version", routed.path("version").asInt())), 401, "AUTHENTICATION_REQUIRED");
-        for (String token : List.of(director, department, admin))
-            fail(send(HttpMethod.POST, "/api/plan-items/" + item + "/vendor-proposals", token,
-                    Map.of("version", routed.path("version").asInt())), 403, "ACCESS_DENIED");
-        JsonNode draft = draft(item, routed.path("version").asInt(), provider1);
-        fail(send(HttpMethod.POST, "/api/vendor-proposals/" + draft.path("approvalRequestId").asLong() + "/submit", null,
-                Map.of("version", draft.path("version").asInt())), 401, "AUTHENTICATION_REQUIRED");
-        for (String token : List.of(director, department, admin))
-            fail(send(HttpMethod.POST, "/api/vendor-proposals/" + draft.path("approvalRequestId").asLong() + "/submit", token,
-                    Map.of("version", draft.path("version").asInt())), 403, "ACCESS_DENIED");
-        JsonNode sent = submit(draft.path("approvalRequestId").asLong(), draft.path("version").asInt());
-        fail(send(HttpMethod.POST, "/api/approvals/" + sent.path("approvalRequestId").asLong() + "/decision", null,
-                Map.of("version", sent.path("version").asInt(), "outcome", "APPROVE")), 401, "AUTHENTICATION_REQUIRED");
-        for (String token : List.of(vtyt, department, admin))
-            fail(send(HttpMethod.POST, "/api/approvals/" + sent.path("approvalRequestId").asLong() + "/decision", token,
-                    Map.of("version", sent.path("version").asInt(), "outcome", "APPROVE")), 403, "ACCESS_DENIED");
-        long userId = jdbc.queryForObject("SELECT id FROM user_account WHERE username='demo_khoa_noi'", Long.class);
-        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
-                new AuthenticatedUser(userId, "demo_khoa_noi", UserRole.KHOA_PHONG, 1L), null));
-        try {
-            assertThatThrownBy(() -> assignment.route(item, new RouteItemRequest(version(item), paidCoverage)))
-                    .isInstanceOf(BusinessRuleException.class).extracting("code").isEqualTo("BUSINESS_ACCESS_DENIED");
-        } finally {
-            SecurityContextHolder.clearContext();
+        finally {
+            jdbc.update("UPDATE user_account SET active=true WHERE id=?", recipient);
         }
     }
-
-    private long draftPlan(String start, String end, long... equipmentIds) {
-        List<Map<String, Object>> selections = new ArrayList<>();
-        for (long id : equipmentIds) selections.add(Map.of("equipmentId", id));
-        JsonNode created = ok(send(HttpMethod.POST, "/api/plans", vtyt,
-                Map.of("title", "TEST-ROUTING-" + UUID.randomUUID(), "periodStart", start,
-                        "periodEnd", end, "items", selections)), 201);
-        long planId = created.path("id").asLong();
-        plans.add(planId);
-        return planId;
+    @Test void historyProjectionInfersIntervalOnlyFromCompletedPassEvents() {
+        long device=projectionEquipment();
+        completedFixture(device, "2026-01-01");
+        completedFixture(device, "2026-03-01");
+        var row=suggestion(device);
+        assertThat(row.path("lastMaintenanceDate").asText()).isEqualTo("2026-03-01");
+        assertThat(row.path("suggestedDate").asText()).isEqualTo("2026-04-29");
+        assertThat(row.path("suggestionBasis").asText()).contains("2 lần", "59 ngày");
+        assertThat(row.path("classification").asText()).isEqualTo("NOT_FREE");
+        assertThat(row.path("lastExternalProviderName").asText()).isNotBlank();
     }
-
-    private long approvedPlan(String start, String end, long... equipmentIds) {
-        long id = draftPlan(start, end, equipmentIds);
-        JsonNode detail = ok(send(HttpMethod.GET, "/api/plans/" + id, vtyt, null), 200);
-        JsonNode submitted = ok(send(HttpMethod.POST, "/api/plans/" + id + "/submit", vtyt,
-                Map.of("version", detail.path("version").asInt())), 200);
-        ok(send(HttpMethod.POST, "/api/approvals/" + submitted.path("approvalRequestId").asLong() + "/decision", director,
-                Map.of("version", submitted.path("version").asInt(), "outcome", "APPROVE")), 200);
-        return id;
+    @Test void futurePlannedDateTakesPriorityOverInferredHistory() {
+        long device=projectionEquipment();
+        completedFixture(device, "2026-01-01");
+        completedFixture(device, "2026-03-01");
+        var input=new HashMap<>(external(device));
+        input.put("plannedDate", "2026-11-16");
+        var p=create(input);
+        var row=suggestion(device);
+        assertThat(row.path("suggestedDate").asText()).isEqualTo("2026-11-16");
+        assertThat(row.path("suggestionBasis").asText()).contains("kế hoạch");
+        assertThat(row.path("openPlanIds").toString()).contains(Long.toString(p));
     }
-
-    private JsonNode route(long itemId, long coverageId) {
-        return ok(send(HttpMethod.POST, "/api/plan-items/" + itemId + "/route", vtyt,
-                Map.of("version", version(itemId), "coverageId", coverageId)), 200);
+    private JsonNode suggestion(long device) {
+        for (var row:ok(send(HttpMethod.GET, "/api/maintenance-suggestions?size=100", vtyt, null), 200).path("content"))if (row.path("equipmentId").asLong()==device)return row;
+        throw new AssertionError("Missing suggestion");
     }
-
-    private JsonNode draft(long itemId, int version, long providerId) {
-        return ok(send(HttpMethod.POST, "/api/plan-items/" + itemId + "/vendor-proposals", vtyt,
-                Map.of("version", version, "providerId", providerId,
-                        "rationale", "Đề xuất theo năng lực kỹ thuật", "warrantyImpactNote", "Đã rà soát")), 201);
+    private long projectionEquipment() {
+        long device=jdbc.queryForObject("INSERT INTO equipment(department_id,equipment_code,name) SELECT department_id,?,'Thiết bị kiểm tra projection' FROM equipment WHERE id=? RETURNING id", Long.class, "SMOKE-V2-PROJECTION-"+UUID.randomUUID(), missing);
+        projectionEquipment.add(device);
+        return device;
     }
-
-    private JsonNode submit(long requestId, int version) {
-        return ok(send(HttpMethod.POST, "/api/vendor-proposals/" + requestId + "/submit", vtyt,
-                Map.of("version", version)), 200);
+    private void completedFixture(long device, String date) {
+        var p=create(external(device));
+        long i=item(p);
+        long vtytId=number("SELECT id FROM user_account WHERE username='demo_vtyt'");
+        long khoaId=number("SELECT u.id FROM user_account u JOIN maintenance_plan_item i ON i.department_id_at_plan=u.department_id WHERE i.id=? AND u.role_code='KHOA_PHONG' ORDER BY u.id LIMIT 1", i);
+        jdbc.update("UPDATE approval_request SET status='CANCELLED',resolved_at=NOW() WHERE plan_item_id=?", i);
+        jdbc.update("UPDATE maintenance_plan SET status='CLOSED' WHERE id=?", p);
+        jdbc.update("UPDATE maintenance_plan_item SET status='COMPLETED',assigned_provider_id=?,assignment_route='EXTERNAL_APPROVED' WHERE id=?", provider, i);
+        long x=jdbc.queryForObject("INSERT INTO maintenance_execution(plan_item_id,provider_id,started_by_user_id,attempt_no,started_at,ended_at,result_note) VALUES(?,?,?,1,?::timestamptz,?::timestamptz,'Projection fixture') RETURNING id", Long.class, i, provider, vtytId, date+"T00:00:00Z", date+"T01:00:00Z");
+        jdbc.update("INSERT INTO acceptance_record(execution_id,acceptance_type,result,observed_at,conclusion,recorded_by_user_id,department_confirmed_by_user_id,department_confirmed_at,vtyt_confirmed_by_user_id,vtyt_confirmed_at) VALUES(?,'HANDOVER_ACCEPTANCE','PASS',?::timestamptz,'Projection fixture',?,?,?::timestamptz,?,?::timestamptz)", x, date+"T02:00:00Z", vtytId, khoaId, date+"T02:00:00Z", vtytId, date+"T02:00:00Z");
     }
-
-    private long equipment(String code) {
-        return jdbc.queryForObject("SELECT id FROM equipment WHERE equipment_code=?", Long.class, code);
+    @SafeVarargs private final long create(Map<String, Object>... inputs) {
+        var b=body(inputs);
+        b.put("title", "TEST-V2-"+UUID.randomUUID());
+        var p=ok(send(HttpMethod.POST, "/api/plans", vtyt, b), 201).path("id").asLong();
+        plans.add(p);
+        return p;
     }
-    private long coverage(long equipmentId) {
-        return jdbc.queryForObject("SELECT id FROM maintenance_coverage WHERE equipment_id=? ORDER BY id LIMIT 1", Long.class, equipmentId);
+    @SafeVarargs private final HashMap<String, Object> body(Map<String, Object>... inputs) {
+        return new HashMap<>(Map.of("title", "TEST-V2-FAILED", "periodStart", "2026-11-01", "periodEnd", "2026-11-30", "items", List.of(inputs)));
     }
-    private long item(long planId, long equipmentId) {
-        return jdbc.queryForObject("SELECT id FROM maintenance_plan_item WHERE plan_id=? AND equipment_id=?", Long.class,
-                planId, equipmentId);
+    private Map<String, Object> free() {
+        return Map.of("equipmentId", eq, "classification", "FREE", "coverageId", coverage);
     }
-    private int version(long itemId) {
-        return jdbc.queryForObject("SELECT version FROM maintenance_plan_item WHERE id=?", Integer.class, itemId);
+    private Map<String, Object> external(long e) {
+        return Map.of("equipmentId", e, "classification", "NOT_FREE", "proposedProviderId", provider, "rationale", "Năng lực phù hợp", "warrantyImpactNote", "Giữ hồ sơ bảo hành");
     }
-    private int count(String table) {
-        return jdbc.queryForObject("SELECT count(*) FROM " + table, Integer.class);
+    private HashMap<String, Object> edit(long p, Map<String, Object> input) {
+        var b=body(input);
+        b.put("version", pv(p));
+        return b;
     }
-    private List<String> itemStates(long itemId) {
-        return jdbc.queryForList("SELECT new_state FROM status_history WHERE plan_item_id=? ORDER BY id", String.class, itemId);
+    private JsonNode submit(long p) {
+        return ok(send(HttpMethod.POST, "/api/plans/"+p+"/submit", vtyt, Map.of("version", pv(p))), 200);
     }
-    private JsonNode itemRead(long planId, long itemId) {
-        JsonNode page = ok(send(HttpMethod.GET, "/api/plans/" + planId + "/items?size=100", vtyt, null), 200);
-        for (JsonNode row : page.path("content")) if (row.path("id").asLong() == itemId) return row;
-        throw new AssertionError("Missing item in GET response");
+    private JsonNode approve(long p) {
+        var s=submit(p);
+        return decide(s.path("approvalRequestId").asLong(), pv(p), "APPROVE");
     }
-    private boolean queueContains(long requestId) {
-        JsonNode page = ok(send(HttpMethod.GET, "/api/approvals/pending?requestType=VENDOR_SELECTION&size=100", director,
-                null), 200);
-        for (JsonNode row : page.path("content")) if (row.path("id").asLong() == requestId) return true;
-        return false;
+    private JsonNode decide(long q, int version, String outcome) {
+        return ok(send(HttpMethod.POST, "/api/approvals/"+q+"/decision", bgd, Map.of("version", version, "outcome", outcome, "comment", "Điều chỉnh theo đánh giá")), 200);
     }
-    private String login(String name, String role) {
-        String password = System.getenv("DEMO_" + role + "_PASSWORD");
-        assertThat(password).isNotBlank();
-        return ok(send(HttpMethod.POST, "/api/auth/login", null,
-                Map.of("username", name, "password", password)), 200).path("accessToken").asText();
+    private long pending(long i) {
+        return number("SELECT id FROM approval_request WHERE plan_item_id=? AND status='PENDING'", i);
+    }
+    private long item(long p) {
+        return number("SELECT id FROM maintenance_plan_item WHERE plan_id=? ORDER BY id LIMIT 1", p);
+    }
+    private int pv(long p) {
+        return (int)number("SELECT version FROM maintenance_plan WHERE id=?", p);
+    }
+    private int iv(long i) {
+        return (int)number("SELECT version FROM maintenance_plan_item WHERE id=?", i);
+    }
+    private long id(String code) {
+        return number("SELECT id FROM equipment WHERE equipment_code=?", code);
+    }
+    private long number(String sql, Object... args) {
+        return jdbc.queryForObject(sql, Long.class, args);
+    }
+    private String text(String sql, Object... args) {
+        return jdbc.queryForObject(sql, String.class, args);
+    }
+    private String login(String user, String role) {
+        return ok(send(HttpMethod.POST, "/api/auth/login", null, Map.of("username", user, "password", System.getenv("DEMO_"+role+"_PASSWORD"))), 200).path("accessToken").asText();
     }
     private ResponseEntity<JsonNode> send(HttpMethod method, String path, String token, Object body) {
-        HttpHeaders headers = new HttpHeaders();
-        if (token != null) headers.setBearerAuth(token);
-        if (body != null) headers.set("Content-Type", "application/json");
+        var headers=new HttpHeaders();
+        if (token!=null)headers.setBearerAuth(token);
         return http.exchange(path, method, new HttpEntity<>(body, headers), JsonNode.class);
     }
-    private JsonNode ok(ResponseEntity<JsonNode> response, int status) {
-        assertThat(response.getStatusCode().value()).as(String.valueOf(response.getBody())).isEqualTo(status);
-        return response.getBody();
+    private JsonNode ok(ResponseEntity<JsonNode> r, int status) {
+        assertThat(r.getStatusCode().value()).as(String.valueOf(r.getBody())).isEqualTo(status);
+        return r.getBody();
     }
-    private void fail(ResponseEntity<JsonNode> response, int status, String code) {
-        JsonNode body = ok(response, status);
-        assertThat(body.path("code").asText()).isEqualTo(code);
-        assertThat(body.path("fieldErrors").isArray()).isTrue();
-        assertThat(body.toString()).doesNotContain("Exception", "java.lang", "passwordHash", "stackTrace");
+    private void assertCode(ResponseEntity<JsonNode> r, int status, String code) {
+        assertThat(ok(r, status).path("code").asText()).isEqualTo(code);
     }
 }

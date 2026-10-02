@@ -6,12 +6,22 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.edu.medmaintenance.api.dto.request.FinalizeReportRequest;
 import vn.edu.medmaintenance.api.dto.request.SaveReportRequest;
 import vn.edu.medmaintenance.api.dto.response.ReportResponse;
+import vn.edu.medmaintenance.api.dto.response.ReportEvidenceResponse;
+import vn.edu.medmaintenance.api.dto.response.EquipmentHistoryResponse;
+import vn.edu.medmaintenance.persistence.entity.AcceptanceRecord;
+import vn.edu.medmaintenance.persistence.entity.MaintenanceExecution;
+import vn.edu.medmaintenance.persistence.entity.MaintenanceProgressLog;
+import vn.edu.medmaintenance.persistence.enums.AcceptanceType;
+import vn.edu.medmaintenance.persistence.repository.MaintenanceExecutionRepository;
+import vn.edu.medmaintenance.persistence.repository.MaintenanceProgressLogRepository;
+import vn.edu.medmaintenance.persistence.repository.AcceptanceRecordRepository;
 import vn.edu.medmaintenance.persistence.entity.MaintenancePlan;
 import vn.edu.medmaintenance.persistence.entity.MaintenancePlanItem;
 import vn.edu.medmaintenance.persistence.entity.MaintenanceReport;
@@ -35,17 +45,26 @@ public class MaintenanceReportService {
     private final CurrentUser currentUser;
     private final WorkflowHistory history;
     private final EntityManager entityManager;
+    private final NotificationService notifications;
+    private final MaintenanceExecutionRepository executions;
+    private final MaintenanceProgressLogRepository progress;
+    private final AcceptanceRecordRepository acceptances;
 
     public MaintenanceReportService(MaintenancePlanRepository plans, MaintenancePlanItemRepository items,
             MaintenanceReportRepository reports, UserAccountRepository users,
-            CurrentUser currentUser, WorkflowHistory history, EntityManager entityManager) {
+            CurrentUser currentUser, WorkflowHistory history, EntityManager entityManager,NotificationService notifications,
+            MaintenanceExecutionRepository executions, MaintenanceProgressLogRepository progress,
+            AcceptanceRecordRepository acceptances) {
         this.plans = plans;
         this.items = items;
         this.reports = reports;
         this.users = users;
         this.currentUser = currentUser;
         this.history = history;
-        this.entityManager = entityManager;
+        this.entityManager = entityManager;this.notifications=notifications;
+        this.executions = executions;
+        this.progress = progress;
+        this.acceptances = acceptances;
     }
 
     @Transactional
@@ -100,19 +119,65 @@ public class MaintenanceReportService {
         report.setFinalizedAt(at);
         plan.setStatus(PlanStatus.REPORTED);
         history.plan(plan, actor, "AWAITING_REPORT", "REPORTED", "FINALIZE_REPORT", null, at);
+        notifications.notifyRole(UserRole.BAN_GIAM_DOC,null,actor,"REPORT_FINALIZED","Báo cáo kết quả bảo trì đã được lập",plan.getTitle(),"/plans/"+planId+"/report");
         entityManager.flush();
         return response(report, plan, planItems);
     }
 
     @Transactional(readOnly = true)
     public ReportResponse get(Long planId) {
-        var role = currentUser.get().role();
-        if (role != UserRole.PHONG_VTYT && role != UserRole.BAN_GIAM_DOC)
-            throw new BusinessRuleException(HttpStatus.FORBIDDEN, "BUSINESS_ACCESS_DENIED",
-                    "Report role required");
+        requireReader();
         MaintenancePlan plan = findPlan(planId);
         MaintenanceReport report = findReport(planId);
         return response(report, plan, items.findAllByPlan_Id(planId));
+    }
+
+    @Transactional(readOnly = true)
+    public ReportEvidenceResponse evidence(Long planId) {
+        requireReader();
+        findPlan(planId);
+        var planItems = items.findReportItems(planId);
+        var itemIds = planItems.stream().map(MaintenancePlanItem::getId).toList();
+        var attempts = itemIds.isEmpty() ? List.<MaintenanceExecution>of() : executions.findHistoryByItemIds(itemIds);
+        var executionIds = attempts.stream().map(MaintenanceExecution::getId).toList();
+        var logs = executionIds.isEmpty() ? List.<MaintenanceProgressLog>of() : progress.findHistoryByExecutionIds(executionIds);
+        var records = executionIds.isEmpty() ? List.<AcceptanceRecord>of() : acceptances.findHistoryByExecutionIds(executionIds);
+        var attemptsByItem = attempts.stream().collect(Collectors.groupingBy(e -> e.getPlanItem().getId()));
+        var logsByExecution = logs.stream().collect(Collectors.groupingBy(l -> l.getExecution().getId()));
+        var recordsByExecution = records.stream().collect(Collectors.groupingBy(a -> a.getExecution().getId()));
+        return new ReportEvidenceResponse(planId, planItems.stream().map(item -> {
+            var evidence = attemptsByItem.getOrDefault(item.getId(), List.of()).stream().map(attempt -> {
+                var updates = logsByExecution.getOrDefault(attempt.getId(), List.of()).stream()
+                        .map(log -> new EquipmentHistoryResponse.Progress(log.getId(), log.getEventAt(),
+                                log.getWorkNote(), log.getDamageNote(), log.getRecordedByUser().getId())).toList();
+                var results = recordsByExecution.getOrDefault(attempt.getId(), List.of()).stream()
+                        .collect(Collectors.toMap(AcceptanceRecord::getAcceptanceType, a -> a));
+                return new EquipmentHistoryResponse.Attempt(attempt.getId(), attempt.getAttemptNo(),
+                        attempt.getProvider().getId(), attempt.getProvider().getName(), attempt.getStartedAt(),
+                        attempt.getEndedAt(), attempt.getResultNote(), updates,
+                        evidenceAcceptance(results.get(AcceptanceType.TECHNICAL_ACCEPTANCE)),
+                        evidenceAcceptance(results.get(AcceptanceType.HANDOVER_ACCEPTANCE)));
+            }).toList();
+            return new ReportEvidenceResponse.Item(item.getId(), item.getEquipment().getEquipmentCode(),
+                    item.getEquipment().getName(), item.getDepartmentAtPlan().getName(), item.getStatus(),
+                    item.getAssignedProvider() == null ? null : item.getAssignedProvider().getName(), evidence);
+        }).toList());
+    }
+
+    private EquipmentHistoryResponse.Acceptance evidenceAcceptance(AcceptanceRecord record) {
+        if (record == null) return null;
+        return new EquipmentHistoryResponse.Acceptance(record.getId(), record.getAcceptanceType(), record.getResult(),
+                record.getObservedAt(), record.getConclusion(), record.getRecordedByUser().getId(),
+                record.getDepartmentConfirmedByUser() == null ? null : record.getDepartmentConfirmedByUser().getId(),
+                record.getDepartmentConfirmedAt(),
+                record.getVtytConfirmedByUser() == null ? null : record.getVtytConfirmedByUser().getId(),
+                record.getVtytConfirmedAt());
+    }
+
+    private void requireReader() {
+        var role = currentUser.get().role();
+        if (role != UserRole.PHONG_VTYT && role != UserRole.BAN_GIAM_DOC)
+            throw new BusinessRuleException(HttpStatus.FORBIDDEN, "BUSINESS_ACCESS_DENIED", "Report role required");
     }
 
     private MaintenancePlan lockedPlan(Long id) {

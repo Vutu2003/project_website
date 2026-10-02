@@ -29,6 +29,9 @@ public interface ApprovalRequestRepository extends JpaRepository<ApprovalRequest
     Page<ApprovalRequest> findByStatusAndRequestType(
             ApprovalRequestStatus status, ApprovalRequestType requestType, Pageable pageable);
 
+    @EntityGraph(attributePaths="proposedProvider")
+    @org.springframework.data.jpa.repository.Query("select r from ApprovalRequest r where r.planItem.plan.id=:planId and r.requestType=vn.edu.medmaintenance.persistence.enums.ApprovalRequestType.VENDOR_SELECTION and r.status<>vn.edu.medmaintenance.persistence.enums.ApprovalRequestStatus.CANCELLED order by r.id")
+    List<ApprovalRequest> findProposalsForPlan(@org.springframework.data.repository.query.Param("planId") Long planId);
     List<ApprovalRequest> findByPlan_IdOrderBySubmittedAtAscIdAsc(Long planId);
     List<ApprovalRequest> findByPlanItem_IdOrderBySubmittedAtAscIdAsc(Long planItemId);
 }

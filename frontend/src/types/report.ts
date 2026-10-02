@@ -1,4 +1,5 @@
-import type { PlanStatus } from './workflow'
+import type { ExecutionAttempt } from './execution'
+import type { PlanItemStatus, PlanStatus } from './workflow'
 
 export type ReportStatus = 'DRAFT' | 'FINAL'
 export interface ReportNarrative {
@@ -22,4 +23,10 @@ export interface ReportResponse extends ReportNarrative {
   finalizedAt: string | null
   completedCount: number
   repairRequiredCount: number
+}
+
+export interface ReportEvidence {
+  planId: number
+  items: { itemId: number; equipmentCode: string; equipmentName: string; departmentName: string;
+    status: PlanItemStatus; providerName: string | null; attempts: ExecutionAttempt[] }[]
 }

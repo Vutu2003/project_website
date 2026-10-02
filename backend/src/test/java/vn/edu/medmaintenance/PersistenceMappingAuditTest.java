@@ -46,7 +46,7 @@ class PersistenceMappingAuditTest {
             "department", "user_account", "equipment", "service_provider",
             "maintenance_coverage", "maintenance_plan", "maintenance_plan_item",
             "approval_request", "approval_action", "maintenance_execution",
-            "maintenance_progress_log", "acceptance_record", "maintenance_report", "status_history");
+            "maintenance_progress_log", "acceptance_record", "maintenance_report", "status_history", "user_notification");
     private static final Map<String, String> ENUM_CHECKS = Map.ofEntries(
             Map.entry("user_account.role_code", "ck_user_account_role"),
             Map.entry("maintenance_coverage.classification", "ck_coverage_classification"),
@@ -62,12 +62,12 @@ class PersistenceMappingAuditTest {
 
     private static final Map<String, Set<String>> FROZEN_ENUMS = Map.ofEntries(
             Map.entry("user_account.role_code", Set.of("PHONG_VTYT", "BAN_GIAM_DOC", "KHOA_PHONG", "ADMIN")),
-            Map.entry("maintenance_coverage.classification", Set.of("UNKNOWN", "FREE", "NOT_FREE")),
+            Map.entry("maintenance_coverage.classification", Set.of("FREE", "NOT_FREE")),
             Map.entry("maintenance_plan.status", Set.of("DRAFT", "SUBMITTED", "REVISION_REQUIRED", "APPROVED", "IN_PROGRESS", "AWAITING_REPORT", "REPORTED", "CLOSED")),
             Map.entry("maintenance_plan_item.status", Set.of("PLANNED", "UNDER_CONTRACT", "PENDING_PROPOSAL", "WAITING_VENDOR_APPROVAL", "ASSIGNED_EXTERNAL", "IN_MAINTENANCE", "AWAITING_TECHNICAL_ACCEPTANCE", "AWAITING_HANDOVER", "COMPLETED", "REWORK_REQUIRED", "REPAIR_REQUIRED")),
             Map.entry("maintenance_plan_item.assignment_route", Set.of("UNDER_CONTRACT", "EXTERNAL_APPROVED")),
             Map.entry("approval_request.request_type", Set.of("PLAN_APPROVAL", "VENDOR_SELECTION")),
-            Map.entry("approval_request.status", Set.of("DRAFT", "PENDING", "DECIDED")),
+            Map.entry("approval_request.status", Set.of("DRAFT", "PENDING", "DECIDED", "CANCELLED")),
             Map.entry("approval_action.outcome", Set.of("APPROVE", "REVISION_REQUIRED")),
             Map.entry("acceptance_record.acceptance_type", Set.of("TECHNICAL_ACCEPTANCE", "HANDOVER_ACCEPTANCE")),
             Map.entry("acceptance_record.result", Set.of("PASS", "FAIL")),
@@ -84,7 +84,7 @@ class PersistenceMappingAuditTest {
     void allMappingsMatchTheFrozenPostgresqlMetadata() throws IOException {
         assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("validate");
         var entities = entityManager.getMetamodel().getEntities();
-        assertThat(entities).hasSize(14);
+        assertThat(entities).hasSize(15);
         Map<String, Class<?>> classes = new TreeMap<>();
         for (var entity : entities) {
             Class<?> javaClass = entity.getJavaType();
@@ -118,7 +118,7 @@ class PersistenceMappingAuditTest {
                     String child = rs.getString(1), column = rs.getString(2), parent = rs.getString(3);
                     databaseForeignKeys.put(child + "." + column, new ForeignKey(child, column, parent, ""));
                 });
-        assertThat(databaseForeignKeys).hasSize(31);
+        assertThat(databaseForeignKeys).hasSize(32);
 
         Map<String, ForeignKey> mappedForeignKeys = new TreeMap<>();
         List<String> tableRows = new ArrayList<>();
@@ -182,8 +182,8 @@ class PersistenceMappingAuditTest {
                     + mappedColumns.size() + " | " + dbFkCount + " | " + fkCount + " | PASS |");
             mappedColumnCount += mappedColumns.size();
         }
-        assertThat(mappedColumnCount).isEqualTo(118);
-        assertThat(mappedForeignKeys).hasSize(31);
+        assertThat(mappedColumnCount).isEqualTo(126);
+        assertThat(mappedForeignKeys).hasSize(32);
         assertThat(mappedForeignKeys.keySet()).containsExactlyInAnyOrderElementsOf(databaseForeignKeys.keySet());
         for (var entry : databaseForeignKeys.entrySet()) {
             assertThat(mappedForeignKeys.get(entry.getKey()).parent())
@@ -232,9 +232,8 @@ class PersistenceMappingAuditTest {
                 + "No removed table or Flyway metadata table is mapped.\n");
         Path cwd = Path.of(System.getProperty("user.dir"));
         Path projectRoot = cwd.getFileName().toString().equals("backend") ? cwd.getParent() : cwd;
-        Path output = projectRoot.resolve("backend/target/v2_system_catalog_mapping_audit.md");
-        Files.createDirectories(output.getParent());
-        Files.writeString(output, audit.toString());
+
+        // Audit assertions remain executable; no report artifact is emitted.
     }
 
     private static void assertScalarType(Field field, String dbType, String label) {

@@ -60,6 +60,9 @@ class PlanningApprovalIntegrationTest {
     @AfterEach
     void clean() {
         for (Long planId : createdPlans) {
+            PlanningTestData.cleanNotifications(jdbc,planId);
+            jdbc.update("DELETE FROM approval_action WHERE request_id IN (SELECT id FROM approval_request WHERE plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?))",planId);
+            jdbc.update("DELETE FROM approval_request WHERE plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)",planId);
             jdbc.update("DELETE FROM status_history WHERE plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)", planId);
             jdbc.update("DELETE FROM status_history WHERE plan_id=?", planId);
             jdbc.update("DELETE FROM approval_action WHERE request_id IN (SELECT id FROM approval_request WHERE plan_id=?)", planId);
@@ -84,9 +87,9 @@ class PlanningApprovalIntegrationTest {
         assertThat(success(send(HttpMethod.GET, "/api/plans/" + planId, vtyt, null), 200).path("status").asText())
                 .isEqualTo("DRAFT");
         assertThat(jdbc.queryForObject("SELECT status FROM maintenance_plan_item WHERE plan_id=?", String.class, planId))
-                .isEqualTo("PLANNED");
+                .isEqualTo("UNDER_CONTRACT");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM status_history WHERE plan_id=?", Integer.class, planId)).isEqualTo(1);
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM status_history WHERE plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)", Integer.class, planId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM status_history WHERE plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)", Integer.class, planId)).isEqualTo(2);
         assertThat(jdbc.queryForObject("SELECT i.department_id_at_plan=e.department_id FROM maintenance_plan_item i JOIN equipment e ON e.id=i.equipment_id WHERE i.plan_id=?", Boolean.class, planId)).isTrue();
 
         JsonNode firstSubmit = success(send(HttpMethod.POST, "/api/plans/" + planId + "/submit", vtyt, Map.of("version", version)), 200);
@@ -316,7 +319,7 @@ class PlanningApprovalIntegrationTest {
 
     private Map<String, Object> newPlan(long equipmentId) {
         return Map.of("title", "TEST-PLAN-" + UUID.randomUUID(), "periodStart", "2026-11-01",
-                "periodEnd", "2026-11-30", "items", List.of(Map.of("equipmentId", equipmentId)));
+                "periodEnd", "2026-11-30", "items", List.of(PlanningTestData.complete(jdbc,equipmentId)));
     }
 
     private Map<String, Object> editBody(int version, List<Map<String, Object>> items) {
@@ -325,7 +328,7 @@ class PlanningApprovalIntegrationTest {
         body.put("title", "TEST-UPDATED");
         body.put("periodStart", "2026-11-01");
         body.put("periodEnd", "2026-11-30");
-        body.put("items", items);
+        body.put("items",items.stream().map(row->{var complete=PlanningTestData.complete(jdbc,((Number)row.get("equipmentId")).longValue());complete.putAll(row);return complete;}).toList());
         return body;
     }
 

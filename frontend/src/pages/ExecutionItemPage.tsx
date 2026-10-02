@@ -6,10 +6,12 @@ import { executionsApi } from '../api/executionsApi'
 import { plansApi } from '../api/plansApi'
 import { useAuth } from '../auth/useAuth'
 import { StatusBadge } from '../components/StatusBadge'
+import { ExecutionTimeline } from '../components/ExecutionTimeline'
+import { orderedProgress, progressDetails, progressLabels } from '../utils/executionProgress'
 import { AttemptHistory } from '../components/AttemptHistory'
 import { PasswordInput } from '../components/PasswordInput'
 import { WorkflowError, WorkflowSuccess } from '../components/WorkflowFeedback'
-import type { AcceptanceResult, EquipmentExecutionHistory } from '../types/execution'
+import type { AcceptanceResult, EquipmentExecutionHistory, MaintenanceProgressStatus } from '../types/execution'
 import type { Plan, PlanItem } from '../types/workflow'
 import { orderedAttempts } from '../utils/attempts'
 import { assignmentRouteLabels, itemStatusLabels, planStatusLabels } from '../utils/workflowLabels'
@@ -39,8 +41,8 @@ export function ExecutionItemPage() {
   const [error, setError] = useState<unknown>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
-  const [workNote, setWorkNote] = useState('')
-  const [damageNote, setDamageNote] = useState('')
+  const [progressStatus, setProgressStatus] = useState<MaintenanceProgressStatus>('IN_PROGRESS')
+  const [progressNote, setProgressNote] = useState('')
   const [resultNote, setResultNote] = useState('')
   const [repairReason, setRepairReason] = useState('')
   const [technicalResult, setTechnicalResult] = useState<AcceptanceResult>('PASS')
@@ -72,10 +74,16 @@ export function ExecutionItemPage() {
   const current = attempts.at(-1) ?? null
   const isVtyt = user?.role === 'PHONG_VTYT'
   const isDepartment = user?.role === 'KHOA_PHONG'
-  const canStart = !loading && isVtyt && item && ['UNDER_CONTRACT', 'ASSIGNED_EXTERNAL', 'REWORK_REQUIRED'].includes(item.status)
-  const canWork = !loading && isVtyt && item?.status === 'IN_MAINTENANCE' && current?.endedAt == null
+  const canStart = !loading && isVtyt && plan && !plan.pendingVendorApproval && ['APPROVED', 'IN_PROGRESS'].includes(plan.status) && item && ['UNDER_CONTRACT', 'ASSIGNED_EXTERNAL', 'REWORK_REQUIRED'].includes(item.status)
+  const canWork = !loading && isVtyt && plan && ['APPROVED', 'IN_PROGRESS'].includes(plan.status) && item?.status === 'IN_MAINTENANCE' && current && current.endedAt == null
   const canTechnical = !loading && isVtyt && item?.status === 'AWAITING_TECHNICAL_ACCEPTANCE' && current?.endedAt != null && !current.technicalAcceptance
   const canHandover = !loading && isDepartment && item?.status === 'AWAITING_HANDOVER' && current?.technicalAcceptance?.result === 'PASS' && !current.handoverAcceptance
+
+  const latestProgress = current ? orderedProgress(current.progress).at(-1) : undefined
+  const latestDetails = latestProgress ? progressDetails(latestProgress) : undefined
+  const executionLabel = current?.endedAt ? 'Hoàn thành kỹ thuật' : !current ? 'Chưa bắt đầu'
+    : latestDetails?.status === 'PAUSED' || latestDetails?.status === 'WAITING_PARTS' || latestDetails?.status === 'WAITING_PROVIDER'
+      ? 'Tạm dừng' : 'Đang thực hiện'
 
   async function perform(action: () => Promise<unknown>, success: string, reset?: () => void) {
     if (inFlight.current) return
@@ -91,14 +99,14 @@ export function ExecutionItemPage() {
     void perform(() => executionsApi.start(item.id, item.version, plan.version), 'Đã bắt đầu lần thực hiện mới.', () => { setTechnicalResult('PASS'); setTechnicalRepair(false); setHandoverResult('PASS'); setHandoverRepair(false) })
   }
   function appendProgress() {
-    if (!current || !workNote.trim()) { setError(new UserInputError('Vui lòng nhập nội dung công việc.')); return }
-    void perform(() => executionsApi.progress(current.executionId, workNote.trim(), damageNote.trim() || null),
-      'Đã lưu cập nhật tiến độ.', () => { setWorkNote(''); setDamageNote('') })
+    if (!current || !item || !canWork) return
+    void perform(() => executionsApi.updateProgress(current.executionId, progressStatus, progressNote.trim() || null, item.version),
+      'Đã lưu cập nhật tiến độ.', () => setProgressNote(''))
   }
   function finish() {
-    if (!item || !current || !confirmAction('Kết thúc công việc để chuyển sang nghiệm thu kỹ thuật?')) return
+    if (!item || !current || !confirmAction('Xác nhận hoàn thành kỹ thuật và chuyển sang chờ nghiệm thu kỹ thuật?')) return
     void perform(() => executionsApi.finish(current.executionId, item.version, resultNote.trim() || null),
-      'Đã kết thúc công việc; chờ nghiệm thu kỹ thuật.', () => setResultNote(''))
+      'Đã hoàn thành kỹ thuật; chờ nghiệm thu kỹ thuật.', () => setResultNote(''))
   }
   function repair() {
     if (!item || !current || !repairReason.trim()) { setError(new UserInputError('Vui lòng nhập lý do chuyển sửa chữa.')); return }
@@ -134,29 +142,40 @@ export function ExecutionItemPage() {
   }
 
   if (loading && !item) return <p className="muted">Đang tải hạng mục và các lần thực hiện…</p>
-  if (!item || !plan) return <div className="page-stack"><WorkflowError error={error} onReload={reload} /><Link to="/execution">Về danh sách</Link></div>
+  if (!item || !plan) return <div className="page-stack"><WorkflowError error={error} onReload={reload} /><Link to={isVtyt ? "/maintenance-progress" : "/execution"}>Về danh sách</Link></div>
   return <div className="page-stack execution-page">
     <div className="page-title-row"><div className="page-title-block"><p className="eyebrow">UC08–UC10 · HẠNG MỤC #{item.id}</p><h1>{item.equipmentCode} · {item.equipmentName}</h1>
       <p>{plan.title} · Khoa tại kế hoạch: {item.departmentNameAtPlan}</p></div>
-      <Link className="button secondary" to={`/execution/plans/${plan.id}`}>Về hạng mục</Link></div>
+      <Link className="button secondary" to={isVtyt ? `/maintenance-progress/plans/${plan.id}` : `/execution/plans/${plan.id}`}>Về hạng mục</Link></div>
     <WorkflowSuccess message={notice} /><WorkflowError error={error} onReload={reload} />
     <section className="panel business-panel summary-panel"><div><span className="card-label">TRẠNG THÁI HẠNG MỤC</span><StatusBadge label={itemStatusLabels[item.status]} tone={item.status === 'COMPLETED' ? 'teal' : item.status === 'REPAIR_REQUIRED' ? 'amber' : 'neutral'} /></div>
       <div><span className="card-label">KẾ HOẠCH</span><strong>{planStatusLabels[plan.status]} · v{plan.version}</strong></div>
       <div><span className="card-label">PHIÊN BẢN HẠNG MỤC</span><strong>v{item.version}</strong></div>
       <div><span className="card-label">TUYẾN / ĐƠN VỊ</span><strong>{item.assignmentRoute ? assignmentRouteLabels[item.assignmentRoute] : '—'} · {item.assignedProviderName || '—'}</strong></div>
       <button className="button secondary" type="button" onClick={reload}>Tải lại</button></section>
+    <section className="panel business-panel"><h2>Theo dõi bảo trì</h2>
+      <p>Trạng thái thực hiện: <strong>{item.status === 'REPAIR_REQUIRED' ? 'Chuyển sửa chữa' : executionLabel}</strong></p>
+      <p>Cập nhật mới nhất: {current?.endedAt ? 'Hoàn thành kỹ thuật' : latestDetails?.label ?? (current ? 'Bắt đầu bảo trì' : 'Chưa có cập nhật')}
+        {current && ` · ${new Date(current.endedAt ?? latestProgress?.eventAt ?? current.startedAt).toLocaleString('vi-VN')}`}</p>
+      {item.status === 'AWAITING_TECHNICAL_ACCEPTANCE' && <p className="retention-note">Chờ nghiệm thu kỹ thuật</p>}
+      {current && <ExecutionTimeline attempt={current} history={campaign?.itemHistory ?? []} />}
+    </section>
     {plan.status === 'AWAITING_REPORT' && <div className="retention-note">Kế hoạch đã sẵn sàng cho bước báo cáo. {isVtyt && <Link className="text-link" to={`/plans/${plan.id}/report`}>Mở báo cáo</Link>}</div>}
     {item.status === 'REPAIR_REQUIRED' && <div className="retention-note">Đã chuyển sang quy trình sửa chữa (ngoài phạm vi V1). Dữ liệu thực hiện và lý do vẫn được giữ lại.</div>}
     {item.status === 'COMPLETED' && <div className="retention-note">Hạng mục đã hoàn tất nghiệm thu và bàn giao. Các lần thực hiện vẫn hiển thị bên dưới.</div>}
-    {canStart && <section className="panel business-panel"><div className="panel-heading"><div><h2>{item.status === 'REWORK_REQUIRED' ? 'Bắt đầu lần thực hiện lại' : 'Bắt đầu bảo trì'}</h2><p>Backend tự xác định số lần và đơn vị thực hiện từ tuyến đã duyệt.</p></div></div>
-      <button className="button primary" type="button" disabled={busy} onClick={start}>{busy ? 'Đang xử lý…' : 'Bắt đầu thực hiện'}</button></section>}
-    {canWork && <section className="panel business-panel execution-command-grid"><div><h2>Cập nhật tiến độ</h2><p className="muted">Cập nhật được nối vào lần thực hiện hiện tại, không sửa nhật ký cũ.</p>
-      <label className="block-label">Nội dung công việc<textarea value={workNote} rows={3} onChange={event => setWorkNote(event.target.value)} /></label>
-      <label className="block-label">Ghi nhận hư hỏng (nếu có)<textarea value={damageNote} rows={2} onChange={event => setDamageNote(event.target.value)} /></label>
+    {isVtyt && !['APPROVED', 'IN_PROGRESS'].includes(plan.status) && ['UNDER_CONTRACT', 'ASSIGNED_EXTERNAL'].includes(item.status) && <p className="retention-note">Hình thức bảo trì đã được xác định. Chỉ có thể bắt đầu thực hiện sau khi kế hoạch được phê duyệt.</p>}
+    {isVtyt && plan.pendingVendorApproval && <p className="retention-note">Cần phê duyệt xong các đơn vị đề xuất trước khi bắt đầu thực hiện kế hoạch.</p>}
+    {canStart && <section className="panel business-panel"><div className="panel-heading"><div><h2>{item.status === 'REWORK_REQUIRED' ? 'Bắt đầu lần thực hiện lại' : 'Bắt đầu bảo trì'}</h2><p>Bắt đầu khi đơn vị bảo trì xác nhận triển khai công việc.</p></div></div>
+      <button className="button primary" type="button" disabled={busy} onClick={start}>{busy ? 'Đang xử lý…' : 'Bắt đầu bảo trì'}</button></section>}
+    {canWork && <section className="panel business-panel execution-command-grid"><div><h2>Cập nhật tiến độ</h2><p className="muted">Ghi nhận thông tin nhận được từ đơn vị bảo trì.</p>
+      <label className="block-label">Tiến độ hiện tại<select value={progressStatus} disabled={busy} onChange={event => setProgressStatus(event.target.value as MaintenanceProgressStatus)}>
+        {Object.entries(progressLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+      </select></label>
+      <label className="block-label">Ghi chú<textarea value={progressNote} maxLength={4000} disabled={busy} rows={3} onChange={event => setProgressNote(event.target.value)} /></label>
       <button className="button secondary" type="button" disabled={busy} onClick={appendProgress}>{busy ? 'Đang lưu…' : 'Lưu tiến độ'}</button></div>
-      <div><h2>Kết thúc công việc</h2><p className="muted">Sau khi kết thúc, hạng mục chuyển sang chờ nghiệm thu kỹ thuật.</p>
+      <div><h2>Hoàn thành kỹ thuật</h2><p className="muted">Sau khi kết thúc, hạng mục chuyển sang chờ nghiệm thu kỹ thuật.</p>
         <label className="block-label">Ghi chú kết quả (nếu có)<textarea value={resultNote} rows={3} onChange={event => setResultNote(event.target.value)} /></label>
-        <button className="button primary" type="button" disabled={busy} onClick={finish}>{busy ? 'Đang xử lý…' : 'Kết thúc công việc'}</button>
+        <button className="button primary" type="button" disabled={busy} onClick={finish}>{busy ? 'Đang xử lý…' : 'Hoàn thành kỹ thuật'}</button>
         <div className="repair-action"><h3>Chuyển sửa chữa</h3><label className="block-label">Lý do bắt buộc<textarea value={repairReason} rows={2} onChange={event => setRepairReason(event.target.value)} /></label>
           <button className="button secondary" type="button" disabled={busy} onClick={repair}>Chuyển sang sửa chữa</button></div></div></section>}
     {canTechnical && <section className="panel business-panel"><div className="panel-heading"><h2>Nghiệm thu kỹ thuật · lần {current.attemptNo}</h2></div>

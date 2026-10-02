@@ -54,6 +54,7 @@ class BackendBusinessFinalIntegrationTest {
     void cleanup() {
         reset(history);
         for (long plan : plans) {
+            PlanningTestData.cleanNotifications(jdbc,plan);
             jdbc.update("DELETE FROM maintenance_report WHERE plan_id=?", plan);
             jdbc.update("DELETE FROM acceptance_record WHERE execution_id IN (SELECT e.id FROM maintenance_execution e JOIN maintenance_plan_item i ON i.id=e.plan_item_id WHERE i.plan_id=?)", plan);
             jdbc.update("DELETE FROM maintenance_progress_log WHERE execution_id IN (SELECT e.id FROM maintenance_execution e JOIN maintenance_plan_item i ON i.id=e.plan_item_id WHERE i.plan_id=?)", plan);
@@ -83,6 +84,16 @@ class BackendBusinessFinalIntegrationTest {
         technical(execution, item, "PASS", false);
         handover(execution, item, "PASS", false);
         assertThat(planStatus(plan)).isEqualTo("AWAITING_REPORT");
+        JsonNode evidence = ok(send(HttpMethod.GET, "/api/plans/" + plan + "/report/evidence", vtyt, null, null), 200);
+        assertThat(evidence.path("planId").asLong()).isEqualTo(plan);
+        assertThat(evidence.path("items").size()).isEqualTo(1);
+        JsonNode aggregated = evidence.path("items").get(0);
+        assertThat(aggregated.path("equipmentCode").asText()).isEqualTo("DEMO-EQ-001");
+        assertThat(aggregated.path("providerName").asText()).isNotBlank();
+        assertThat(aggregated.path("attempts").get(0).path("progress").get(0).path("workNote").asText()).isEqualTo("Đã bảo trì thiết bị");
+        assertThat(aggregated.path("attempts").get(0).path("technicalAcceptance").path("result").asText()).isEqualTo("PASS");
+        assertThat(aggregated.path("attempts").get(0).path("handoverAcceptance").path("result").asText()).isEqualTo("PASS");
+        assertSafe(evidence);
         JsonNode draft = createReport(plan, "Đã hoàn thành bảo trì theo kế hoạch");
         assertThat(draft.path("status").asText()).isEqualTo("DRAFT");
         assertThat(draft.path("planStatus").asText()).isEqualTo("AWAITING_REPORT");
@@ -103,6 +114,7 @@ class BackendBusinessFinalIntegrationTest {
         assertThat(campaign.path("attempts").get(0).path("technicalAcceptance").path("result").asText()).isEqualTo("PASS");
         assertThat(campaign.path("attempts").get(0).path("handoverAcceptance").path("result").asText()).isEqualTo("PASS");
         assertThat(campaign.path("report").path("status").asText()).isEqualTo("FINAL");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_notification WHERE notification_type='REPORT_FINALIZED' AND target_url=?",Integer.class,"/plans/"+plan+"/report")).isGreaterThan(0);
         assertThat(campaign.path("planHistory").size()).isEqualTo(6);
         assertSafe(historyResponse);
     }
@@ -204,6 +216,14 @@ class BackendBusinessFinalIntegrationTest {
         JsonNode draft = createReport(plan, "Hoàn thành");
         finalizeReport(plan, draft.path("planVersion").asInt());
         ok(send(HttpMethod.GET, "/api/plans/" + plan + "/report", director, null, null), 200);
+        ok(send(HttpMethod.GET, "/api/plans/" + plan + "/report/evidence", director, null, null), 200);
+        for (String token : List.of(department, admin))
+            fail(send(HttpMethod.GET, "/api/plans/" + plan + "/report/evidence", token, null, null), 403, "ACCESS_DENIED");
+        fail(send(HttpMethod.PUT, "/api/plans/" + plan + "/report", director,
+                Map.of("version", planVersion(plan), "workDone", "overwrite"), null), 403, "ACCESS_DENIED");
+        fail(send(HttpMethod.POST, "/api/plans/" + plan + "/report/finalize", director,
+                Map.of("version", planVersion(plan)), null), 403, "ACCESS_DENIED");
+
         for (String token : List.of(department, admin))
             fail(send(HttpMethod.GET, "/api/plans/" + plan + "/report", token, null, null), 403, "ACCESS_DENIED");
         for (String token : List.of(director, department, admin))
@@ -378,7 +398,7 @@ class BackendBusinessFinalIntegrationTest {
 
     private long approvedPlan(long... equipmentIds) {
         List<Map<String, Object>> selections = new ArrayList<>();
-        for (long id : equipmentIds) selections.add(Map.of("equipmentId", id));
+        for (long id : equipmentIds) selections.add(PlanningTestData.complete(jdbc,id));
         JsonNode created = ok(send(HttpMethod.POST, "/api/plans", vtyt,
                 Map.of("title", "TEST-REPORT-" + UUID.randomUUID(), "periodStart", "2026-11-01",
                         "periodEnd", "2026-11-30", "items", selections), null), 201);
@@ -393,23 +413,13 @@ class BackendBusinessFinalIntegrationTest {
 
     private long routeFree(long plan, long equipmentId) {
         long item = item(plan, equipmentId);
-        ok(send(HttpMethod.POST, "/api/plan-items/" + item + "/route", vtyt,
-                Map.of("version", itemVersion(item), "coverageId", coverage(equipmentId)), null), 200);
         return item;
     }
 
     private long routeExternal(long plan, long equipmentId) {
         long item = item(plan, equipmentId);
-        JsonNode routed = ok(send(HttpMethod.POST, "/api/plan-items/" + item + "/route", vtyt,
-                Map.of("version", itemVersion(item), "coverageId", paidCoverage), null), 200);
-        JsonNode draft = ok(send(HttpMethod.POST, "/api/plan-items/" + item + "/vendor-proposals", vtyt,
-                Map.of("version", routed.path("version").asInt(), "providerId", provider,
-                        "rationale", "Đủ năng lực"), null), 201);
-        JsonNode submitted = ok(send(HttpMethod.POST,
-                "/api/vendor-proposals/" + draft.path("approvalRequestId").asLong() + "/submit", vtyt,
-                Map.of("version", draft.path("version").asInt()), null), 200);
-        ok(send(HttpMethod.POST, "/api/approvals/" + submitted.path("approvalRequestId").asLong() + "/decision",
-                director, Map.of("version", submitted.path("version").asInt(), "outcome", "APPROVE"), null), 200);
+        long request=jdbc.queryForObject("SELECT id FROM approval_request WHERE plan_item_id=? AND status='PENDING'",Long.class,item);
+        ok(send(HttpMethod.POST,"/api/approvals/"+request+"/decision",director,Map.of("version",itemVersion(item),"outcome","APPROVE"),null),200);
         return item;
     }
 

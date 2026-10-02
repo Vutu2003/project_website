@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.*;
 import vn.edu.medmaintenance.api.dto.request.FinalizeReportRequest;
 import vn.edu.medmaintenance.api.dto.request.SaveReportRequest;
 import vn.edu.medmaintenance.api.dto.response.ReportResponse;
+import vn.edu.medmaintenance.api.dto.response.ReportEvidenceResponse;
 import vn.edu.medmaintenance.service.MaintenanceReportService;
 
 @RestController
@@ -31,6 +32,9 @@ public class MaintenanceReportController {
             @Valid @RequestBody FinalizeReportRequest command) {
         return reports.finalizeReport(planId, command);
     }
+
+    @GetMapping("/evidence")
+    public ReportEvidenceResponse evidence(@PathVariable Long planId) { return reports.evidence(planId); }
 
     @GetMapping
     public ReportResponse get(@PathVariable Long planId) { return reports.get(planId); }

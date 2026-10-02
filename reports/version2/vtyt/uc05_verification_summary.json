@@ -1,0 +1,83 @@
+{
+  "frontend": {
+    "build": "PASS",
+    "lint": "PASS",
+    "tests": 89,
+    "uc05_tests": 32
+  },
+  "backend": {
+    "tests": 131,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0
+  },
+  "chrome": {
+    "result": "PASS",
+    "version": "Google Chrome 154.0.8037.92",
+    "checks": 36,
+    "cleanup": {
+      "plan_ids": [
+        120,
+        121
+      ],
+      "canonical_restored": true,
+      "remaining_smoke": 0
+    },
+    "isolated_services_stopped": true
+  },
+  "database": {
+    "schema": {
+      "columns": 118,
+      "tables": 14,
+      "foreign_keys": 31,
+      "migrations": [
+        {
+          "version": "001",
+          "description": "master data",
+          "success": true
+        },
+        {
+          "version": "002",
+          "description": "planning and coverage",
+          "success": true
+        },
+        {
+          "version": "003",
+          "description": "approval",
+          "success": true
+        },
+        {
+          "version": "004",
+          "description": "execution and acceptance",
+          "success": true
+        },
+        {
+          "version": "005",
+          "description": "report and history",
+          "success": true
+        },
+        {
+          "version": "006",
+          "description": "required indexes",
+          "success": true
+        },
+        {
+          "version": "007",
+          "description": "service provider code",
+          "success": true
+        }
+      ]
+    },
+    "canonical_rows": 603,
+    "schema_assertions": 70,
+    "demo_assertions": 32,
+    "new_migration": false
+  },
+  "local_runtime": {
+    "backend": "http://localhost:8080",
+    "backend_health": "UP",
+    "frontend": "http://localhost:5173",
+    "postgres_port": 55432,
+    "development_fingerprints_unchanged_after_restart": true
+  }
+}

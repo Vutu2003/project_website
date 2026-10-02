@@ -96,3 +96,5 @@ export interface AcceptanceCommand {
   conclusion: string
   repairRequired: boolean
 }
+
+export type MaintenanceProgressStatus = 'IN_PROGRESS' | 'PAUSED' | 'WAITING_PARTS' | 'WAITING_PROVIDER' | 'WORK_DONE'

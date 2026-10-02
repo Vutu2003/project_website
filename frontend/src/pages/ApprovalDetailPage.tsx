@@ -46,7 +46,7 @@ export function ApprovalDetailPage() {
     setBusy(true)
     try {
       const result = await approvalsApi.decide(review.id, { version, outcome, comment: comment.trim() || null })
-      const state = 'planStatus' in result ? planStatusLabels[result.planStatus] : itemStatusLabels[result.status]
+      const state = 'itemId' in result ? itemStatusLabels[result.status] : planStatusLabels[result.planStatus]
       navigate('/approvals', { replace: true, state: { flash: `Đã ghi quyết định. Trạng thái từ backend: ${state}.` } })
     } catch (failure) { setError(failure) } finally { setBusy(false) }
   }
@@ -69,8 +69,8 @@ export function ApprovalDetailPage() {
     {review.requestType === 'VENDOR_SELECTION' && <section className="panel business-panel"><div className="panel-heading"><h2>Đề xuất đơn vị bảo trì</h2></div>
       <dl className="detail-list"><div><dt>Thiết bị</dt><dd>{review.equipmentCode} · {review.equipmentName}</dd></div>
         <div><dt>Đơn vị được đề xuất</dt><dd>{review.proposedProviderName || '—'}</dd></div>
-        <div><dt>Coverage</dt><dd>#{review.coverageId} · {review.coverageClassification ? coverageLabels[review.coverageClassification] : '—'}</dd></div>
-        <div><dt>Căn cứ coverage</dt><dd>{review.coverageBasis || '—'}</dd></div>
+        <div><dt>Hình thức bảo trì</dt><dd>{review.coverageClassification ? coverageLabels[review.coverageClassification] : '—'}</dd></div>
+        <div><dt>Căn cứ hợp đồng</dt><dd>{review.coverageBasis || 'Không có hợp đồng áp dụng; xem căn cứ chọn đơn vị bên dưới.'}</dd></div>
         <div><dt>Lý do đề xuất</dt><dd>{review.rationale || '—'}</dd></div>
         <div><dt>Ảnh hưởng bảo hành</dt><dd>{review.warrantyImpactNote || '—'}</dd></div></dl>
     </section>}

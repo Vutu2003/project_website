@@ -1,3 +1,5 @@
+import { MaintenanceSuggestionsPage } from './pages/MaintenanceSuggestionsPage'
+import { NotificationsPage } from './pages/NotificationsPage'
 import { Route, Routes } from 'react-router'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { AppLayout } from './layouts/AppLayout'
@@ -10,6 +12,7 @@ import { PlanDetailPage } from './pages/PlanDetailPage'
 import { ApprovalQueuePage } from './pages/ApprovalQueuePage'
 import { ApprovalDetailPage } from './pages/ApprovalDetailPage'
 import { RoleGuard } from './auth/RoleGuard'
+import { MaintenanceProgressPage } from './pages/MaintenanceProgressPage'
 import { ExecutionQueuePage } from './pages/ExecutionQueuePage'
 import { ExecutionItemPage } from './pages/ExecutionItemPage'
 import { ReportListPage } from './pages/ReportListPage'
@@ -28,10 +31,14 @@ export default function App() {
     <Route element={<ProtectedRoute />}>
       <Route element={<AppLayout />}>
         <Route path="/" element={<DashboardPage />} />
+        <Route path="/maintenance-suggestions" element={<RoleGuard roles={['PHONG_VTYT']}><MaintenanceSuggestionsPage /></RoleGuard>} />
+        <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/plans" element={<PlanListPage />} />
         <Route path="/plans/new" element={<RoleGuard roles={['PHONG_VTYT']}><PlanFormPage mode="create" /></RoleGuard>} />
         <Route path="/plans/:planId/edit" element={<RoleGuard roles={['PHONG_VTYT']}><PlanFormPage mode="edit" /></RoleGuard>} />
         <Route path="/plans/:planId" element={<PlanDetailPage />} />
+        <Route path="/maintenance-progress" element={<RoleGuard roles={['PHONG_VTYT']}><MaintenanceProgressPage /></RoleGuard>} />
+        <Route path="/maintenance-progress/plans/:planId" element={<RoleGuard roles={['PHONG_VTYT']}><MaintenanceProgressPage key="progress-plan" /></RoleGuard>} />
         <Route path="/execution" element={<RoleGuard roles={['PHONG_VTYT', 'KHOA_PHONG']}><ExecutionQueuePage /></RoleGuard>} />
         <Route path="/execution/plans/:planId" element={<RoleGuard roles={['PHONG_VTYT', 'KHOA_PHONG']}><ExecutionQueuePage /></RoleGuard>} />
         <Route path="/plans/:planId/items/:itemId/execution" element={<RoleGuard roles={['PHONG_VTYT', 'KHOA_PHONG']}><ExecutionItemPage /></RoleGuard>} />

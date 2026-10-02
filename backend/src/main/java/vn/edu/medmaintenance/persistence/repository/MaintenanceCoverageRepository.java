@@ -9,6 +9,8 @@ import org.springframework.data.repository.query.Param;
 import vn.edu.medmaintenance.persistence.entity.MaintenanceCoverage;
 
 public interface MaintenanceCoverageRepository extends JpaRepository<MaintenanceCoverage, Long> {
+    @EntityGraph(attributePaths={"equipment","provider","verifiedByUser"})
+    List<MaintenanceCoverage> findByEquipment_IdIn(java.util.Collection<Long> ids);
     @EntityGraph(attributePaths = {"provider", "verifiedByUser"})
     @Query("""
             select c from MaintenanceCoverage c

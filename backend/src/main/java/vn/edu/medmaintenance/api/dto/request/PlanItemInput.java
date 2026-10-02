@@ -1,7 +1,9 @@
 package vn.edu.medmaintenance.api.dto.request;
-
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.*;
 import java.time.LocalDate;
-
-public record PlanItemInput(@NotNull @Positive Long equipmentId, LocalDate plannedDate) { }
+import vn.edu.medmaintenance.persistence.enums.CoverageClassification;
+public record PlanItemInput(@NotNull @Positive Long equipmentId,LocalDate plannedDate,
+ CoverageClassification classification,@Positive Long coverageId,@Positive Long proposedProviderId,
+ @Size(max=4000) String rationale,@Size(max=4000) String warrantyImpactNote,@PositiveOrZero Integer version) {
+ public PlanItemInput(Long equipmentId,LocalDate plannedDate){this(equipmentId,plannedDate,null,null,null,null,null,null);}
+}

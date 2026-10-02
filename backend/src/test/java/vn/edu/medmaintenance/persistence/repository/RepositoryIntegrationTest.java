@@ -142,7 +142,7 @@ class RepositoryIntegrationTest {
                 .extracting(MaintenanceCoverage::getClassification).contains(CoverageClassification.FREE);
         Equipment unknownDevice = equipment.findByEquipmentCode("DEMO-EQ-003").orElseThrow();
         assertThat(coverage.findEvidenceForEquipment(unknownDevice.getId()))
-                .extracting(MaintenanceCoverage::getClassification).contains(CoverageClassification.UNKNOWN);
+                .extracting(MaintenanceCoverage::getClassification).contains(CoverageClassification.NOT_FREE);
         assertThat(coverage.count()).isEqualTo(35);
     }
 
@@ -262,7 +262,7 @@ class RepositoryIntegrationTest {
                 PageRequest.of(0, 1, ITEM_HISTORY_ORDER)).getContent().get(0);
         assertThat(unknownItem.getStatus()).isEqualTo(PlanItemStatus.PLANNED);
         assertThat(coverage.findEvidenceForEquipment(unknownDevice.getId()))
-                .extracting(MaintenanceCoverage::getClassification).contains(CoverageClassification.UNKNOWN);
+                .extracting(MaintenanceCoverage::getClassification).contains(CoverageClassification.NOT_FREE);
         assertThat(unknownItem.getAssignmentRoute()).isNull();
         assertThat(unknownItem.getAssignedProvider()).isNull();
         assertThat(executions.findByPlanItem_IdOrderByAttemptNoAsc(unknownItem.getId())).isEmpty();

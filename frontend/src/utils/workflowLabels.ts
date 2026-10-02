@@ -7,7 +7,7 @@ export const planStatusLabels: Record<PlanStatus, string> = {
   REPORTED: 'Đã báo cáo', CLOSED: 'Đã đóng',
 }
 export const itemStatusLabels: Record<PlanItemStatus, string> = {
-  PLANNED: 'Dự kiến', UNDER_CONTRACT: 'Theo hợp đồng', PENDING_PROPOSAL: 'Chờ đề xuất đơn vị',
+  PLANNED: 'Dự kiến', UNDER_CONTRACT: 'Theo hợp đồng', PENDING_PROPOSAL: 'Đề xuất đang chuẩn bị',
   WAITING_VENDOR_APPROVAL: 'Chờ phê duyệt đơn vị', ASSIGNED_EXTERNAL: 'Đã phân công đơn vị ngoài',
   IN_MAINTENANCE: 'Đang bảo trì', AWAITING_TECHNICAL_ACCEPTANCE: 'Chờ nghiệm thu kỹ thuật',
   AWAITING_HANDOVER: 'Chờ bàn giao', COMPLETED: 'Hoàn tất',
@@ -17,13 +17,13 @@ export const approvalTypeLabels: Record<ApprovalRequestType, string> = {
   PLAN_APPROVAL: 'Duyệt kế hoạch', VENDOR_SELECTION: 'Duyệt đơn vị bảo trì',
 }
 export const approvalStatusLabels: Record<ApprovalRequestStatus, string> = {
-  DRAFT: 'Nháp', PENDING: 'Chờ quyết định', DECIDED: 'Đã quyết định',
+  DRAFT: 'Nháp', PENDING: 'Chờ quyết định', DECIDED: 'Đã quyết định', CANCELLED: 'Đã thay thế',
 }
 export const approvalOutcomeLabels: Record<ApprovalOutcome, string> = {
   APPROVE: 'Phê duyệt', REVISION_REQUIRED: 'Yêu cầu chỉnh sửa',
 }
 export const coverageLabels: Record<CoverageClassification, string> = {
-  UNKNOWN: 'Chưa xác định', FREE: 'Theo hợp đồng', NOT_FREE: 'Ngoài hợp đồng',
+  FREE: 'Theo hợp đồng', NOT_FREE: 'Ngoài hợp đồng',
 }
 export const assignmentRouteLabels: Record<AssignmentRoute, string> = {
   UNDER_CONTRACT: 'Theo hợp đồng', EXTERNAL_APPROVED: 'Đơn vị ngoài đã duyệt',

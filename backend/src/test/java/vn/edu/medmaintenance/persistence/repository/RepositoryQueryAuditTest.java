@@ -109,8 +109,7 @@ class RepositoryQueryAuditTest {
                 + "a production latency or scale benchmark.\n");
         Path cwd = Path.of(System.getProperty("user.dir"));
         Path root = cwd.getFileName().toString().equals("backend") ? cwd.getParent() : cwd;
-        Path output = root.resolve("reports/backend/phase_2_3_query_audit.md");
-        Files.createDirectories(output.getParent());
-        Files.writeString(output, audit.toString());
+
+        // Audit assertions remain executable; no report artifact is emitted.
     }
 }

@@ -50,7 +50,7 @@ DECLARE
         'department','user_account','equipment','service_provider','maintenance_coverage',
         'maintenance_plan','maintenance_plan_item','approval_request','approval_action',
         'maintenance_execution','maintenance_progress_log','acceptance_record',
-        'maintenance_report','status_history'];
+        'maintenance_report','status_history','user_notification'];
 BEGIN
     SELECT id INTO vtyt FROM user_account WHERE username='demo_vtyt';
     SELECT id INTO director FROM user_account WHERE username='demo_bgd';
@@ -62,19 +62,19 @@ BEGIN
     SELECT id INTO seed_request FROM approval_request WHERE request_type='VENDOR_SELECTION' LIMIT 1;
     PERFORM pg_temp.assert_true('demo prerequisite', vtyt IS NOT NULL AND director IS NOT NULL AND clinical_user IS NOT NULL AND seed_request IS NOT NULL);
 
-    PERFORM pg_temp.assert_true('A: exactly 14 expected public tables',
-        (SELECT COUNT(*)=14 AND ARRAY_AGG(table_name::TEXT ORDER BY table_name)=ARRAY(SELECT UNNEST(expected_tables) ORDER BY 1)
+    PERFORM pg_temp.assert_true('A: exactly 15 expected public tables',
+        (SELECT COUNT(*)=15 AND ARRAY_AGG(table_name::TEXT ORDER BY table_name)=ARRAY(SELECT UNNEST(expected_tables) ORDER BY 1)
          FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE' AND table_name<>'flyway_schema_history'));
     PERFORM pg_temp.assert_true('A: removed tables absent',
         NOT EXISTS (SELECT 1 FROM information_schema.tables
                     WHERE table_schema='public' AND table_name = ANY(ARRAY['role','user_role','vendor_proposal','maintenance_assignment','acceptance_participant','attachment'])));
-    PERFORM pg_temp.assert_true('A: 118 columns including ADM-03 provider code',
-        (SELECT COUNT(*)=118 FROM information_schema.columns WHERE table_schema='public' AND table_name=ANY(expected_tables)));
-    PERFORM pg_temp.assert_true('B: 14 primary keys and 31 foreign keys',
-        (SELECT COUNT(*)=14 FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='public' AND c.contype='p' AND c.conrelid::regclass::text <> 'flyway_schema_history')
-        AND (SELECT COUNT(*)=31 FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='public' AND c.contype='f'));
+    PERFORM pg_temp.assert_true('A: 126 columns including ADM-03 provider code',
+        (SELECT COUNT(*)=126 FROM information_schema.columns WHERE table_schema='public' AND table_name=ANY(expected_tables)));
+    PERFORM pg_temp.assert_true('B: 15 primary keys and 32 foreign keys',
+        (SELECT COUNT(*)=15 FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='public' AND c.contype='p' AND c.conrelid::regclass::text <> 'flyway_schema_history')
+        AND (SELECT COUNT(*)=32 FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace WHERE n.nspname='public' AND c.contype='f'));
     PERFORM pg_temp.assert_true('B: all FK delete/update actions are restrictive',
-        (SELECT COUNT(*)=31 FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace
+        (SELECT COUNT(*)=32 FROM pg_constraint c JOIN pg_namespace n ON n.oid=c.connamespace
          WHERE n.nspname='public' AND c.contype='f' AND c.confdeltype IN ('r','a') AND c.confupdtype IN ('r','a')));
     PERFORM pg_temp.expect_error('B: duplicate department code',
         $$INSERT INTO department(code,name) VALUES('KHOA_NOI','Duplicate')$$,'23505');
@@ -129,17 +129,17 @@ BEGIN
     PERFORM pg_temp.expect_error('H: provider assignment requires route and coverage',
         format('UPDATE maintenance_plan_item SET assigned_provider_id=%s WHERE id=%s',provider,test_item),'23514');
 
-    PERFORM pg_temp.assert_true('E: UNKNOWN, FREE and NOT_FREE are distinct stored values',
-        (SELECT COUNT(DISTINCT classification)=3 FROM maintenance_coverage)
-        AND (SELECT COUNT(*)>=1 FROM maintenance_coverage WHERE classification='UNKNOWN' AND verified_by_user_id IS NULL));
+    PERFORM pg_temp.assert_true('E: Only FREE and NOT_FREE are stored',
+        (SELECT COUNT(DISTINCT classification)=2 FROM maintenance_coverage)
+        AND (SELECT COUNT(*)=0 FROM maintenance_coverage WHERE classification NOT IN ('FREE','NOT_FREE')));
     PERFORM pg_temp.expect_error('E: invalid coverage classification',
-        format('UPDATE maintenance_coverage SET classification=%L WHERE classification=%L','PAID','UNKNOWN'),'23514');
+        format('UPDATE maintenance_coverage SET classification=%L WHERE classification=%L','PAID','NOT_FREE'),'23514');
     PERFORM pg_temp.expect_error('E: reversed coverage dates',
         format('INSERT INTO maintenance_coverage(equipment_id,effective_from,effective_to) VALUES(%s,%L,%L)',test_equipment,'2026-12-31','2026-01-01'),'23514');
     PERFORM pg_temp.expect_error('E: FREE coverage needs a provider',
         format('INSERT INTO maintenance_coverage(equipment_id,classification,verified_by_user_id,verified_at,basis_note) VALUES(%s,%L,%s,NOW(),%L)',test_equipment,'FREE',vtyt,'basis'),'23514');
-    PERFORM pg_temp.expect_error('E: verified classification needs evidence',
-        format('INSERT INTO maintenance_coverage(equipment_id,classification) VALUES(%s,%L)',test_equipment,'NOT_FREE'),'23514');
+    PERFORM pg_temp.expect_error('E: FREE classification needs evidence',
+        format('INSERT INTO maintenance_coverage(equipment_id,classification) VALUES(%s,%L)',test_equipment,'FREE'),'23514');
 
     INSERT INTO approval_request(request_type,plan_id,status,created_by_user_id,submitted_at)
         VALUES('PLAN_APPROVAL',test_plan,'PENDING',vtyt,NOW()) RETURNING id INTO test_request;
@@ -168,6 +168,7 @@ BEGIN
         VALUES('VENDOR_SELECTION',test_item,'DRAFT',vtyt);
     PERFORM pg_temp.assert_true('F: vendor request may start as draft',
         (SELECT COUNT(*)=1 FROM approval_request WHERE plan_item_id=test_item AND status='DRAFT'));
+    UPDATE approval_request SET status='CANCELLED',resolved_at=NOW() WHERE plan_item_id=test_item AND status='DRAFT';
     INSERT INTO approval_request(request_type,plan_item_id,proposed_provider_id,rationale,status,created_by_user_id,submitted_at)
         VALUES('VENDOR_SELECTION',test_item,provider,'Test provider reason','PENDING',vtyt,NOW());
     PERFORM pg_temp.expect_error('F: pending vendor request is conditionally unique',
@@ -245,6 +246,13 @@ BEGIN
         format('DELETE FROM department WHERE id=%s',dept),'23503');
     PERFORM pg_temp.expect_error('M: referenced plan cannot be deleted',
         format('DELETE FROM maintenance_plan WHERE id=%s',seed_plan),'23503');
+    PERFORM pg_temp.expect_error('N: unknown removed',format('INSERT INTO maintenance_coverage(equipment_id,classification) VALUES(%s,%L)',test_equipment,'UNKNOWN'),'23514');
+    INSERT INTO maintenance_coverage(equipment_id,classification) VALUES(test_equipment,'NOT_FREE');
+    PERFORM pg_temp.assert_true('N: incomplete evidence is outside contract',EXISTS(SELECT 1 FROM maintenance_coverage WHERE equipment_id=test_equipment AND classification='NOT_FREE' AND verified_by_user_id IS NULL));
+    PERFORM pg_temp.expect_error('N: notification recipient FK', $$INSERT INTO user_notification(user_account_id,notification_type,title,message,target_url) VALUES(999999999,'TEST','Test','Message','/plans')$$,'23503');
+    PERFORM pg_temp.expect_error('N: notification forbids external target', format('INSERT INTO user_notification(user_account_id,notification_type,title,message,target_url) VALUES(%s,%L,%L,%L,%L)',vtyt,'TEST','Test','Message','//evil.example'),'23514');
+    PERFORM pg_temp.assert_true('N: notification indexes', (SELECT count(*)=2 FROM pg_indexes WHERE indexname IN ('ix_notification_user_time','ix_notification_unread')));
+    PERFORM pg_temp.assert_true('N: one active vendor content index',EXISTS(SELECT 1 FROM pg_indexes WHERE indexname='uq_vendor_active_content'));
     PERFORM pg_temp.assert_true('indexes: required eight named indexes exist',
         (SELECT COUNT(*)=8 FROM pg_indexes WHERE schemaname='public' AND indexname=ANY(ARRAY[
             'ix_item_equipment_plan','ix_item_plan_status','ix_request_queue',

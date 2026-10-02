@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -45,10 +46,12 @@ public class PlanningService {
     private final CurrentUser currentUser;
     private final WorkflowHistory history;
     private final EntityManager entityManager;
+    private final PlanningDecisionService decisions;
+    private final NotificationService notifications;
 
     public PlanningService(MaintenancePlanRepository plans, MaintenancePlanItemRepository items,
             EquipmentRepository equipment, ApprovalRequestRepository requests, UserAccountRepository users,
-            CurrentUser currentUser, WorkflowHistory history, EntityManager entityManager) {
+            CurrentUser currentUser, WorkflowHistory history, EntityManager entityManager, PlanningDecisionService decisions, NotificationService notifications) {
         this.plans = plans;
         this.items = items;
         this.equipment = equipment;
@@ -56,7 +59,7 @@ public class PlanningService {
         this.users = users;
         this.currentUser = currentUser;
         this.history = history;
-        this.entityManager = entityManager;
+        this.entityManager = entityManager;this.decisions=decisions;this.notifications=notifications;
     }
 
     @Transactional
@@ -93,8 +96,13 @@ public class PlanningService {
             conflict("PLAN_ITEM_RETENTION_CONFLICT", "Removing audited plan items is not supported by the frozen schema");
         validatePeriod(command.periodStart(), command.periodEnd());
         Map<Long, MaintenancePlanItem> existing = new HashMap<>();
-        for (MaintenancePlanItem item : items.findAllByPlan_Id(planId))
+        for (MaintenancePlanItem item : items.findAllByPlan_Id(planId)) {
+            // A concurrent UC05 decision must invalidate edits based on an old item snapshot.
+            entityManager.lock(item, LockModeType.OPTIMISTIC);
             existing.put(item.getEquipment().getId(), item);
+        }
+        plan.setPeriodStart(command.periodStart());
+        plan.setPeriodEnd(command.periodEnd());
         if (command.items() != null) {
             Set<Long> seen = new HashSet<>();
             for (PlanItemInput input : command.items()) {
@@ -104,9 +112,15 @@ public class PlanningService {
                 if (item == null) {
                     addItem(plan, input, actor, OffsetDateTime.now(ZoneOffset.UTC));
                 } else {
-                    if (item.getStatus() != PlanItemStatus.PLANNED)
+                    if (item.getStatus() != PlanItemStatus.PLANNED
+                            && item.getStatus() != PlanItemStatus.UNDER_CONTRACT
+                            && item.getStatus() != PlanItemStatus.PENDING_PROPOSAL)
                         conflict("PLAN_ITEM_NOT_EDITABLE", "Only planned items may be edited");
+                    if(input.version()!=null && !input.version().equals(item.getVersion()))conflict("OPTIMISTIC_LOCK_CONFLICT","Hạng mục đã thay đổi.");
+                    if(!Objects.equals(item.getPlannedDate(),input.plannedDate()))
+                        history.itemTransition(item,actor,item.getStatus().name(),item.getStatus().name(),"UPDATE_PLANNING_DATE","old="+item.getPlannedDate()+"; new="+input.plannedDate(),OffsetDateTime.now(ZoneOffset.UTC));
                     item.setPlannedDate(input.plannedDate());
+                    decisions.apply(item,input,actor);
                 }
             }
         }
@@ -151,9 +165,12 @@ public class PlanningService {
         List<MaintenancePlanItem> planItems = items.findAllByPlan_Id(planId);
         if (planItems.isEmpty()) conflict("PLAN_NOT_SUBMITTABLE", "Plan needs at least one item");
         for (MaintenancePlanItem item : planItems) {
-            if (item.getStatus() != PlanItemStatus.PLANNED)
+            if (item.getStatus() != PlanItemStatus.PLANNED
+                    && item.getStatus() != PlanItemStatus.UNDER_CONTRACT
+                    && item.getStatus() != PlanItemStatus.PENDING_PROPOSAL)
                 conflict("PLAN_NOT_SUBMITTABLE", "Plan has an item outside planning state");
             validateDate(item.getPlannedDate(), plan.getPeriodStart(), plan.getPeriodEnd());
+            decisions.validateComplete(item);
         }
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         plan.setStatus(PlanStatus.SUBMITTED);
@@ -165,6 +182,7 @@ public class PlanningService {
         request.setSubmittedAt(now);
         requests.save(request);
         history.plan(plan, actor, "DRAFT", "SUBMITTED", "SUBMIT_PLAN", null, now);
+        notifications.notifyRole(UserRole.BAN_GIAM_DOC,null,actor,"PLAN_SUBMITTED","Kế hoạch chờ phê duyệt",plan.getTitle(),"/approvals/"+request.getId());
         entityManager.flush();
         return response(plan, request.getId());
     }
@@ -184,6 +202,7 @@ public class PlanningService {
         item.setStatus(PlanItemStatus.PLANNED);
         items.save(item);
         history.item(item, actor, "CREATE", now);
+        decisions.apply(item,input,actor);
     }
 
     private UserAccount planner() {

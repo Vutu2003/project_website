@@ -4,12 +4,13 @@ import { reportsApi } from '../api/reportsApi'
 import { plansApi } from '../api/plansApi'
 import { ApiError } from '../api/types'
 import { useAuth } from '../auth/useAuth'
+import { AttemptHistory } from '../components/AttemptHistory'
 import { StatusBadge } from '../components/StatusBadge'
 import { WorkflowError, WorkflowSuccess } from '../components/WorkflowFeedback'
-import type { ReportNarrative, ReportResponse } from '../types/report'
-import type { Plan, PlanItem } from '../types/workflow'
+import type { ReportEvidence, ReportNarrative, ReportResponse } from '../types/report'
+import type { Plan } from '../types/workflow'
 import { UserInputError } from '../utils/UserInputError'
-import { businessDate, dateTime, planStatusLabels } from '../utils/workflowLabels'
+import { businessDate, dateTime, itemStatusLabels, planStatusLabels } from '../utils/workflowLabels'
 
 const fields: { key: keyof ReportNarrative; label: string; rows: number }[] = [
   { key: 'reportNumber', label: 'Số báo cáo (nếu có)', rows: 1 },
@@ -51,7 +52,7 @@ export function ReportDetailPage() {
   const { user } = useAuth()
   const [plan, setPlan] = useState<Plan | null>(null)
   const [report, setReport] = useState<ReportResponse | null>(null)
-  const [items, setItems] = useState<PlanItem[]>([])
+  const [evidence, setEvidence] = useState<ReportEvidence | null>(null)
   const [form, setForm] = useState(blank)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -66,14 +67,14 @@ export function ReportDetailPage() {
     Promise.all([plansApi.detail(id), reportsApi.get(id).catch(failure => {
       if (failure instanceof ApiError && failure.status === 404) return null
       throw failure
-    }), plansApi.items(id, 0, 100)]).then(async ([loadedPlan, loadedReport, first]) => {
-      const all = [...first.content]
-      for (let page = 1; page < first.totalPages; page++) all.push(...(await plansApi.items(id, page, 100)).content)
-      if (active) { setPlan(loadedPlan); setReport(loadedReport); setItems(all); setForm(toForm(loadedReport)); setError(null); setLoading(false) }
+    }), reportsApi.evidence(id)]).then(([loadedPlan, loadedReport, loadedEvidence]) => {
+      if (active) { setPlan(loadedPlan); setReport(loadedReport); setEvidence(loadedEvidence); setForm(toForm(loadedReport)); setError(null); setLoading(false) }
     }).catch(failure => { if (active) { setError(failure); setLoading(false) } })
     return () => { active = false }
   }, [id, refresh])
-  const editable = user?.role === 'PHONG_VTYT' && plan?.status === 'AWAITING_REPORT' && report?.status !== 'FINAL'
+  const items = evidence?.items ?? []
+  const unfinished = items.filter(item => !['COMPLETED', 'REPAIR_REQUIRED'].includes(item.status))
+  const editable = items.length > 0 && unfinished.length === 0 && user?.role === 'PHONG_VTYT' && plan?.status === 'AWAITING_REPORT' && report?.status !== 'FINAL'
   async function mutate(action: () => Promise<unknown>, message: string) {
     if (inFlight.current) return
     inFlight.current = true; setBusy(true); setError(null); setNotice(null)
@@ -105,6 +106,15 @@ export function ReportDetailPage() {
       <div><span className="card-label">BÁO CÁO</span><ReportStatusBadge report={report} /></div><div><span className="card-label">PHIÊN BẢN KẾ HOẠCH</span><strong>v{plan.version}</strong></div>
       <button className="button secondary" type="button" onClick={reload}>Tải lại</button></section>
     <OutcomeSummary completed={completed} repair={repair} provisional={!report} />
+    {plan.status === 'AWAITING_REPORT' && unfinished.length > 0 && <p className="retention-note">Chưa thể chốt báo cáo: {unfinished.map(item => item.equipmentCode).join(', ')} chưa có kết quả xử lý cuối cùng.</p>}
+    <section className="panel business-panel"><div className="panel-heading"><div><h2>Dữ liệu thực hiện và nghiệm thu</h2>
+      <p>Đối chiếu tiến độ, đơn vị thực hiện và kết quả nghiệm thu trước khi bổ sung nội dung báo cáo.</p></div></div>
+      {items.length === 0 ? <p className="empty-state">Chưa có dữ liệu hạng mục.</p> : items.map(item => <details className="campaign-card" key={item.itemId} open={items.length === 1}>
+        <summary><strong>{item.equipmentCode} · {item.equipmentName}</strong> · {item.departmentName} · {itemStatusLabels[item.status]}</summary>
+        <p>Đơn vị: {item.providerName || 'Chưa phân công'}</p>
+        <AttemptHistory attempts={item.attempts} />
+      </details>)}
+    </section>
     <section className="panel business-panel"><div className="panel-heading"><div><h2>{report?.status === 'FINAL' ? 'Nội dung báo cáo chính thức' : report ? 'Bản nháp báo cáo' : 'Lập báo cáo'}</h2>
       <p>{report ? `Ngày báo cáo: ${businessDate(report.reportDate)} · Hoàn tất: ${dateTime(report.finalizedAt)}` : 'Chỉ Phòng VTYT có thể lập báo cáo khi kế hoạch đang chờ báo cáo.'}</p></div></div>
       {loading ? <p className="muted">Đang tải lại…</p> : editable ? <><ReportForm value={form} onChange={(field, text) => setForm(current => ({ ...current, [field]: text }))} />

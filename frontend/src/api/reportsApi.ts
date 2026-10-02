@@ -1,7 +1,10 @@
 import { apiRequest } from './client'
-import type { ReportResponse, SaveReportRequest } from '../types/report'
+import type { ReportResponse, SaveReportRequest, ReportEvidence } from '../types/report'
 
 export const reportsApi = {
+  evidence(planId: number): Promise<ReportEvidence> {
+    return apiRequest(`/api/plans/${planId}/report/evidence`)
+  },
   get(planId: number): Promise<ReportResponse> {
     return apiRequest(`/api/plans/${planId}/report`)
   },

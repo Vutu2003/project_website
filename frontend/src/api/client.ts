@@ -59,5 +59,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     }
     throw new ApiError(response.status, 'HTTP_ERROR', `Yêu cầu không thành công (${response.status}).`)
   }
-  return await response.json() as T
+  if (response.status === 204 || response.headers.get('content-length') === '0') return undefined as T
+  const text = await response.text()
+  return (text ? JSON.parse(text) : undefined) as T
 }

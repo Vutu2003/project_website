@@ -4,25 +4,37 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { plansApi } from '../api/plansApi'
 import { reportsApi } from '../api/reportsApi'
 import { historyApi } from '../api/historyApi'
-import type { ReportResponse } from '../types/report'
+import type { ReportEvidence, ReportResponse } from '../types/report'
 import type { Plan } from '../types/workflow'
 import { ReportDetailPage } from './ReportDetailPage'
 import { EquipmentHistoryPage } from './EquipmentHistoryPage'
 
-vi.mock('../auth/useAuth', () => ({ useAuth: () => ({ user: { role: 'PHONG_VTYT' } }) }))
+const auth = vi.hoisted(() => ({ user: { role: 'PHONG_VTYT' } }))
+vi.mock('../auth/useAuth', () => ({ useAuth: () => auth }))
 vi.mock('../api/plansApi', () => ({ plansApi: { detail: vi.fn(), items: vi.fn() } }))
-vi.mock('../api/reportsApi', () => ({ reportsApi: { get: vi.fn(), create: vi.fn(), edit: vi.fn(), finalize: vi.fn() } }))
+vi.mock('../api/reportsApi', () => ({ reportsApi: { evidence: vi.fn(), get: vi.fn(), create: vi.fn(), edit: vi.fn(), finalize: vi.fn() } }))
 vi.mock('../api/historyApi', () => ({ historyApi: { get: vi.fn() } }))
 const plan = { id: 10, title: 'Đợt bảo trì thử nghiệm', periodStart: '2026-10-01', periodEnd: '2026-10-31', status: 'AWAITING_REPORT', version: 6,
   createdAt: '2026-09-01T00:00:00Z', createdByUserId: 1, createdByName: 'VTYT' } as Plan
 const draft = { id: 99, planId: 10, status: 'DRAFT', planStatus: 'AWAITING_REPORT', planVersion: 6, reportDate: '2026-10-01', finalizedAt: null,
   completedCount: 1, repairRequiredCount: 1, reportNumber: null, workDone: 'Đã bảo trì', achieved: null, notAchieved: null,
   causes: null, nextWork: null, resolutions: null, recommendations: null } as ReportResponse
+const evidence: ReportEvidence = { planId: 10, items: [
+  { itemId: 31, equipmentCode: 'EQ-01', equipmentName: 'Máy thử', departmentName: 'Khoa Nội', status: 'COMPLETED', providerName: 'Đơn vị thử', attempts: [
+    { executionId: 48, attemptNo: 1, actualProviderId: 7, actualProviderName: 'Đơn vị thử', startedAt: '2026-10-01T02:00:00Z', endedAt: '2026-10-01T03:00:00Z', resultNote: 'Đã kiểm tra xong',
+      progress: [{ id: 1, eventAt: '2026-10-01T02:30:00Z', workNote: 'Đã thay bộ lọc', damageNote: null, recordedByUserId: 1 }],
+      technicalAcceptance: { id: 1, type: 'TECHNICAL_ACCEPTANCE', result: 'PASS', observedAt: '2026-10-01T04:00:00Z', conclusion: 'Kết luận kỹ thuật đạt', recordedByUserId: 1, departmentSignerId: null, departmentConfirmedAt: null, vtytSignerId: null, vtytConfirmedAt: null },
+      handoverAcceptance: { id: 2, type: 'HANDOVER_ACCEPTANCE', result: 'PASS', observedAt: '2026-10-01T05:00:00Z', conclusion: 'Khoa đã nhận bàn giao', recordedByUserId: 2, departmentSignerId: 2, departmentConfirmedAt: '2026-10-01T05:00:00Z', vtytSignerId: 1, vtytConfirmedAt: '2026-10-01T05:00:00Z' } },
+  ] },
+  { itemId: 32, equipmentCode: 'EQ-02', equipmentName: 'Máy chuyển sửa chữa', departmentName: 'Khoa Nội', status: 'REPAIR_REQUIRED', providerName: 'Đơn vị thử', attempts: [] },
+] }
 function reportPage() { return render(<MemoryRouter initialEntries={['/plans/10/report']}><Routes><Route path="/plans/:planId/report" element={<ReportDetailPage />} /></Routes></MemoryRouter>) }
 function historyPage() { return render(<MemoryRouter initialEntries={['/equipment/4/history']}><Routes><Route path="/equipment/:equipmentId/history" element={<EquipmentHistoryPage />} /></Routes></MemoryRouter>) }
 afterEach(cleanup)
 beforeEach(() => {
   vi.clearAllMocks()
+  auth.user.role = 'PHONG_VTYT'
+  vi.mocked(reportsApi.evidence).mockResolvedValue(evidence)
   vi.mocked(plansApi.detail).mockResolvedValue(plan)
   vi.mocked(plansApi.items).mockResolvedValue({ content: [], page: 0, size: 100, totalElements: 0, totalPages: 0, last: true })
 })
@@ -34,7 +46,7 @@ describe('UC11 report presentation', () => {
     const counts = document.querySelectorAll('.report-counts strong')
     expect([...counts].map(node => node.textContent)).toEqual(['1', '1'])
     expect(screen.getByText('Hoàn tất bảo trì')).toBeTruthy()
-    expect(screen.getByText('Chuyển sửa chữa')).toBeTruthy()
+    expect(screen.getAllByText('Chuyển sửa chữa').length).toBeGreaterThan(0)
     expect(screen.getByRole('button', { name: 'Hoàn tất báo cáo' })).toBeTruthy()
   })
   it('renders FINAL as read only and does not offer a close command', async () => {
@@ -45,6 +57,22 @@ describe('UC11 report presentation', () => {
     expect(screen.queryByRole('button', { name: 'Lưu bản nháp' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Hoàn tất báo cáo' })).toBeNull()
     expect(screen.queryByRole('button', { name: /đóng kế hoạch/i })).toBeNull()
+  })
+})
+describe('UC11 evidence gap regression', () => {
+  it('shows progress and acceptance data before finalization', async () => {
+    vi.mocked(reportsApi.get).mockResolvedValue(draft); reportPage()
+    expect(await screen.findByText('Dữ liệu thực hiện và nghiệm thu')).toBeTruthy()
+    expect(screen.getByText('Đã thay bộ lọc')).toBeTruthy(); expect(screen.getByText('Kết luận kỹ thuật đạt')).toBeTruthy(); expect(screen.getByText('Khoa đã nhận bàn giao')).toBeTruthy()
+    expect(reportsApi.evidence).toHaveBeenCalledWith(10)
+  })
+  it('BGD sees a final report and its evidence without editing controls', async () => {
+    auth.user.role = 'BAN_GIAM_DOC'; vi.mocked(reportsApi.get).mockResolvedValue({ ...draft, status: 'FINAL', planStatus: 'REPORTED' }); vi.mocked(plansApi.detail).mockResolvedValue({ ...plan, status: 'REPORTED' }); reportPage()
+    await screen.findByText('Báo cáo chính thức'); expect(screen.getByText('Kết luận kỹ thuật đạt')).toBeTruthy(); expect(screen.queryByRole('textbox')).toBeNull(); expect(screen.queryByRole('button', { name: 'Hoàn tất báo cáo' })).toBeNull()
+  })
+  it('identifies unfinished equipment and blocks report actions', async () => {
+    vi.mocked(reportsApi.get).mockResolvedValue(draft); vi.mocked(reportsApi.evidence).mockResolvedValue({ planId: 10, items: [{ ...evidence.items[0], status: 'IN_MAINTENANCE' }] }); reportPage()
+    expect(await screen.findByText(/Chưa thể chốt báo cáo: EQ-01/)).toBeTruthy(); expect(screen.queryByRole('button', { name: 'Hoàn tất báo cáo' })).toBeNull(); expect(reportsApi.finalize).not.toHaveBeenCalled()
   })
 })
 describe('UC12 multi-campaign presentation', () => {

@@ -51,6 +51,7 @@ class ExecutionAcceptanceIntegrationTest {
     void cleanup() {
         reset(history);
         for (long plan : plans) {
+            PlanningTestData.cleanNotifications(jdbc,plan);
             jdbc.update("DELETE FROM acceptance_record WHERE execution_id IN (SELECT e.id FROM maintenance_execution e JOIN maintenance_plan_item i ON i.id=e.plan_item_id WHERE i.plan_id=?)", plan);
             jdbc.update("DELETE FROM maintenance_progress_log WHERE execution_id IN (SELECT e.id FROM maintenance_execution e JOIN maintenance_plan_item i ON i.id=e.plan_item_id WHERE i.plan_id=?)", plan);
             jdbc.update("DELETE FROM maintenance_execution WHERE plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)", plan);
@@ -100,8 +101,11 @@ class ExecutionAcceptanceIntegrationTest {
                 409, "HANDOVER_NOT_ALLOWED");
         JsonNode accepted = technical(execution, item, "PASS", false);
         assertThat(accepted.path("itemStatus").asText()).isEqualTo("AWAITING_HANDOVER");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_notification n JOIN user_account u ON u.id=n.user_account_id WHERE n.notification_type='HANDOVER_PENDING' AND n.target_url=? AND (u.role_code<>'KHOA_PHONG' OR u.department_id<>(SELECT department_id_at_plan FROM maintenance_plan_item WHERE id=?) OR u.active=false)",Integer.class,"/plans/"+plan+"/items/"+item+"/execution",item)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_notification WHERE notification_type='HANDOVER_PENDING' AND target_url=?",Integer.class,"/plans/"+plan+"/items/"+item+"/execution")).isGreaterThan(0);
         JsonNode handed = handover(execution, item, "PASS", false);
         assertThat(handed.path("itemStatus").asText()).isEqualTo("COMPLETED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_notification WHERE notification_type='HANDOVER_COMPLETED' AND target_url=?",Integer.class,"/plans/"+plan+"/items/"+item+"/execution")).isGreaterThan(0);
         assertThat(handed.path("planStatus").asText()).isEqualTo("AWAITING_REPORT");
         assertThat(jdbc.queryForObject("SELECT department_confirmed_by_user_id IS NOT NULL AND vtyt_confirmed_by_user_id=? FROM acceptance_record WHERE id=?", Boolean.class, vtytId, handed.path("acceptanceId").asLong())).isTrue();
         assertThat(states("plan_item_id", item)).containsExactly("PLANNED", "UNDER_CONTRACT", "IN_MAINTENANCE",
@@ -109,6 +113,33 @@ class ExecutionAcceptanceIntegrationTest {
         fail(send("/api/executions/" + execution + "/handover", department,
                 Map.of("version", version(item), "result", "PASS", "conclusion", "Lặp", "vtytSignerId", vtytId)),
                 409, "PLAN_NOT_EXECUTABLE");
+    }
+
+    @Test
+    void predefinedProgressAppendsOptionalNotesAndStopsAtTechnicalCompletion() {
+        long plan = approvedPlan(freeEq);
+        long item = routeFree(plan, freeEq);
+        long execution = start(plan, item).path("executionId").asLong();
+        String endpoint = "/api/executions/" + execution + "/progress";
+        for (String token : List.of(director, department, admin))
+            fail(send(endpoint, token, Map.of("status", "IN_PROGRESS", "version", version(item))), 403, "ACCESS_DENIED");
+        fail(send(endpoint, vtyt, Map.of("status", "IN_PROGRESS", "version", version(item)-1)), 409, "OPTIMISTIC_LOCK_CONFLICT");
+        fail(send(endpoint, vtyt, Map.of("status", "ARBITRARY_STATUS")), 400, "INVALID_PARAMETER");
+        ok(send(endpoint, vtyt, Map.of("status", "IN_PROGRESS", "version", version(item))), 201);
+        ok(send(endpoint, vtyt, Map.of("status", "PAUSED", "note", "Tạm ngừng kiểm tra", "version", version(item))), 201);
+        ok(send(endpoint, vtyt, Map.of("status", "WAITING_PARTS", "note", "Chờ bộ lọc", "version", version(item))), 201);
+        ok(send(endpoint, vtyt, Map.of("status", "WAITING_PROVIDER", "version", version(item))), 201);
+        ok(send(endpoint, vtyt, Map.of("status", "WORK_DONE", "version", version(item))), 201);
+        assertThat(jdbc.queryForList("SELECT work_note FROM maintenance_progress_log WHERE execution_id=? ORDER BY event_at,id",
+                String.class, execution)).containsExactly("Đang thực hiện", "Tạm dừng\nTạm ngừng kiểm tra",
+                        "Chờ linh kiện\nChờ bộ lọc", "Chờ đơn vị bảo trì", "Đã xử lý xong");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM maintenance_progress_log WHERE execution_id=? AND recorded_by_user_id=?",
+                Integer.class, execution, vtytId)).isEqualTo(5);
+        // WORK_DONE is an informational update. Completion requires its explicit command.
+        assertThat(jdbc.queryForObject("SELECT status FROM maintenance_plan_item WHERE id=?", String.class, item)).isEqualTo("IN_MAINTENANCE");
+        assertThat(finish(execution, item).path("itemStatus").asText()).isEqualTo("AWAITING_TECHNICAL_ACCEPTANCE");
+        fail(send(endpoint, vtyt, Map.of("status", "IN_PROGRESS", "version", version(item))), 409, "EXECUTION_NOT_ACTIVE");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM maintenance_progress_log WHERE execution_id=?", Integer.class, execution)).isEqualTo(5);
     }
 
     @Test
@@ -192,6 +223,10 @@ class ExecutionAcceptanceIntegrationTest {
         long item = routeFree(plan, freeEq);
         long execution = start(plan, item).path("executionId").asLong();
         finish(execution, item);
+        fail(send("/api/executions/" + execution + "/technical-acceptance", vtyt,
+                Map.of("version", version(item), "result", "PASS", "conclusion", "  ")),
+                400, "VALIDATION_ERROR");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM acceptance_record WHERE execution_id=?", Integer.class, execution)).isZero();
         fail(send("/api/executions/" + execution + "/technical-acceptance", director,
                 Map.of("version", version(item), "result", "PASS", "conclusion", "Đạt")),
                 403, "ACCESS_DENIED");
@@ -374,10 +409,11 @@ class ExecutionAcceptanceIntegrationTest {
     void wrongPlanAndUnroutedItemCannotStart() {
         long plan = approvedPlan(freeEq);
         long item = item(plan, freeEq);
+        jdbc.update("UPDATE maintenance_plan_item SET status='PLANNED',assigned_provider_id=null,assignment_route=null WHERE id=?",item);
         fail(send("/api/plan-items/" + item + "/executions", vtyt,
                 Map.of("version", version(item), "planVersion", planVersion(plan))),
                 409, "PLAN_ITEM_NOT_EXECUTABLE");
-        routeFree(plan, freeEq);
+        jdbc.update("UPDATE maintenance_plan_item SET status='UNDER_CONTRACT',assigned_provider_id=(SELECT provider_id FROM maintenance_coverage WHERE id=coverage_id),assignment_route='UNDER_CONTRACT' WHERE id=?",item);
         jdbc.update("UPDATE maintenance_plan SET status='SUBMITTED' WHERE id=?", plan);
         try {
             fail(send("/api/plan-items/" + item + "/executions", vtyt,
@@ -408,7 +444,7 @@ class ExecutionAcceptanceIntegrationTest {
 
     private long approvedPlan(long... equipmentIds) {
         List<Map<String, Object>> selections = new ArrayList<>();
-        for (long id : equipmentIds) selections.add(Map.of("equipmentId", id));
+        for (long id : equipmentIds) selections.add(PlanningTestData.complete(jdbc,id));
         JsonNode created = ok(send("/api/plans", vtyt,
                 Map.of("title", "TEST-EXECUTION-" + UUID.randomUUID(), "periodStart", "2026-11-01",
                         "periodEnd", "2026-11-30", "items", selections)), 201);
@@ -423,21 +459,13 @@ class ExecutionAcceptanceIntegrationTest {
 
     private long routeFree(long plan, long equipmentId) {
         long item = item(plan, equipmentId);
-        ok(send("/api/plan-items/" + item + "/route", vtyt,
-                Map.of("version", version(item), "coverageId", coverage(equipmentId))), 200);
         return item;
     }
 
     private long routeExternal(long plan, long equipmentId) {
         long item = item(plan, equipmentId);
-        JsonNode routed = ok(send("/api/plan-items/" + item + "/route", vtyt,
-                Map.of("version", version(item), "coverageId", paidCoverage)), 200);
-        JsonNode draft = ok(send("/api/plan-items/" + item + "/vendor-proposals", vtyt,
-                Map.of("version", routed.path("version").asInt(), "providerId", provider, "rationale", "Đủ năng lực")), 201);
-        JsonNode submitted = ok(send("/api/vendor-proposals/" + draft.path("approvalRequestId").asLong() + "/submit", vtyt,
-                Map.of("version", draft.path("version").asInt())), 200);
-        ok(send("/api/approvals/" + submitted.path("approvalRequestId").asLong() + "/decision", director,
-                Map.of("version", submitted.path("version").asInt(), "outcome", "APPROVE")), 200);
+        long request=jdbc.queryForObject("SELECT id FROM approval_request WHERE plan_item_id=? AND status='PENDING'",Long.class,item);
+        ok(send("/api/approvals/"+request+"/decision",director,Map.of("version",version(item),"outcome","APPROVE")),200);
         return item;
     }
 
@@ -455,9 +483,14 @@ class ExecutionAcceptanceIntegrationTest {
                         "repairRequired", repair)), 201);
     }
     private JsonNode handover(long execution, long item, String result, boolean repair) {
-        return ok(send("/api/executions/" + execution + "/handover", department,
+        JsonNode response = ok(send("/api/executions/" + execution + "/handover", department,
                 Map.of("version", version(item), "result", result, "conclusion", result.equals("PASS") ? "Đạt" : "Cần làm lại",
                         "vtytSignerId", vtytId, "repairRequired", repair)), 201);
+        long plan = jdbc.queryForObject("SELECT plan_id FROM maintenance_plan_item WHERE id=?", Long.class, item);
+        String type = result.equals("PASS") ? "HANDOVER_COMPLETED" : "HANDOVER_REWORK";
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_notification WHERE notification_type=? AND target_url=?",
+                Integer.class, type, "/plans/" + plan + "/items/" + item + "/execution")).isGreaterThan(0);
+        return response;
     }
     private long equipment(String code) {
         return jdbc.queryForObject("SELECT id FROM equipment WHERE equipment_code=?", Long.class, code);

@@ -1,3 +1,4 @@
+import { NotificationBell } from '../components/NotificationBell'
 import { Fragment } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../auth/useAuth'
@@ -25,7 +26,7 @@ export function AppLayout() {
         {items.map(item => <Fragment key={item.path}>
           {user.role === 'ADMIN' && item.path === '/admin/accounts' && <span className="nav-heading nav-heading-gap">QUẢN TRỊ</span>}
           {user.role === 'ADMIN' && item.path === '/admin/catalogs/departments' && <span className="nav-heading nav-heading-gap">DANH MỤC HỆ THỐNG</span>}
-          <NavLink to={item.path} className={({ isActive }) => `nav-link${(reportDetail ? item.path === '/reports' : executionDetail ? item.path === '/execution' : isActive) ? ' active' : ''}`} >
+          <NavLink to={item.path} className={({ isActive }) => `nav-link${(reportDetail ? item.path === '/reports' : executionDetail ? item.path === (user.role === 'PHONG_VTYT' ? '/maintenance-progress' : '/execution') : isActive) ? ' active' : ''}`} >
           {item.label}
         </NavLink></Fragment>)}
       </nav>
@@ -34,7 +35,7 @@ export function AppLayout() {
     <div className="app-column">
       <header className="app-header">
         <div><span className="header-eyebrow">HỆ THỐNG NỘI BỘ</span><strong>Quản lý bảo trì trang thiết bị y tế</strong></div>
-        <div className="header-user"><div className="user-identity"><strong>{user.username}</strong><span className="role-badge">{roleLabels[user.role]}</span></div>
+        <div className="header-user">{user.role !== 'ADMIN' && <NotificationBell />}<div className="user-identity"><strong>{user.username}</strong><span className="role-badge">{roleLabels[user.role]}</span></div>
           <button className="button secondary logout-button" type="button" onClick={handleLogout}>Đăng xuất</button>
         </div>
       </header>

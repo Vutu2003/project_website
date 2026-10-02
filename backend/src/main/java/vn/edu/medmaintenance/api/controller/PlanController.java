@@ -28,13 +28,16 @@ public class PlanController {
     private final MaintenancePlanItemRepository items;
     private final PlanningService planning;
     private final CurrentUser currentUser;
+    private final vn.edu.medmaintenance.persistence.repository.StatusHistoryRepository histories;
+    private final vn.edu.medmaintenance.persistence.repository.ApprovalRequestRepository requests;
 
     public PlanController(MaintenancePlanRepository plans, MaintenancePlanItemRepository items,
-            PlanningService planning, CurrentUser currentUser) {
+            PlanningService planning, CurrentUser currentUser,vn.edu.medmaintenance.persistence.repository.ApprovalRequestRepository requests,
+            vn.edu.medmaintenance.persistence.repository.StatusHistoryRepository histories) {
         this.plans = plans;
         this.items = items;
         this.planning = planning;
-        this.currentUser = currentUser;
+        this.currentUser = currentUser;this.requests=requests;this.histories=histories;
     }
 
     @PostMapping
@@ -68,10 +71,14 @@ public class PlanController {
     public MaintenancePlanResponse detail(@PathVariable Long id) {
         PageRequests.requirePositive(id, "id");
         requireVisiblePlan(id);
-        return plans.findWithCreatorById(id).map(PlanMapper::toResponse)
+        return plans.findWithCreatorById(id).map(plan -> PlanMapper.toResponse(plan,
+                histories.existsByPlanItem_Plan_IdAndPlanItem_StatusAndAction(id,
+                        vn.edu.medmaintenance.persistence.enums.PlanItemStatus.WAITING_VENDOR_APPROVAL,
+                        "ACTIVATE_PREPARED_VENDOR")))
                 .orElseThrow(() -> new ResourceNotFoundException("Plan"));
     }
 
+    @org.springframework.transaction.annotation.Transactional(readOnly=true)
     @GetMapping("/{planId}/items")
     public PageResponse<MaintenancePlanItemResponse> items(@PathVariable Long planId,
             @Valid @ModelAttribute PageQuery query) {
@@ -82,7 +89,9 @@ public class PlanController {
         var result = viewer.role() == UserRole.KHOA_PHONG
                 ? items.findByPlan_IdAndDepartmentAtPlan_Id(planId, viewer.departmentId(), pageable)
                 : items.findByPlan_Id(planId, pageable);
-        return PageResponse.from(result, item -> PlanMapper.toItemResponse(item, planId));
+        var proposals=new java.util.HashMap<Long,vn.edu.medmaintenance.persistence.entity.ApprovalRequest>();
+        for(var request:requests.findProposalsForPlan(planId))proposals.put(request.getPlanItem().getId(),request);
+        return PageResponse.from(result, item -> PlanMapper.toItemResponse(item, planId,proposals.get(item.getId())));
     }
 
     private void requireVisiblePlan(Long planId) {

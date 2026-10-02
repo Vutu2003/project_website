@@ -87,11 +87,11 @@ LEFT JOIN maintenance_report r ON r.plan_id=p.id
 GROUP BY p.id,p.title,p.status,r.status,p.period_start
 ORDER BY p.period_start;
 
--- 11. UNKNOWN coverage deliberately blocks assignment.
+-- 11. Incomplete legacy evidence is outside contract; proposal required before new submission.
 SELECT p.title, e.equipment_code, c.classification, i.status,
        i.assignment_route, i.assigned_provider_id
 FROM maintenance_plan_item i JOIN equipment e ON e.id=i.equipment_id
 JOIN maintenance_plan p ON p.id=i.plan_id
 JOIN maintenance_coverage c ON c.id=i.coverage_id
-WHERE c.classification='UNKNOWN'
+WHERE c.classification='NOT_FREE' AND c.verified_at IS NULL
 ORDER BY p.title,e.equipment_code;

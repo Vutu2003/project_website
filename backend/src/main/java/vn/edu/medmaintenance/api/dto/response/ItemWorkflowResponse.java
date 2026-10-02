@@ -4,8 +4,10 @@ import vn.edu.medmaintenance.persistence.enums.ApprovalOutcome;
 import vn.edu.medmaintenance.persistence.enums.ApprovalRequestStatus;
 import vn.edu.medmaintenance.persistence.enums.AssignmentRoute;
 import vn.edu.medmaintenance.persistence.enums.PlanItemStatus;
+import vn.edu.medmaintenance.persistence.enums.PlanStatus;
 
 public record ItemWorkflowResponse(Long itemId, PlanItemStatus status, Integer version,
         AssignmentRoute assignmentRoute, Long providerId, Long coverageId,
         Long approvalRequestId, ApprovalRequestStatus approvalStatus,
-        Long approvalActionId, ApprovalOutcome outcome) implements ApprovalDecisionResult { }
+        Long approvalActionId, ApprovalOutcome outcome,
+        Long planId, PlanStatus planStatus, Integer planVersion, String providerName) implements ApprovalDecisionResult { }

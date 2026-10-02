@@ -29,16 +29,17 @@ public class PlanApprovalService {
     private final CurrentUser currentUser;
     private final WorkflowHistory history;
     private final EntityManager entityManager;
+    private final PlanningDecisionService decisions; private final NotificationService notifications;
 
     public PlanApprovalService(ApprovalRequestRepository requests, ApprovalActionRepository actions,
             UserAccountRepository users, CurrentUser currentUser, WorkflowHistory history,
-            EntityManager entityManager) {
+            EntityManager entityManager, PlanningDecisionService decisions,NotificationService notifications) {
         this.requests = requests;
         this.actions = actions;
         this.users = users;
         this.currentUser = currentUser;
         this.history = history;
-        this.entityManager = entityManager;
+        this.entityManager = entityManager;this.decisions=decisions;this.notifications=notifications;
     }
 
     @Transactional
@@ -83,6 +84,8 @@ public class PlanApprovalService {
         history.plan(plan, action.getActorUser(), "SUBMITTED", next.name(),
                 next == PlanStatus.APPROVED ? "RECORD_APPROVAL" : "RECORD_REVISION",
                 next == PlanStatus.REVISION_REQUIRED ? comment : null, now);
+        if(next==PlanStatus.APPROVED)decisions.activate(plan,action.getActorUser(),now);
+        notifications.notifyRole(UserRole.PHONG_VTYT,null,action.getActorUser(),next==PlanStatus.APPROVED?"PLAN_APPROVED":"PLAN_REVISION",next==PlanStatus.APPROVED?"Kế hoạch đã được phê duyệt":"Kế hoạch cần hiệu chỉnh",plan.getTitle()+(comment==null?"":" — "+comment),"/plans/"+plan.getId()+(next==PlanStatus.REVISION_REQUIRED?"/edit":""));
         entityManager.flush();
         return new ApprovalDecisionResponse(requestId, action.getId(), plan.getId(),
                 command.outcome(), next, plan.getVersion());

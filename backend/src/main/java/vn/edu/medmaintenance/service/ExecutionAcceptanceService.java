@@ -30,12 +30,14 @@ public class ExecutionAcceptanceService {
     private final VtytCoSigner coSigner;
     private final WorkflowHistory history;
     private final EntityManager entityManager;
+    private final NotificationService notifications;
+    private final StatusHistoryRepository histories;
 
     public ExecutionAcceptanceService(MaintenancePlanItemRepository items,
             MaintenanceExecutionRepository executions, MaintenanceProgressLogRepository progress,
             AcceptanceRecordRepository acceptances, ApprovalRequestRepository requests,
             ApprovalActionRepository actions, UserAccountRepository users, CurrentUser currentUser,
-            VtytCoSigner coSigner, WorkflowHistory history, EntityManager entityManager) {
+            VtytCoSigner coSigner, WorkflowHistory history, EntityManager entityManager,NotificationService notifications, StatusHistoryRepository histories) {
         this.items = items;
         this.executions = executions;
         this.progress = progress;
@@ -46,7 +48,7 @@ public class ExecutionAcceptanceService {
         this.currentUser = currentUser;
         this.coSigner = coSigner;
         this.history = history;
-        this.entityManager = entityManager;
+        this.entityManager = entityManager;this.notifications=notifications;this.histories=histories;
     }
 
     @Transactional
@@ -59,6 +61,11 @@ public class ExecutionAcceptanceService {
             conflict("PLAN_NOT_EXECUTABLE", "Plan is not approved for maintenance");
         if (!plan.getVersion().equals(command.planVersion()))
             conflict("OPTIMISTIC_LOCK_CONFLICT", "Plan has changed; reload before retrying");
+        // Prepared vendor decisions must finish before execution, so a revision can
+        // safely return the entire plan to its editable state. Legacy plans retain their gate.
+        if (histories.existsByPlanItem_Plan_IdAndPlanItem_StatusAndAction(plan.getId(),
+                PlanItemStatus.WAITING_VENDOR_APPROVAL, "ACTIVATE_PREPARED_VENDOR"))
+            conflict("PLAN_VENDOR_APPROVAL_PENDING", "Cần phê duyệt xong các đơn vị đề xuất trước khi bắt đầu thực hiện kế hoạch.");
         PlanItemStatus old = item.getStatus();
         if (old != PlanItemStatus.UNDER_CONTRACT && old != PlanItemStatus.ASSIGNED_EXTERNAL
                 && old != PlanItemStatus.REWORK_REQUIRED)
@@ -99,6 +106,7 @@ public class ExecutionAcceptanceService {
         UserAccount actor = requireRole(UserRole.PHONG_VTYT);
         MaintenanceExecution attempt = findExecution(executionId);
         MaintenancePlanItem item = lockedItem(attempt.getPlanItem().getId());
+        if (command.version() != null) checkVersion(item, command.version());
         requireCurrent(attempt, item);
         if (item.getStatus() != PlanItemStatus.IN_MAINTENANCE || attempt.getEndedAt() != null)
             conflict("EXECUTION_NOT_ACTIVE", "Execution is not active");
@@ -106,7 +114,11 @@ public class ExecutionAcceptanceService {
         log.setExecution(attempt);
         log.setRecordedByUser(actor);
         log.setEventAt(now());
-        log.setWorkNote(required(command.workNote(), "WORK_NOTE_REQUIRED"));
+        // Reuse the existing append-only text column. Its first line is the predefined
+        // Vietnamese status; remaining lines hold the optional note. Legacy notes stay readable.
+        String note = optional(command.note());
+        log.setWorkNote(command.status() == null ? required(command.workNote(), "WORK_NOTE_REQUIRED")
+                : command.status().label() + (blank(note) ? "" : "\n" + note));
         log.setDamageNote(optional(command.damageNote()));
         progress.save(log);
         entityManager.flush();
@@ -178,6 +190,7 @@ public class ExecutionAcceptanceService {
                 ? PlanItemStatus.AWAITING_HANDOVER
                 : command.repairRequired() ? PlanItemStatus.REPAIR_REQUIRED : PlanItemStatus.REWORK_REQUIRED;
         transition(item, actor, next, "TECHNICAL_ACCEPTANCE", command.result() == AcceptanceResult.FAIL ? conclusion : null, at);
+        if(next==PlanItemStatus.AWAITING_HANDOVER)notifications.notifyRole(UserRole.KHOA_PHONG,item.getDepartmentAtPlan().getId(),actor,"HANDOVER_PENDING","Thiết bị chờ bàn giao",item.getEquipment().getEquipmentCode(),"/plans/"+item.getPlan().getId()+"/items/"+item.getId()+"/execution");
         if (next == PlanItemStatus.REPAIR_REQUIRED) reportReady(item, actor, at);
         entityManager.flush();
         return acceptanceResponse(record, item);
@@ -230,6 +243,7 @@ public class ExecutionAcceptanceService {
                 ? PlanItemStatus.COMPLETED
                 : command.repairRequired() ? PlanItemStatus.REPAIR_REQUIRED : PlanItemStatus.REWORK_REQUIRED;
         transition(item, actor, next, "HANDOVER_ACCEPTANCE", command.result() == AcceptanceResult.FAIL ? conclusion : null, at);
+        notifications.notifyRole(UserRole.PHONG_VTYT,null,actor,next==PlanItemStatus.COMPLETED?"HANDOVER_COMPLETED":"HANDOVER_REWORK",next==PlanItemStatus.COMPLETED?"Khoa đã xác nhận bàn giao":"Thiết bị cần xử lý sau bàn giao",item.getEquipment().getEquipmentCode()+" — "+conclusion,"/plans/"+item.getPlan().getId()+"/items/"+item.getId()+"/execution");
         if (next == PlanItemStatus.COMPLETED || next == PlanItemStatus.REPAIR_REQUIRED) reportReady(item, actor, at);
         entityManager.flush();
         return acceptanceResponse(record, item);
@@ -265,26 +279,13 @@ public class ExecutionAcceptanceService {
     private ServiceProvider routeProvider(MaintenancePlanItem item) {
         MaintenanceCoverage coverage = item.getCoverage();
         ServiceProvider assigned = item.getAssignedProvider();
-        if (coverage == null || assigned == null || !Boolean.TRUE.equals(assigned.getActive()))
-            conflict("ROUTING_EVIDENCE_MISSING", "Coverage and active provider are required");
-        if (!coverage.getEquipment().getId().equals(item.getEquipment().getId())
-                || coverage.getVerifiedByUser() == null
-                || coverage.getVerifiedByUser().getRoleCode() != UserRole.PHONG_VTYT
-                || coverage.getVerifiedAt() == null || blank(coverage.getBasisNote()))
-            conflict("ROUTING_EVIDENCE_MISSING", "Coverage verification is incomplete");
-        LocalDate date = item.getPlannedDate() == null ? item.getPlan().getPeriodStart() : item.getPlannedDate();
-        if ((coverage.getEffectiveFrom() != null && coverage.getEffectiveFrom().isAfter(date))
-                || (coverage.getEffectiveTo() != null && coverage.getEffectiveTo().isBefore(date)))
-            conflict("ROUTING_EVIDENCE_MISSING", "Coverage does not apply on the planned date");
-        if (item.getAssignmentRoute() == AssignmentRoute.UNDER_CONTRACT
-                && coverage.getClassification() == CoverageClassification.FREE
-                && coverage.getProvider() != null
-                && coverage.getProvider().getId().equals(assigned.getId())) return assigned;
-        if (item.getAssignmentRoute() == AssignmentRoute.EXTERNAL_APPROVED
-                && coverage.getClassification() == CoverageClassification.NOT_FREE) {
+        if(assigned==null || !Boolean.TRUE.equals(assigned.getActive()))conflict("ROUTING_EVIDENCE_MISSING","Active provider required");
+        LocalDate date=item.getPlannedDate()==null?item.getPlan().getPeriodStart():item.getPlannedDate();
+        if(item.getAssignmentRoute()==AssignmentRoute.UNDER_CONTRACT && PlanningDecisionService.validFree(coverage,item.getEquipment().getId(),date) && coverage.getProvider().getId().equals(assigned.getId()))return assigned;
+        if(item.getAssignmentRoute()==AssignmentRoute.EXTERNAL_APPROVED) {
             List<ApprovalRequest> rounds = requests.findByPlanItem_IdOrderBySubmittedAtAscIdAsc(item.getId()).stream()
                     .filter(r -> r.getRequestType() == ApprovalRequestType.VENDOR_SELECTION
-                            && r.getStatus() != ApprovalRequestStatus.DRAFT).toList();
+                            && r.getStatus() != ApprovalRequestStatus.DRAFT && r.getStatus()!=ApprovalRequestStatus.CANCELLED).toList();
             if (!rounds.isEmpty()) {
                 ApprovalRequest latest = rounds.get(rounds.size() - 1);
                 ApprovalAction action = actions.findByRequest_Id(latest.getId()).orElse(null);

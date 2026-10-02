@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, Navigate, useParams } from 'react-router'
+import { useAuth } from '../auth/useAuth'
 import { plansApi } from '../api/plansApi'
 import { Pagination } from '../components/Pagination'
 import { StatusBadge } from '../components/StatusBadge'
@@ -9,6 +10,8 @@ import { businessDate, itemStatusLabels, planStatusLabels } from '../utils/workf
 
 export function ExecutionQueuePage() {
   const { planId } = useParams()
+  const { user } = useAuth()
+  const isVtyt = user?.role === 'PHONG_VTYT'
   const id = Number(planId)
   const inPlan = planId !== undefined
   const [page, setPage] = useState(0)
@@ -20,6 +23,7 @@ export function ExecutionQueuePage() {
   const [refresh, setRefresh] = useState(0)
   useEffect(() => { setPage(0); setLoading(true) }, [planId])
   useEffect(() => {
+    if (isVtyt) return
     let active = true
     const request = inPlan ? Promise.all([plansApi.detail(id), plansApi.items(id, page, 20)]) : plansApi.list(page, 10)
     request.then(result => {
@@ -29,8 +33,9 @@ export function ExecutionQueuePage() {
       setError(null); setLoading(false)
     }).catch(failure => { if (active) { setError(failure); setLoading(false) } })
     return () => { active = false }
-  }, [inPlan, id, page, refresh])
+  }, [inPlan, id, page, refresh, isVtyt])
   function reload() { setLoading(true); setRefresh(value => value + 1) }
+  if (isVtyt) return <Navigate replace to={inPlan ? `/maintenance-progress/plans/${planId}` : "/maintenance-progress"} />
   return <div className="page-stack">
     <div className="page-title-block"><p className="eyebrow">UC08–UC10 · THỰC HIỆN & NGHIỆM THU</p>
       <h1>{inPlan ? plan?.title || 'Hạng mục kế hoạch' : 'Kế hoạch có thể theo dõi'}</h1>

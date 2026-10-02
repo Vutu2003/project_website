@@ -8,6 +8,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import vn.edu.medmaintenance.persistence.entity.StatusHistory;
 
 public interface StatusHistoryRepository extends JpaRepository<StatusHistory, Long> {
+    boolean existsByPlanItem_Plan_IdAndPlanItem_StatusAndAction(Long planId,
+            vn.edu.medmaintenance.persistence.enums.PlanItemStatus status, String action);
+
     @org.springframework.data.jpa.repository.Query("""
             select h from StatusHistory h where h.planItem.id in :ids
             order by h.planItem.id, h.actionTimestamp, h.id

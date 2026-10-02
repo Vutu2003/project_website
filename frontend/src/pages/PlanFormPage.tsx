@@ -1,120 +1,113 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useLocation, useNavigate, useParams } from 'react-router'
 import { ApiError } from '../api/types'
+import { apiRequest } from '../api/client'
 import { equipmentApi } from '../api/equipmentApi'
+import { providersApi } from '../api/providersApi'
 import { plansApi } from '../api/plansApi'
 import { Pagination } from '../components/Pagination'
 import { WorkflowError } from '../components/WorkflowFeedback'
-import type { Equipment, PageResponse, Plan } from '../types/workflow'
+import type { CoverageEvidence, Equipment, MaintenanceSuggestion, PageResponse, Plan, PlanItemInput, Provider } from '../types/workflow'
 import { businessDate } from '../utils/workflowLabels'
+import { itemCompleteness } from '../utils/itemCompleteness'
+import { freeCoverageReason } from '../utils/planningDecision'
 
-interface DraftItem { equipmentId: number; equipmentCode: string; equipmentName: string; plannedDate: string }
-
-async function loadAllItems(planId: number): Promise<DraftItem[]> {
-  const first = await plansApi.items(planId, 0, 100)
-  const content = [...first.content]
-  for (let page = 1; page < first.totalPages; page++) {
-    content.push(...(await plansApi.items(planId, page, 100)).content)
-  }
-  return content.map(item => ({ equipmentId: item.equipmentId, equipmentCode: item.equipmentCode,
-    equipmentName: item.equipmentName, plannedDate: item.plannedDate || '' }))
+interface DraftItem extends PlanItemInput {
+ equipmentCode: string; equipmentName: string; departmentName: string; proposedProviderName?: string | null; coverages?: CoverageEvidence[]
 }
-
+async function loadAllItems(planId: number): Promise<DraftItem[]> {
+ const first = await plansApi.items(planId, 0, 100); const content = [...first.content]
+ for (let p = 1; p < first.totalPages; p++) content.push(...(await plansApi.items(planId, p, 100)).content)
+ return content.map(i => ({ equipmentId: i.equipmentId, equipmentCode: i.equipmentCode, equipmentName: i.equipmentName,
+  departmentName: i.departmentNameAtPlan, plannedDate: i.plannedDate, classification: i.classification,
+  coverageId: i.coverageId, proposedProviderId: i.proposedProviderId, proposedProviderName: i.proposedProviderName, rationale: i.rationale,
+  warrantyImpactNote: i.warrantyImpactNote, version: i.version }))
+}
+function ItemDecision({ item, periodStart, providers, locked, onChange }: {
+ item: DraftItem; periodStart: string; providers: Provider[]; locked: boolean; onChange: (patch: Partial<DraftItem>) => void
+}) {
+ const [error, setError] = useState<unknown>(null)
+ const [reload, setReload] = useState(0)
+ useEffect(() => {
+  let active = true
+  equipmentApi.coverages(item.equipmentId).then(rows => { if (active) { onChange({ coverages: rows }); setError(null) } }).catch(e => { if (active) setError(e) })
+  return () => { active = false }
+  // Parent callback changes as draft values change; evidence reload only follows identity.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [item.equipmentId, reload])
+ const missing = item.classification === 'NOT_FREE' && item.proposedProviderId && !providers.some(p => p.id === item.proposedProviderId && p.active) ? 'Đơn vị đề xuất đã ngừng hoạt động' : itemCompleteness(item, periodStart)
+ return <article className="planning-item" aria-label={`Hạng mục ${item.equipmentCode}`}><div><h3>{item.equipmentCode} · {item.equipmentName}</h3><p className="muted">{item.departmentName}</p></div>
+ <fieldset disabled={locked}><div className="form-grid"><label>Ngày dự kiến {item.equipmentCode}<input type="date" value={item.plannedDate || ''} onChange={e => onChange({ plannedDate: e.target.value || null })} /></label></div>
+ <p className="muted">Ngày xét hợp đồng: {businessDate(item.plannedDate || periodStart)} (dùng ngày bắt đầu kế hoạch nếu chưa nhập ngày dự kiến).</p>
+ <legend>Hình thức bảo trì</legend><div className="decision-options"><label><input type="radio" name={`method-${item.equipmentId}`} checked={item.classification === 'FREE'} onChange={() => onChange({ classification: 'FREE', proposedProviderId: null, rationale: null, warrantyImpactNote: null })} />Theo hợp đồng</label><label><input type="radio" name={`method-${item.equipmentId}`} checked={item.classification === 'NOT_FREE'} onChange={() => onChange({ classification: 'NOT_FREE', coverageId: null })} />Ngoài hợp đồng</label></div>
+ {item.classification === 'FREE' && <div className="coverage-list">{!item.coverages ? <p>Đang tải hợp đồng…</p> : item.coverages.filter(c => c.classification === 'FREE').length === 0 ? <p className="warning-text">Không có hợp đồng phù hợp. Có thể chọn Ngoài hợp đồng và chuẩn bị đề xuất.</p> : item.coverages.filter(c => c.classification === 'FREE').map(c => {
+  const reason = freeCoverageReason(c, item.equipmentId, item.plannedDate || periodStart)
+  return <label className={`coverage-option ${reason ? 'blocked' : ''}`} key={c.id}><input type="radio" name={`coverage-${item.equipmentId}`} checked={item.coverageId === c.id} disabled={!!reason} onChange={() => onChange({ coverageId: c.id })} /><span><strong>{c.contractReference || `Hợp đồng #${c.id}`} · {c.providerName}</strong><small>Hiệu lực: {businessDate(c.effectiveFrom)} – {businessDate(c.effectiveTo)}</small><small>Phạm vi: {c.coverageScope || '—'}</small><small>Căn cứ: {c.basisNote || '—'}</small><small>Xác minh: {c.verifiedByName || '—'}</small>{reason && <small className="warning-text">{reason}</small>}</span></label>
+ })}</div>}
+ {item.classification === 'NOT_FREE' && <div className="form-grid"><label>Đơn vị đề xuất {item.equipmentCode}<select value={item.proposedProviderId || ''} onChange={e => onChange({ proposedProviderId: e.target.value ? Number(e.target.value) : null })}><option value="">Chọn đơn vị đang hoạt động</option>{item.proposedProviderId && !providers.some(p => p.id === item.proposedProviderId && p.active) && <option value={item.proposedProviderId} disabled>{item.proposedProviderName || `Đơn vị #${item.proposedProviderId}`} (ngừng hoạt động)</option>}{providers.filter(p => p.active).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label><label className="wide-field">Căn cứ chọn đơn vị {item.equipmentCode}<textarea rows={3} maxLength={4000} value={item.rationale || ''} onChange={e => onChange({ rationale: e.target.value })} /></label><label className="wide-field">Ghi chú / ảnh hưởng bảo hành {item.equipmentCode}<textarea rows={2} maxLength={4000} value={item.warrantyImpactNote || ''} onChange={e => onChange({ warrantyImpactNote: e.target.value })} /></label><p className="muted wide-field">Đơn vị này mới được đề xuất. BGĐ quyết định đơn vị sau khi duyệt kế hoạch; hệ thống tự gửi đề xuất.</p></div>}
+ </fieldset><p className={`completeness ${missing ? 'incomplete' : ''}`}>{missing ? `⚠ ${missing}` : '✓ Đã đủ thông tin'}</p><WorkflowError error={error} onReload={() => setReload(v => v + 1)} /></article>
+}
 export function PlanFormPage({ mode }: { mode: 'create' | 'edit' }) {
-  const { planId } = useParams()
-  const id = Number(planId)
-  const navigate = useNavigate()
-  const [plan, setPlan] = useState<Plan | null>(null)
-  const [title, setTitle] = useState('')
-  const [periodStart, setPeriodStart] = useState('')
-  const [periodEnd, setPeriodEnd] = useState('')
-  const [items, setItems] = useState<DraftItem[]>([])
-  const [equipmentPage, setEquipmentPage] = useState(0)
-  const [equipment, setEquipment] = useState<PageResponse<Equipment> | null>(null)
-  const [loading, setLoading] = useState(mode === 'edit')
-  const [equipmentLoading, setEquipmentLoading] = useState(true)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<unknown>(null)
-  const [validation, setValidation] = useState<string | null>(null)
-  const [reloadKey, setReloadKey] = useState(0)
-  const reload = useCallback(() => { setLoading(true); setReloadKey(value => value + 1) }, [])
-
-  useEffect(() => {
-    if (mode === 'create') return
-    if (!Number.isInteger(id) || id <= 0) { setError(new ApiError(404, 'PLAN_NOT_FOUND', 'Không tìm thấy kế hoạch.')); setLoading(false); return }
-    let active = true
-    Promise.all([plansApi.detail(id), loadAllItems(id)]).then(([result, rows]) => {
-      if (!active) return
-      setPlan(result); setTitle(result.title); setPeriodStart(result.periodStart); setPeriodEnd(result.periodEnd)
-      setItems(rows); setError(null); setLoading(false)
-    }).catch(failure => { if (active) { setError(failure); setLoading(false) } })
-    return () => { active = false }
-  }, [mode, id, reloadKey])
-  useEffect(() => {
-    let active = true
-    equipmentApi.list(equipmentPage, 10).then(result => {
-      if (active) { setEquipment(result); setEquipmentLoading(false) }
-    }).catch(failure => { if (active) { setError(failure); setEquipmentLoading(false) } })
-    return () => { active = false }
-  }, [equipmentPage])
-
-  function add(row: Equipment) {
-    setItems(current => current.some(item => item.equipmentId === row.id) ? current :
-      [...current, { equipmentId: row.id, equipmentCode: row.equipmentCode, equipmentName: row.name, plannedDate: '' }])
-  }
-  function updateDate(equipmentId: number, date: string) {
-    setItems(current => current.map(item => item.equipmentId === equipmentId ? { ...item, plannedDate: date } : item))
-  }
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setValidation(null); setError(null)
-    if (!title.trim() || !periodStart || !periodEnd) { setValidation('Vui lòng nhập tiêu đề và khoảng thời gian.'); return }
-    if (periodEnd < periodStart) { setValidation('Ngày kết thúc phải sau hoặc bằng ngày bắt đầu.'); return }
-    if (items.length === 0) { setValidation('Kế hoạch cần ít nhất một thiết bị.'); return }
-    if (items.some(item => item.plannedDate && (item.plannedDate < periodStart || item.plannedDate > periodEnd))) {
-      setValidation('Ngày dự kiến của thiết bị phải nằm trong thời gian kế hoạch.'); return
+ const { planId } = useParams(); const id = Number(planId); const navigate = useNavigate(); const location = useLocation()
+ const [plan, setPlan] = useState<Plan | null>(null); const [title, setTitle] = useState(''); const [periodStart, setPeriodStart] = useState(''); const [periodEnd, setPeriodEnd] = useState('')
+ const [items, setItems] = useState<DraftItem[]>([]); const [providers, setProviders] = useState<Provider[]>([])
+ const [equipmentPage, setEquipmentPage] = useState(0); const [equipment, setEquipment] = useState<PageResponse<Equipment> | null>(null)
+ const [loading, setLoading] = useState(true); const [busy, setBusy] = useState(false); const [error, setError] = useState<unknown>(null); const [validation, setValidation] = useState<string | null>(null); const [reloadKey, setReloadKey] = useState(0)
+ const reload = useCallback(() => { setLoading(true); setReloadKey(v => v + 1) }, [])
+ useEffect(() => {
+  let active = true
+  async function load() {
+   const ps = await providersApi.list()
+   if (!active) return
+   setProviders(ps)
+   if (mode === 'edit') {
+    if (!Number.isInteger(id) || id <= 0) throw new ApiError(404, 'PLAN_NOT_FOUND', 'Không tìm thấy kế hoạch.')
+    const [p, rows] = await Promise.all([plansApi.detail(id), loadAllItems(id)])
+    if (!active) return
+    setPlan(p); setTitle(p.title); setPeriodStart(p.periodStart); setPeriodEnd(p.periodEnd); setItems(rows)
+   } else {
+    const state = location.state as { suggestions?: MaintenanceSuggestion[] } | null
+    const suggestions = Array.isArray(state?.suggestions) ? state.suggestions.filter(s => Number.isSafeInteger(s.equipmentId) && s.equipmentId > 0).slice(0, 100) : []
+    const unique = [...new Map(suggestions.map(s => [s.equipmentId, s])).values()]
+    if (unique.length) {
+     const rows = await Promise.all(unique.map(async s => {
+      const device = await apiRequest<Equipment>(`/api/equipment/${s.equipmentId}`)
+      if (!device.active) throw new ApiError(409, 'EQUIPMENT_INACTIVE', `Thiết bị ${device.equipmentCode} đã ngừng hoạt động.`)
+      return { equipmentId: device.id, equipmentCode: device.equipmentCode, equipmentName: device.name, departmentName: device.departmentName || '', plannedDate: s.suggestedDate,
+       classification: s.classification === 'FREE' ? 'FREE' as const : 'NOT_FREE' as const, coverageId: s.classification === 'FREE' ? s.coverageId : null }
+     }))
+     if (!active) return
+     setItems(rows); const dates = unique.map(s => s.suggestedDate || s.referenceDate).sort(); setPeriodStart(dates[0]); setPeriodEnd(dates[dates.length - 1])
     }
-    const body = { title: title.trim(), periodStart, periodEnd,
-      items: items.map(item => ({ equipmentId: item.equipmentId, plannedDate: item.plannedDate || null })) }
-    setBusy(true)
-    try {
-      const result = mode === 'create' ? await plansApi.create(body) : await plansApi.edit(id, { ...body, version: plan!.version })
-      navigate(`/plans/${result.id}`, { replace: true, state: { flash: mode === 'create' ? 'Đã tạo kế hoạch.' : 'Đã lưu chỉnh sửa kế hoạch.' } })
-    } catch (failure) { setError(failure) } finally { setBusy(false) }
+   }
+   if (active) { setLoading(false); setError(null) }
   }
-
-  if (loading) return <p className="muted">Đang tải biểu mẫu…</p>
-  if (mode === 'edit' && !plan) return <div className="page-stack"><WorkflowError error={error} onReload={reload} /><Link to="/plans">Về danh sách</Link></div>
-  return <div className="page-stack">
-    <div className="page-title-block"><p className="eyebrow">{mode === 'create' ? 'UC01 · TẠO KẾ HOẠCH' : 'UC02 · CHỈNH SỬA KẾ HOẠCH'}</p>
-      <h1>{mode === 'create' ? 'Kế hoạch bảo trì mới' : 'Chỉnh sửa kế hoạch'}</h1>
-      <p>{mode === 'edit' ? `Kế hoạch #${id} · ${plan?.status} · phiên bản ${plan?.version}` : 'Chọn thiết bị từ danh sách thật của hệ thống.'}</p></div>
-    {mode === 'edit' && plan?.status !== 'DRAFT' && plan?.status !== 'REVISION_REQUIRED' &&
-      <div className="workflow-error" role="alert">Trạng thái hiện tại không cho phép chỉnh sửa. <Link to={`/plans/${id}`}>Xem chi tiết</Link></div>}
-    <form className="plan-form" onSubmit={event => void submit(event)}>
-      <section className="panel business-panel"><div className="panel-heading"><h2>Thông tin kế hoạch</h2></div>
-        <div className="form-grid"><label>Tiêu đề<input value={title} onChange={event => setTitle(event.target.value)} maxLength={255} required /></label>
-          <label>Ngày bắt đầu<input type="date" value={periodStart} onChange={event => setPeriodStart(event.target.value)} required /></label>
-          <label>Ngày kết thúc<input type="date" value={periodEnd} onChange={event => setPeriodEnd(event.target.value)} required /></label></div>
-      </section>
-      <section className="panel business-panel"><div className="panel-heading"><div><h2>Thiết bị trong kế hoạch</h2><p>{items.length} thiết bị được chọn</p></div></div>
-        {mode === 'edit' && <p className="retention-note">V1 giữ lại hạng mục đã tạo để bảo toàn dấu vết audit. Có thể sửa ngày hoặc thêm thiết bị; không có thao tác loại bỏ.</p>}
-        {items.length === 0 ? <p className="empty-state">Chưa chọn thiết bị.</p> : <div className="table-scroll"><table className="data-table"><thead><tr><th>Thiết bị</th><th>Ngày dự kiến</th></tr></thead>
-          <tbody>{items.map(item => <tr key={item.equipmentId}><td><strong>{item.equipmentCode}</strong><span className="row-sub">{item.equipmentName}</span></td>
-            <td><input aria-label={`Ngày dự kiến ${item.equipmentCode}`} type="date" value={item.plannedDate} onChange={event => updateDate(item.equipmentId, event.target.value)} /></td></tr>)}</tbody></table></div>}
-      </section>
-      <section className="panel business-panel"><div className="panel-heading"><div><h2>Chọn thêm thiết bị</h2><p>Danh sách thiết bị đang hoạt động, có phân trang</p></div></div>
-        {equipmentLoading ? <p className="muted">Đang tải thiết bị…</p> : equipment && <><div className="table-scroll"><table className="data-table"><thead><tr><th>Mã thiết bị</th><th>Tên / model</th><th>Khoa</th><th></th></tr></thead>
-          <tbody>{equipment.content.map(row => <tr key={row.id}><td>{row.equipmentCode}</td><td>{row.name}<span className="row-sub">{row.model || '—'}</span></td>
-            <td>{row.departmentName || '—'}</td><td><button className="button secondary compact" type="button" disabled={items.some(item => item.equipmentId === row.id)} onClick={() => add(row)}>{items.some(item => item.equipmentId === row.id) ? 'Đã chọn' : 'Thêm'}</button></td></tr>)}</tbody></table></div>
-          <Pagination data={equipment} onPage={next => { setEquipmentPage(next); setEquipmentLoading(true) }} /></>}
-      </section>
-      {validation && <div className="workflow-error" role="alert">{validation}</div>}
-      <WorkflowError error={error} onReload={mode === 'edit' ? reload : undefined} />
-      <div className="form-actions"><Link className="button secondary" to={mode === 'edit' ? `/plans/${id}` : '/plans'}>Hủy</Link>
-        <button className="button primary" type="submit" disabled={busy || (mode === 'edit' && plan?.status !== 'DRAFT' && plan?.status !== 'REVISION_REQUIRED')}>
-          {busy ? 'Đang lưu…' : mode === 'create' ? 'Tạo kế hoạch' : 'Lưu chỉnh sửa'}</button></div>
-    </form>
-    {mode === 'edit' && <p className="muted">Thời gian hiện tại: {businessDate(plan?.periodStart)} – {businessDate(plan?.periodEnd)}.</p>}
-  </div>
+  load().catch(e => { if (active) { setError(e); setLoading(false) } }); return () => { active = false }
+ }, [mode, id, reloadKey, location.state])
+ useEffect(() => { let active = true; equipmentApi.list(equipmentPage, 10).then(r => { if (active) setEquipment(r) }).catch(e => { if (active) setError(e) }); return () => { active = false } }, [equipmentPage])
+ const locked = mode === 'edit' && !!plan && !['DRAFT', 'REVISION_REQUIRED'].includes(plan.status)
+ function patch(equipmentId: number, change: Partial<DraftItem>) { setItems(current => current.map(i => i.equipmentId === equipmentId ? { ...i, ...change } : i)) }
+ function add(row: Equipment) { setItems(current => current.some(i => i.equipmentId === row.id) ? current : [...current, { equipmentId: row.id, equipmentCode: row.equipmentCode, equipmentName: row.name, departmentName: row.departmentName || '', plannedDate: null }]) }
+ async function save(event: FormEvent<HTMLFormElement>) {
+  event.preventDefault(); setValidation(null); setError(null)
+  if (locked || busy) return
+  if (!title.trim() || !periodStart || !periodEnd || periodEnd < periodStart) { setValidation('Nhập tiêu đề và khoảng thời gian hợp lệ.'); return }
+  if (!items.length) { setValidation('Kế hoạch cần ít nhất một thiết bị.'); return }
+  if (items.some(i => i.plannedDate && (i.plannedDate < periodStart || i.plannedDate > periodEnd))) { setValidation('Ngày dự kiến phải nằm trong kỳ kế hoạch.'); return }
+  const invalidFree = items.find(i => i.classification === 'FREE' && itemCompleteness(i, periodStart))
+  if (invalidFree) { setValidation(`Thiết bị ${invalidFree.equipmentCode}: ${itemCompleteness(invalidFree, periodStart)}`); return }
+  const body = { title: title.trim(), periodStart, periodEnd, items: items.map(i => ({ equipmentId: i.equipmentId, plannedDate: i.plannedDate || null, classification: i.classification || null, coverageId: i.classification === 'FREE' ? i.coverageId : null, proposedProviderId: i.classification === 'NOT_FREE' ? i.proposedProviderId || null : null, rationale: i.classification === 'NOT_FREE' ? i.rationale?.trim() || null : null, warrantyImpactNote: i.warrantyImpactNote?.trim() || null, version: i.version })) }
+  setBusy(true)
+  try { const result = mode === 'create' ? await plansApi.create(body) : await plansApi.edit(id, { ...body, version: plan!.version }); navigate(`/plans/${result.id}`, { replace: true, state: { flash: 'Đã lưu kế hoạch. Chỉ gửi duyệt khi tất cả thiết bị đủ thông tin.' } }) } catch (e) { setError(e) } finally { setBusy(false) }
+ }
+ if (loading) return <p>Đang tải biểu mẫu…</p>
+ if (mode === 'edit' && !plan) return <WorkflowError error={error} onReload={reload} />
+ return <div className="page-stack"><div className="page-title-block"><h1>{mode === 'create' ? 'Kế hoạch bảo trì mới' : 'Chỉnh sửa kế hoạch'}</h1><p>Chuẩn bị hình thức và đơn vị cho từng thiết bị trước khi gửi phê duyệt.</p></div>
+ {locked && <p className="retention-note">Kế hoạch đã gửi duyệt: thông tin và hình thức bảo trì chỉ được xem. BGĐ cần trả về hiệu chỉnh để thay đổi.</p>}
+ <form className="plan-form" onSubmit={e => void save(e)}><fieldset disabled={locked || busy} className="plan-fields"><section className="panel business-panel"><h2>Thông tin kế hoạch</h2><div className="form-grid"><label>Tiêu đề<input required maxLength={255} value={title} onChange={e => setTitle(e.target.value)} /></label><label>Ngày bắt đầu<input required type="date" value={periodStart} onChange={e => setPeriodStart(e.target.value)} /></label><label>Ngày kết thúc<input required type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} /></label></div></section></fieldset>
+ <section className="panel business-panel"><h2>Thiết bị trong kế hoạch</h2><p className="muted">{items.length} thiết bị. Có thể lưu nháp khi chưa đủ thông tin; gửi duyệt sẽ kiểm tra từng hạng mục.</p>{mode === 'edit' && !locked && <p className="retention-note">Giữ hạng mục đã tạo để bảo toàn lịch sử. Có thể đổi ngày, hình thức, đơn vị đề xuất hoặc thêm thiết bị trong Nháp / Yêu cầu chỉnh sửa.</p>}
+ <div className="planning-items">{items.map(i => <ItemDecision key={i.equipmentId} item={i} periodStart={periodStart} providers={providers} locked={locked || busy} onChange={change => patch(i.equipmentId, change)} />)}</div>{!items.length && <p className="empty-state">Chưa chọn thiết bị.</p>}</section>
+ {!locked && <section className="panel business-panel"><h2>Chọn thêm thiết bị</h2>{equipment && <><div className="table-scroll"><table className="data-table"><thead><tr><th>Mã thiết bị</th><th>Tên</th><th>Khoa</th><th></th></tr></thead><tbody>{equipment.content.map(row => <tr key={row.id}><td>{row.equipmentCode}</td><td>{row.name}</td><td>{row.departmentName}</td><td><button className="button secondary" type="button" disabled={busy || items.some(i => i.equipmentId === row.id)} onClick={() => add(row)}>Thêm {row.equipmentCode}</button></td></tr>)}</tbody></table></div><Pagination data={equipment} onPage={setEquipmentPage} /></>}</section>}
+ {validation && <p className="workflow-error" role="alert">{validation}</p>}<WorkflowError error={error} onReload={reload} /><div className="form-actions"><Link className="button secondary" to={mode === 'edit' ? `/plans/${id}` : '/plans'}>{locked ? 'Về chi tiết' : 'Hủy'}</Link>{!locked && <button type="submit" className="button primary" disabled={busy}>{busy ? 'Đang lưu…' : mode === 'create' ? 'Tạo kế hoạch' : 'Lưu chỉnh sửa'}</button>}</div></form></div>
 }
