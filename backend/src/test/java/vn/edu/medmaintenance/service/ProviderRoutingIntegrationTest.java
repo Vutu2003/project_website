@@ -363,6 +363,68 @@ import vn.edu.medmaintenance.persistence.enums.*;
         assertThat(row.path("suggestionBasis").asText()).contains("kế hoạch");
         assertThat(row.path("openPlanIds").toString()).contains(Long.toString(p));
     }
+    @Test void warrantyDeadlineIncludesLastDayAndBlocksContractAfterExpiry() {
+        var original=jdbc.queryForObject("SELECT warranty_expires_on FROM maintenance_coverage WHERE id=?", java.sql.Date.class, coverage);
+        try {
+            var input=Map.of("manufacturerProviderId", provider, "contracts", List.of(Map.of("id", coverage, "warrantyExpiresOn", "2026-11-01")));
+            ok(send(HttpMethod.PUT, "/api/equipment/"+eq+"/warranty", vtyt, input), 200);
+            var active=ok(send(HttpMethod.GET, "/api/equipment/"+eq+"/warranty?referenceDate=2026-11-01", bgd, null), 200);
+            assertThat(active.path("contracts").get(0).path("warrantyStatus").asText()).isEqualTo("ACTIVE");
+            assertThat(active.path("manufacturerProviderId").asLong()).isEqualTo(provider);
+            var expired=ok(send(HttpMethod.GET, "/api/equipment/"+eq+"/warranty?referenceDate=2026-11-02", vtyt, null), 200);
+            assertThat(expired.path("contracts").get(0).path("warrantyStatus").asText()).isEqualTo("EXPIRED");
+            var invalid=new HashMap<>(free()); invalid.put("plannedDate", "2026-11-02");
+            assertCode(send(HttpMethod.POST, "/api/plans", vtyt, body(invalid)), 409, "INVALID_FREE_COVERAGE");
+            var valid=new HashMap<>(free()); valid.put("plannedDate", "2026-11-01");
+            create(valid);
+        } finally {
+            jdbc.update("UPDATE maintenance_coverage SET warranty_expires_on=? WHERE id=?", original, coverage);
+            jdbc.update("UPDATE equipment SET manufacturer_provider_id=NULL WHERE id=?", eq);
+        }
+    }
+    @Test void manufacturerChoiceIsSavedAndStillRequiresDirectorApproval() {
+        jdbc.update("UPDATE equipment SET manufacturer_provider_id=? WHERE id=?", provider, paid);
+        try {
+            var input=new HashMap<>(external(paid)); input.put("serviceChoice", "MANUFACTURER");
+            long p=create(input), i=item(p);
+            assertThat(text("SELECT service_choice FROM maintenance_plan_item WHERE id=?", i)).isEqualTo("MANUFACTURER");
+            var row=ok(send(HttpMethod.GET, "/api/plans/"+p+"/items", vtyt, null), 200).path("content").get(0);
+            assertThat(row.path("serviceChoice").asText()).isEqualTo("MANUFACTURER");
+            approve(p);
+            assertThat(text("SELECT status FROM maintenance_plan_item WHERE id=?", i)).isEqualTo("WAITING_VENDOR_APPROVAL");
+            input.put("proposedProviderId", provider2);
+            assertCode(send(HttpMethod.POST, "/api/plans", vtyt, body(input)), 409, "INVALID_MANUFACTURER");
+        } finally { jdbc.update("UPDATE equipment SET manufacturer_provider_id=NULL WHERE id=?", paid); }
+    }
+    @Test void warrantyWritesAreScopedValidatedAndAtomic() {
+        var invalid=Map.of("manufacturerProviderId", provider, "contracts", List.of(Map.of("id", coverage, "warrantyExpiresOn", "2026-11-01")));
+        assertCode(send(HttpMethod.PUT, "/api/equipment/"+eq+"/warranty", bgd, invalid), 403, "ACCESS_DENIED");
+        assertCode(send(HttpMethod.PUT, "/api/equipment/"+paid+"/warranty", vtyt, invalid), 409, "INVALID_WARRANTY_COVERAGE");
+        assertThat(number("SELECT count(*) FROM equipment WHERE id=? AND manufacturer_provider_id IS NULL", paid)).isEqualTo(1);
+        var dates=Map.of("contracts", List.of(Map.of("id", coverage, "warrantyExpiresOn", "2000-01-01")));
+        assertCode(send(HttpMethod.PUT, "/api/equipment/"+eq+"/warranty", admin, dates), 409, "INVALID_WARRANTY_DATE");
+        long other=number("SELECT e.id FROM equipment e WHERE e.department_id<>(SELECT department_id FROM user_account WHERE username='demo_khoa_noi') ORDER BY id LIMIT 1");
+        assertCode(send(HttpMethod.GET, "/api/equipment/"+other+"/warranty", khoa, null), 403, "DEPARTMENT_SCOPE_VIOLATION");
+        var noContract=ok(send(HttpMethod.GET, "/api/equipment/"+missing+"/warranty", vtyt, null), 200);
+        assertThat(noContract.path("contracts").isEmpty()).isTrue();
+    }
+    @Test void unifiedCatalogIncludesInactiveDetailsAndFiltersSearch() {
+        long device=projectionEquipment();
+        jdbc.update("UPDATE equipment SET active=false, model='MODEL-QUICK', serial_number='SERIAL-UNIFIED', technical_spec='Thông số thử' WHERE id=?", device);
+        var rows=ok(send(HttpMethod.GET, "/api/maintenance-suggestions?includeInactive=true&search=SERIAL-UNIFIED", vtyt, null), 200).path("content");
+        assertThat(rows.size()).isEqualTo(1);
+        assertThat(rows.get(0).path("equipmentId").asLong()).isEqualTo(device);
+        assertThat(rows.get(0).path("active").asBoolean()).isFalse();
+        assertThat(rows.get(0).path("model").asText()).isEqualTo("MODEL-QUICK");
+        assertThat(rows.get(0).path("serialNumber").asText()).isEqualTo("SERIAL-UNIFIED");
+        assertThat(rows.get(0).path("technicalSpec").asText()).isEqualTo("Thông số thử");
+        assertThat(ok(send(HttpMethod.GET, "/api/maintenance-suggestions?search=SERIAL-UNIFIED", vtyt, null), 200).path("content").size()).isZero();
+        assertThat(ok(send(HttpMethod.GET, "/api/maintenance-suggestions?active=false&search=SERIAL-UNIFIED", vtyt, null), 200).path("content").size()).isEqualTo(1);
+        var filtered=ok(send(HttpMethod.GET, "/api/maintenance-suggestions?includeInactive=true&search=SERIAL-UNIFIED&referenceDate=2027-01-01", vtyt, null), 200).path("content").get(0);
+        assertThat(filtered.path("referenceDate").asText()).isEqualTo("2027-01-01");
+        assertThat(filtered.path("warrantyStatus").asText()).isEqualTo("UNKNOWN");
+        assertThat(ok(send(HttpMethod.GET, "/api/maintenance-suggestions?includeInactive=true&search=%25", vtyt, null), 200).path("content").size()).isZero();
+    }
     private JsonNode suggestion(long device) {
         for (var row:ok(send(HttpMethod.GET, "/api/maintenance-suggestions?size=100", vtyt, null), 200).path("content"))if (row.path("equipmentId").asLong()==device)return row;
         throw new AssertionError("Missing suggestion");

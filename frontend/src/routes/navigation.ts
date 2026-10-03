@@ -9,13 +9,14 @@ export interface NavigationItem {
 
 export const navigationItems: NavigationItem[] = [
   { path: '/admin/accounts', label: 'Quản lý tài khoản', section: 'Quản trị', roles: ['ADMIN'] },
+  { path: '/admin/equipment', label: 'Hồ sơ bảo hành', section: 'Danh mục hệ thống', roles: ['ADMIN'] },
   { path: '/admin/catalogs/departments', label: 'Khoa / Phòng', section: 'Danh mục hệ thống', roles: ['ADMIN'] },
   { path: '/admin/catalogs/providers', label: 'Đơn vị bảo trì', section: 'Danh mục hệ thống', roles: ['ADMIN'] },
-  { path: '/maintenance-suggestions', label: 'Đề xuất bảo trì', section: 'Kế hoạch bảo trì', roles: ['PHONG_VTYT'] },
+  { path: '/equipment', label: 'Thiết bị & bảo trì', section: 'Quản lý thiết bị', roles: ['PHONG_VTYT'] },
   { path: '/plans', label: 'Kế hoạch bảo trì', section: 'Kế hoạch bảo trì', roles: ['PHONG_VTYT'] },
   { path: '/maintenance-progress', label: 'Theo dõi tiến độ bảo trì', section: 'Theo dõi tiến độ bảo trì', roles: ['PHONG_VTYT'] },
   { path: '/reports', label: 'Báo cáo', section: 'Báo cáo', roles: ['PHONG_VTYT', 'BAN_GIAM_DOC'] },
-  { path: '/equipment', label: 'Thiết bị & lịch sử', section: 'Thiết bị & lịch sử', roles: ['PHONG_VTYT', 'BAN_GIAM_DOC', 'KHOA_PHONG'] },
+  { path: '/equipment', label: 'Thiết bị & lịch sử', section: 'Thiết bị & lịch sử', roles: ['BAN_GIAM_DOC', 'KHOA_PHONG'] },
   { path: '/approvals', label: 'Phê duyệt', section: 'Phê duyệt', roles: ['BAN_GIAM_DOC'] },
   { path: '/execution', label: 'Bàn giao', section: 'Bàn giao', roles: ['KHOA_PHONG'] },
 ]

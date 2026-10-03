@@ -15,4 +15,4 @@ public record ApprovalReviewResponse(Long id, ApprovalRequestType requestType,
         String equipmentCode, String equipmentName, Long coverageId,
         CoverageClassification coverageClassification, String coverageBasis,
         Long proposedProviderId, String proposedProviderName,
-        String rationale, String warrantyImpactNote) { }
+        String rationale, String warrantyImpactNote, vn.edu.medmaintenance.persistence.enums.ServiceChoice serviceChoice) { }

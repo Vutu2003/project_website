@@ -14,6 +14,7 @@ import { WorkflowError, WorkflowSuccess } from '../components/WorkflowFeedback'
 import type { AcceptanceResult, EquipmentExecutionHistory, MaintenanceProgressStatus } from '../types/execution'
 import type { Plan, PlanItem } from '../types/workflow'
 import { orderedAttempts } from '../utils/attempts'
+import { serviceChoiceLabels } from '../utils/warranty'
 import { assignmentRouteLabels, itemStatusLabels, planStatusLabels } from '../utils/workflowLabels'
 
 async function loadVisibleItem(planId: number, itemId: number): Promise<[Plan, PlanItem]> {
@@ -151,7 +152,7 @@ export function ExecutionItemPage() {
     <section className="panel business-panel summary-panel"><div><span className="card-label">TRẠNG THÁI HẠNG MỤC</span><StatusBadge label={itemStatusLabels[item.status]} tone={item.status === 'COMPLETED' ? 'teal' : item.status === 'REPAIR_REQUIRED' ? 'amber' : 'neutral'} /></div>
       <div><span className="card-label">KẾ HOẠCH</span><strong>{planStatusLabels[plan.status]} · v{plan.version}</strong></div>
       <div><span className="card-label">PHIÊN BẢN HẠNG MỤC</span><strong>v{item.version}</strong></div>
-      <div><span className="card-label">TUYẾN / ĐƠN VỊ</span><strong>{item.assignmentRoute ? assignmentRouteLabels[item.assignmentRoute] : '—'} · {item.assignedProviderName || '—'}</strong></div>
+      <div><span className="card-label">TUYẾN / ĐƠN VỊ</span><strong>{item.serviceChoice ? serviceChoiceLabels[item.serviceChoice] : item.assignmentRoute ? assignmentRouteLabels[item.assignmentRoute] : '—'} · {item.assignedProviderName || '—'}</strong></div>
       <button className="button secondary" type="button" onClick={reload}>Tải lại</button></section>
     <section className="panel business-panel"><h2>Theo dõi bảo trì</h2>
       <p>Trạng thái thực hiện: <strong>{item.status === 'REPAIR_REQUIRED' ? 'Chuyển sửa chữa' : executionLabel}</strong></p>

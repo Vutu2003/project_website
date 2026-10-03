@@ -53,7 +53,8 @@ public class WorkflowReadService {
                     row.getCoverageScope(), row.getEffectiveFrom(), row.getEffectiveTo(),
                     row.getVerifiedByUser() == null ? null : row.getVerifiedByUser().getDisplayName(),
                     row.getVerifiedAt(), row.getBasisNote(),
-                    row.getVerifiedByUser() == null ? null : row.getVerifiedByUser().getRoleCode());
+                    row.getVerifiedByUser() == null ? null : row.getVerifiedByUser().getRoleCode(),
+                    row.getWarrantyExpiresOn(), WarrantyStatus.at(row, java.time.LocalDate.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh"))));
         }).toList();
     }
 
@@ -82,7 +83,7 @@ public class WorkflowReadService {
                 coverage == null && item!=null ? vn.edu.medmaintenance.persistence.enums.CoverageClassification.NOT_FREE : coverage == null ? null : coverage.getClassification(),
                 coverage == null ? null : coverage.getBasisNote(),
                 provider == null ? null : provider.getId(), provider == null ? null : provider.getName(),
-                request.getRationale(), request.getWarrantyImpactNote());
+                request.getRationale(), request.getWarrantyImpactNote(), item == null ? null : item.getServiceChoice());
     }
 
     @Transactional(readOnly = true)

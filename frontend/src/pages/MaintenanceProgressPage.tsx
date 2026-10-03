@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { plansApi } from '../api/plansApi'
 import { Pagination } from '../components/Pagination'
+import { WarrantyModal } from '../components/WarrantyModal'
+import { serviceChoiceLabels } from '../utils/warranty'
 import { StatusBadge } from '../components/StatusBadge'
 import { UserInputError } from '../utils/UserInputError'
 import { WorkflowError } from '../components/WorkflowFeedback'
@@ -24,6 +26,7 @@ export function MaintenanceProgressPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<unknown>(null)
   const [refresh, setRefresh] = useState(0)
+  const [warranty, setWarranty] = useState<PlanItem | null>(null)
 
   useEffect(() => { setPage(0) }, [planId])
 
@@ -67,13 +70,9 @@ export function MaintenanceProgressPage() {
         <label className="inline-filter">Trạng thái kế hoạch<select value={status} onChange={event => { setSearch({ status: event.target.value }); setPage(0) }}>
           {trackingStates.map(value => <option key={value} value={value}>{planStatusLabels[value]}</option>)}
         </select></label></div>
-      {plans.content.length === 0 ? <p className="empty-state">Không có kế hoạch {planStatusLabels[status].toLowerCase()} để theo dõi.</p> : <div className="progress-plan-grid">
-        {plans.content.filter(row => row.status === status).map(row => <article className="progress-plan-card" key={row.id}>
-          <StatusBadge label={planStatusLabels[row.status]} tone={row.status === 'APPROVED' ? 'teal' : 'neutral'} />
-          <h3>{row.title}</h3><p>{businessDate(row.periodStart)} – {businessDate(row.periodEnd)}</p><p>Người lập: {row.createdByName}</p>
-          <Link className="button primary" to={`/maintenance-progress/plans/${row.id}`}>Theo dõi kế hoạch</Link>
-        </article>)}
-      </div>}
+      {plans.content.length === 0 ? <p className="empty-state">Không có kế hoạch {planStatusLabels[status].toLowerCase()} để theo dõi.</p> : <div className="table-scroll"><table className="data-table compact-table"><thead><tr><th>Kế hoạch</th><th>Thời gian</th><th>Người lập</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
+        {plans.content.filter(row => row.status === status).map(row => <tr key={row.id}><td><strong>{row.title}</strong><span className="row-sub">#{row.id}</span></td><td>{businessDate(row.periodStart)} – {businessDate(row.periodEnd)}</td><td>{row.createdByName}</td><td><StatusBadge label={planStatusLabels[row.status]} tone={row.status === 'APPROVED' ? 'teal' : 'neutral'} /></td><td><Link className="table-link" to={`/maintenance-progress/plans/${row.id}`}>Theo dõi kế hoạch</Link></td></tr>)}
+      </tbody></table></div>}
       <Pagination data={plans} onPage={setPage} />
     </section> : plan && !trackingStates.includes(plan.status) ? <section className="panel business-panel">
       <h2>{plan.title}</h2><StatusBadge label={planStatusLabels[plan.status]} />
@@ -82,17 +81,11 @@ export function MaintenanceProgressPage() {
     </section> : plan && items ? <section className="panel business-panel">
       <div className="panel-heading"><div><h2>{plan.title}</h2><p>{businessDate(plan.periodStart)} – {businessDate(plan.periodEnd)} · {items.totalElements} thiết bị</p></div><StatusBadge label={planStatusLabels[plan.status]} /></div>
       {plan.pendingVendorApproval && <p className="retention-note">Cần BGĐ duyệt xong các đơn vị đề xuất trước khi bắt đầu thực hiện kế hoạch.</p>}
-      {items.content.length === 0 ? <p className="empty-state">Kế hoạch chưa có thiết bị để theo dõi.</p> : <div className="progress-plan-grid">
-        {items.content.map(row => <article className="progress-plan-card" key={row.id}>
-          <h3>{row.equipmentCode} · {row.equipmentName}</h3><p>{row.departmentNameAtPlan}</p>
-          <StatusBadge label={['UNDER_CONTRACT', 'ASSIGNED_EXTERNAL'].includes(row.status) ? 'Chưa bắt đầu' : itemStatusLabels[row.status]} />
-          <p>Ngày dự kiến: {businessDate(row.plannedDate)}</p>
-          <p>Hình thức: {row.assignmentRoute ? assignmentRouteLabels[row.assignmentRoute] : 'Ngoài hợp đồng · chờ duyệt đơn vị'}</p>
-          <p>Đơn vị: {row.assignedProviderName || row.proposedProviderName || 'Chưa phân công'}</p>
-          <Link className="button primary" to={`/plans/${plan.id}/items/${row.id}/execution`}>Xem / cập nhật tiến độ</Link>
-        </article>)}
-      </div>}
+      {items.content.length === 0 ? <p className="empty-state">Kế hoạch chưa có thiết bị để theo dõi.</p> : <div className="table-scroll"><table className="data-table compact-table"><thead><tr><th>Thiết bị / khoa</th><th>Ngày dự kiến</th><th>Trạng thái</th><th>Hình thức</th><th>Đơn vị</th><th>Thao tác</th></tr></thead><tbody>
+        {items.content.map(row => <tr key={row.id}><td><strong>{row.equipmentCode} · {row.equipmentName}</strong><span className="row-sub">{row.departmentNameAtPlan}</span></td><td>{businessDate(row.plannedDate)}</td><td><StatusBadge label={['UNDER_CONTRACT', 'ASSIGNED_EXTERNAL'].includes(row.status) ? 'Chưa bắt đầu' : itemStatusLabels[row.status]} tone={row.status === 'COMPLETED' ? 'teal' : 'neutral'} /></td><td>{row.serviceChoice ? serviceChoiceLabels[row.serviceChoice] : row.assignmentRoute ? assignmentRouteLabels[row.assignmentRoute] : 'Ngoài hợp đồng · chờ duyệt đơn vị'}</td><td>{row.assignedProviderName || row.proposedProviderName || 'Chưa phân công'}</td><td><div className="table-actions"><Link className="table-link" to={`/plans/${plan.id}/items/${row.id}/execution`}>Xem / cập nhật tiến độ</Link><button type="button" className="button secondary compact" onClick={() => setWarranty(row)}>Thông tin bảo hành</button></div></td></tr>)}
+      </tbody></table></div>}
       <Pagination data={items} onPage={setPage} />
     </section> : null}
+    {warranty && <WarrantyModal equipmentId={warranty.equipmentId} onClose={() => setWarranty(null)} />}
   </div>
 }

@@ -38,6 +38,6 @@ public final class PlanMapper {
                 item.getCoverage()==null?null:item.getCoverage().getId(),
                 proposal==null||proposal.getProposedProvider()==null?null:proposal.getProposedProvider().getId(),
                 proposal==null||proposal.getProposedProvider()==null?null:proposal.getProposedProvider().getName(),
-                proposal==null?null:proposal.getRationale(),proposal==null?null:proposal.getWarrantyImpactNote());
+                proposal==null?null:proposal.getRationale(),proposal==null?null:proposal.getWarrantyImpactNote(), item.getServiceChoice());
     }
 }

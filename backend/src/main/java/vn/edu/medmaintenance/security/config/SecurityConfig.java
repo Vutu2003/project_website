@@ -65,6 +65,7 @@ public class SecurityConfig {
                             .hasAnyRole("PHONG_VTYT", "BAN_GIAM_DOC")
                         .requestMatchers(HttpMethod.GET, "/api/equipment/*/maintenance-history")
                             .hasAnyRole("PHONG_VTYT", "BAN_GIAM_DOC", "KHOA_PHONG")
+                        .requestMatchers(HttpMethod.PUT, "/api/equipment/*/warranty").hasAnyRole("PHONG_VTYT", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/equipment/*/coverages")
                             .hasRole("PHONG_VTYT")
                         .requestMatchers(HttpMethod.GET, "/api/approvals/*")

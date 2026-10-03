@@ -30,7 +30,7 @@ import vn.edu.medmaintenance.persistence.repository.*;
         this.em=em;
     }
     public static boolean validFree(MaintenanceCoverage c, Long equipment, LocalDate date) {
-        return c!=null && c.getClassification()==CoverageClassification.FREE && c.getEquipment().getId().equals(equipment) && c.getVerifiedByUser()!=null && c.getVerifiedByUser().getRoleCode()==UserRole.PHONG_VTYT && c.getVerifiedAt()!=null && c.getBasisNote()!=null && !c.getBasisNote().isBlank() && c.getProvider()!=null && Boolean.TRUE.equals(c.getProvider().getActive()) && (c.getEffectiveFrom()==null || !c.getEffectiveFrom().isAfter(date)) && (c.getEffectiveTo()==null || !c.getEffectiveTo().isBefore(date));
+        return c!=null && c.getClassification()==CoverageClassification.FREE && c.getEquipment().getId().equals(equipment) && c.getVerifiedByUser()!=null && c.getVerifiedByUser().getRoleCode()==UserRole.PHONG_VTYT && c.getVerifiedAt()!=null && c.getBasisNote()!=null && !c.getBasisNote().isBlank() && c.getProvider()!=null && Boolean.TRUE.equals(c.getProvider().getActive()) && (c.getEffectiveFrom()==null || !c.getEffectiveFrom().isAfter(date)) && (c.getEffectiveTo()==null || !c.getEffectiveTo().isBefore(date)) && (c.getWarrantyExpiresOn()==null || !c.getWarrantyExpiresOn().isBefore(date));
     }
     private LocalDate date(MaintenancePlanItem i) {
         return i.getPlannedDate()==null?i.getPlan().getPeriodStart():i.getPlannedDate();
@@ -40,6 +40,15 @@ import vn.edu.medmaintenance.persistence.repository.*;
         // Incomplete drafts can be saved, never submitted.
         if (item.getPlan().getStatus()!=PlanStatus.DRAFT && item.getPlan().getStatus()!=PlanStatus.REVISION_REQUIRED)fail("PLAN_NOT_EDITABLE", "Kế hoạch đã khóa hình thức bảo trì.");
         if (input.version()!=null && !input.version().equals(item.getVersion()))fail("OPTIMISTIC_LOCK_CONFLICT", "Hạng mục đã thay đổi, hãy tải lại.");
+        ServiceChoice choice=input.classification()==CoverageClassification.FREE?null:
+            input.serviceChoice()==null?ServiceChoice.EXTERNAL:input.serviceChoice();
+        if (input.classification()==CoverageClassification.FREE && input.serviceChoice()!=null)
+            fail("INVALID_SERVICE_CHOICE", "Theo hợp đồng không dùng lựa chọn ngoài bảo hành.");
+        if (choice==ServiceChoice.MANUFACTURER) {
+            var manufacturer=item.getEquipment().getManufacturerProvider();
+            if (manufacturer==null || !Boolean.TRUE.equals(manufacturer.getActive()) || !manufacturer.getId().equals(input.proposedProviderId()))
+                fail("INVALID_MANUFACTURER", "Chọn nhà sản xuất đang hoạt động đã lưu trong hồ sơ thiết bị.");
+        }
         String old=item.getStatus().name();
         var active=requests.findByPlanItem_IdOrderBySubmittedAtAscIdAsc(item.getId()).stream().filter(q->q.getRequestType()==ApprovalRequestType.VENDOR_SELECTION && (q.getStatus()==ApprovalRequestStatus.DRAFT || q.getStatus()==ApprovalRequestStatus.PENDING)).toList();
         var at=OffsetDateTime.now(ZoneOffset.UTC);
@@ -55,7 +64,7 @@ import vn.edu.medmaintenance.persistence.repository.*;
         }
         if (input.classification()==CoverageClassification.NOT_FREE && active.size()==1) {
             var q=active.get(0);
-            if (q.getStatus()==ApprovalRequestStatus.DRAFT && Objects.equals(q.getProposedProvider()==null?null:q.getProposedProvider().getId(), input.proposedProviderId()) && Objects.equals(q.getRationale(), trim(input.rationale())) && Objects.equals(q.getWarrantyImpactNote(), trim(input.warrantyImpactNote())) && item.getStatus()==PlanItemStatus.PENDING_PROPOSAL) return;
+            if (q.getStatus()==ApprovalRequestStatus.DRAFT && Objects.equals(q.getProposedProvider()==null?null:q.getProposedProvider().getId(), input.proposedProviderId()) && Objects.equals(q.getRationale(), trim(input.rationale())) && Objects.equals(q.getWarrantyImpactNote(), trim(input.warrantyImpactNote())) && item.getStatus()==PlanItemStatus.PENDING_PROPOSAL && item.getServiceChoice()==choice) return;
         }
         for (var q:active) {
             q.setStatus(ApprovalRequestStatus.CANCELLED);
@@ -63,6 +72,7 @@ import vn.edu.medmaintenance.persistence.repository.*;
         }
         em.flush();
         // release the active-content unique key before inserting replacement
+        item.setServiceChoice(choice);
         item.setCoverage(coverage);
         item.setAssignedProvider(null);
         item.setAssignmentRoute(null);
@@ -83,7 +93,7 @@ import vn.edu.medmaintenance.persistence.repository.*;
             q.setRationale(trim(input.rationale()));
             q.setWarrantyImpactNote(trim(input.warrantyImpactNote()));
             requests.save(q);
-            history.itemTransition(item, actor, old, item.getStatus().name(), "PREPARE_EXTERNAL_PROVIDER", "classification=NOT_FREE; provider="+input.proposedProviderId()+"; date="+date(item)+"; basis="+trim(input.rationale())+"; note="+trim(input.warrantyImpactNote()), at);
+            history.itemTransition(item, actor, old, item.getStatus().name(), "PREPARE_EXTERNAL_PROVIDER", "classification=NOT_FREE; serviceChoice="+choice+"; provider="+input.proposedProviderId()+"; date="+date(item)+"; basis="+trim(input.rationale())+"; note="+trim(input.warrantyImpactNote()), at);
         }
     }
     public void validateComplete(MaintenancePlanItem i) {
@@ -95,6 +105,11 @@ import vn.edu.medmaintenance.persistence.repository.*;
         else if (i.getStatus()==PlanItemStatus.PENDING_PROPOSAL) {
             var q=draft(i);
             if (q==null || q.getProposedProvider()==null)fail("PLAN_ITEM_INCOMPLETE", "Thiết bị "+code+" chưa chọn đơn vị bảo trì đề xuất.");
+            if (i.getServiceChoice()==ServiceChoice.MANUFACTURER) {
+                var manufacturer=i.getEquipment().getManufacturerProvider();
+                if (manufacturer==null || !manufacturer.getId().equals(q.getProposedProvider().getId()))
+                    fail("PLAN_ITEM_INCOMPLETE", "Thiết bị "+code+" cần chọn lại nhà sản xuất trong hồ sơ.");
+            }
             if (!Boolean.TRUE.equals(q.getProposedProvider().getActive()))fail("PLAN_ITEM_INCOMPLETE", "Thiết bị "+code+" có đơn vị đề xuất ngừng hoạt động.");
             if (q.getRationale()==null || q.getRationale().isBlank())fail("PLAN_ITEM_INCOMPLETE", "Thiết bị "+code+" chưa nhập căn cứ chọn đơn vị.");
         }

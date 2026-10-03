@@ -14,7 +14,11 @@ import vn.edu.medmaintenance.service.MaintenanceSuggestionService;
     public MaintenanceSuggestionController(MaintenanceSuggestionService service) {
         this.service=service;
     }
-    @GetMapping public PageResponse<MaintenanceSuggestionResponse> list(@Valid @ModelAttribute PageQuery query) {
-        return service.list(PageRequests.create(query, Set.of("equipmentCode", "id"), "equipmentCode", Sort.Direction.ASC));
+    @GetMapping public PageResponse<MaintenanceSuggestionResponse> list(@Valid @ModelAttribute PageQuery query,
+            @RequestParam(required=false) String search,
+            @RequestParam(defaultValue="true") Boolean active,
+            @RequestParam(defaultValue="false") boolean includeInactive,
+            @RequestParam(required=false) @org.springframework.format.annotation.DateTimeFormat(iso=org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate referenceDate) {
+        return service.list(PageRequests.create(query, Set.of("equipmentCode", "id"), "equipmentCode", Sort.Direction.ASC), search, includeInactive ? null : active, referenceDate);
     }
 }

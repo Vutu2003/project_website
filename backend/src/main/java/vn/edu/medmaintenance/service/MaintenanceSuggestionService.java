@@ -28,9 +28,11 @@ import vn.edu.medmaintenance.security.principal.CurrentUser;
         coverages=c;
         current=u;
     }
-    @Transactional(readOnly=true) public PageResponse<MaintenanceSuggestionResponse> list(Pageable page) {
+    @Transactional(readOnly=true) public PageResponse<MaintenanceSuggestionResponse> list(Pageable page, String search, Boolean active, LocalDate referenceDate) {
         if (current.get().role()!=UserRole.PHONG_VTYT)throw new BusinessRuleException(HttpStatus.FORBIDDEN, "BUSINESS_ACCESS_DENIED", "Chỉ Phòng VTYT được xem đề xuất bảo trì.");
-        var devices=equipment.findByActiveTrue(page);
+        String pattern="%"+(search==null?"":search.trim().toLowerCase(Locale.ROOT)
+            .replace("!", "!!").replace("%", "!%").replace("_", "!_"))+"%";
+        var devices=equipment.searchVisible(null, active, false, pattern, page);
         var ids=devices.getContent().stream().map(Equipment::getId).toList();
         if (ids.isEmpty())return PageResponse.from(devices, d->null);
         var allItems=items.findByEquipment_IdIn(ids);
@@ -52,12 +54,15 @@ import vn.edu.medmaintenance.security.principal.CurrentUser;
                 next=completed.get(completed.size()-1).plusDays(days);
                 basis="Suy ra từ "+completed.size()+" lần bảo trì hoàn tất; khoảng cách trung bình "+days+" ngày";
             }
-            LocalDate ref=next==null?today:next;
+            LocalDate ref=referenceDate!=null?referenceDate:next==null?today:next;
             var coverage=evidence.stream().filter(c->PlanningDecisionService.validFree(c, d.getId(), ref)).max(Comparator.comparing(MaintenanceCoverage::getId)).orElse(null);
+            var warranty=coverage!=null?coverage:evidence.stream().filter(c->c.getEquipment().getId().equals(d.getId()) && (c.getContractReference()!=null || c.getWarrantyExpiresOn()!=null))
+                .max(Comparator.comparing((MaintenanceCoverage c)->c.getEffectiveFrom(), Comparator.nullsFirst(Comparator.naturalOrder())).thenComparing(MaintenanceCoverage::getId)).orElse(null);
+            var manufacturer=d.getManufacturerProvider();
             var latest=dx.isEmpty()?null:dx.get(dx.size()-1);
             var record=latest==null?null:records.stream().filter(a->a.getExecution().getId().equals(latest.getId())).max(Comparator.comparing(AcceptanceRecord::getObservedAt).thenComparing(AcceptanceRecord::getId)).orElse(null);
             var external=dx.stream().filter(x->x.getPlanItem().getAssignmentRoute()==AssignmentRoute.EXTERNAL_APPROVED).reduce((a, b)->b).orElse(null);
-            return new MaintenanceSuggestionResponse(d.getId(), d.getEquipmentCode(), d.getName(), d.getDepartment().getId(), d.getDepartment().getName(), completed.isEmpty()?null:completed.get(completed.size()-1), record==null?null:record.getResult().name(), latest==null?null:latest.getPlanItem().getStatus().name(), coverage==null?CoverageClassification.NOT_FREE:CoverageClassification.FREE, coverage==null?null:coverage.getId(), coverage==null?null:coverage.getContractReference(), coverage==null?null:coverage.getProvider().getName(), external==null?null:external.getProvider().getName(), next, ref, basis, coverage==null?"Không có hợp đồng hợp lệ vào ngày tham chiếu; chuẩn bị đề xuất ngoài hợp đồng.":"Hợp đồng đã xác minh, áp dụng vào ngày tham chiếu.", open.stream().map(i->i.getPlan().getId()).distinct().sorted().toList());
+            return new MaintenanceSuggestionResponse(d.getId(), d.getEquipmentCode(), d.getName(), d.getDepartment().getId(), d.getDepartment().getName(), completed.isEmpty()?null:completed.get(completed.size()-1), record==null?null:record.getResult().name(), latest==null?null:latest.getPlanItem().getStatus().name(), coverage==null?CoverageClassification.NOT_FREE:CoverageClassification.FREE, coverage==null?null:coverage.getId(), coverage==null?null:coverage.getContractReference(), coverage==null?null:coverage.getProvider().getName(), external==null?null:external.getProvider().getName(), next, ref, basis, coverage==null?"Không có hợp đồng hợp lệ vào ngày tham chiếu; chuẩn bị đề xuất ngoài hợp đồng.":"Hợp đồng đã xác minh, áp dụng vào ngày tham chiếu.", open.stream().map(i->i.getPlan().getId()).distinct().sorted().toList(), warranty==null?null:warranty.getWarrantyExpiresOn(), WarrantyStatus.at(warranty, ref), manufacturer==null?null:manufacturer.getId(), manufacturer==null?null:manufacturer.getName(), manufacturer==null?null:manufacturer.getContactDetails(), d.getModel(), d.getSerialNumber(), d.getTechnicalSpec(), d.getActive());
         });
     }
     static long observedInterval(List<LocalDate> dates) {

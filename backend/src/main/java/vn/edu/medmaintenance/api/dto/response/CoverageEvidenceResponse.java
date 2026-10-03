@@ -9,4 +9,4 @@ import vn.edu.medmaintenance.persistence.enums.UserRole;
 public record CoverageEvidenceResponse(Long id, Long equipmentId, CoverageClassification classification,
         Long providerId, String providerName, Boolean providerActive, String contractReference,
         String coverageScope, LocalDate effectiveFrom, LocalDate effectiveTo,
-        String verifiedByName, OffsetDateTime verifiedAt, String basisNote, UserRole verifiedByRole) { }
+        String verifiedByName, OffsetDateTime verifiedAt, String basisNote, UserRole verifiedByRole, LocalDate warrantyExpiresOn, String warrantyStatus) { }

@@ -1,6 +1,5 @@
-import { MaintenanceSuggestionsPage } from './pages/MaintenanceSuggestionsPage'
 import { NotificationsPage } from './pages/NotificationsPage'
-import { Route, Routes } from 'react-router'
+import { Navigate, Route, Routes } from 'react-router'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { AppLayout } from './layouts/AppLayout'
 import { DashboardPage } from './pages/DashboardPage'
@@ -31,7 +30,7 @@ export default function App() {
     <Route element={<ProtectedRoute />}>
       <Route element={<AppLayout />}>
         <Route path="/" element={<DashboardPage />} />
-        <Route path="/maintenance-suggestions" element={<RoleGuard roles={['PHONG_VTYT']}><MaintenanceSuggestionsPage /></RoleGuard>} />
+        <Route path="/maintenance-suggestions" element={<RoleGuard roles={['PHONG_VTYT']}><Navigate replace to="/equipment" /></RoleGuard>} />
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/plans" element={<PlanListPage />} />
         <Route path="/plans/new" element={<RoleGuard roles={['PHONG_VTYT']}><PlanFormPage mode="create" /></RoleGuard>} />
@@ -48,6 +47,7 @@ export default function App() {
         <Route path="/plans/:planId/report" element={<RoleGuard roles={['PHONG_VTYT', 'BAN_GIAM_DOC']}><ReportDetailPage /></RoleGuard>} />
         <Route path="/equipment" element={<RoleGuard roles={['PHONG_VTYT', 'BAN_GIAM_DOC', 'KHOA_PHONG']}><EquipmentListPage /></RoleGuard>} />
         <Route path="/equipment/:equipmentId/history" element={<RoleGuard roles={['PHONG_VTYT', 'BAN_GIAM_DOC', 'KHOA_PHONG']}><EquipmentHistoryPage /></RoleGuard>} />
+        <Route path="/admin/equipment" element={<RoleGuard roles={['ADMIN']}><EquipmentListPage warrantyOnly /></RoleGuard>} />
         <Route path="/admin/catalogs/departments" element={<RoleGuard roles={['ADMIN']}><AdminCatalogListPage kind="departments" /></RoleGuard>} />
         <Route path="/admin/catalogs/departments/new" element={<RoleGuard roles={['ADMIN']}><AdminCatalogFormPage kind="departments" mode="create" /></RoleGuard>} />
         <Route path="/admin/catalogs/departments/:id" element={<RoleGuard roles={['ADMIN']}><AdminCatalogDetailPage kind="departments" /></RoleGuard>} />

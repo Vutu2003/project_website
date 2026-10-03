@@ -35,6 +35,13 @@ public class Equipment {
     @Column(name = "active", nullable = false)
     private Boolean active;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "manufacturer_provider_id")
+    private ServiceProvider manufacturerProvider;
+
+    public ServiceProvider getManufacturerProvider() { return manufacturerProvider; }
+    public void setManufacturerProvider(ServiceProvider provider) { manufacturerProvider = provider; }
+
     protected Equipment() {
     }
 

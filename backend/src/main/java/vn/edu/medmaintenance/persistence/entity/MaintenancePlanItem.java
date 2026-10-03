@@ -48,6 +48,13 @@ public class MaintenancePlanItem {
     @Column(name = "version", nullable = false)
     private Integer version;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "service_choice", columnDefinition = "text")
+    private ServiceChoice serviceChoice;
+
+    public ServiceChoice getServiceChoice() { return serviceChoice; }
+    public void setServiceChoice(ServiceChoice choice) { serviceChoice = choice; }
+
     public MaintenancePlanItem() {
     }
 

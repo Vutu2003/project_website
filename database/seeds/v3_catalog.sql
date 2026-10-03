@@ -57,7 +57,7 @@ WITH additions(department_code, equipment_code, name, serial_number, model) AS (
     RETURNING id, equipment_code
 )
 INSERT INTO maintenance_coverage (equipment_id, provider_id, contract_reference, coverage_scope,
-    effective_from, effective_to, classification, verified_by_user_id, verified_at, basis_note)
+    effective_from, effective_to, classification, verified_by_user_id, verified_at, basis_note, warranty_expires_on)
 SELECT e.id,
     CASE WHEN right(e.equipment_code,3)::int % 2=1 THEN
         (SELECT id FROM service_provider WHERE code=CASE WHEN right(e.equipment_code,3)::int % 4=1 THEN 'AN_PHAT' ELSE 'Y_SINH_VIET' END)
@@ -68,6 +68,7 @@ SELECT e.id,
     CASE WHEN right(e.equipment_code,3)::int % 2=1 THEN 'FREE' ELSE 'NOT_FREE' END,
     (SELECT id FROM user_account WHERE username='vtyt'), TIMESTAMPTZ '2026-01-01 08:00:00+07',
     CASE WHEN right(e.equipment_code,3)::int % 2=1 THEN 'Bảo trì theo hợp đồng còn hiệu lực, đã được Phòng VTYT xác minh'
-         ELSE 'Ngoài phạm vi hợp đồng bảo trì; Phòng VTYT cần đề xuất đơn vị thực hiện' END
+         ELSE 'Ngoài phạm vi hợp đồng bảo trì; Phòng VTYT cần đề xuất đơn vị thực hiện' END,
+    CASE WHEN right(e.equipment_code,3)::int % 2=1 THEN DATE '2030-12-31' END
 FROM inserted e
 ORDER BY e.equipment_code;

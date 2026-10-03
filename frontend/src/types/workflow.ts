@@ -6,6 +6,8 @@ export type ApprovalRequestType = 'PLAN_APPROVAL' | 'VENDOR_SELECTION'
 export type ApprovalRequestStatus = 'DRAFT' | 'PENDING' | 'DECIDED' | 'CANCELLED'
 export type ApprovalOutcome = 'APPROVE' | 'REVISION_REQUIRED'
 export type CoverageClassification = 'FREE' | 'NOT_FREE'
+export type ServiceChoice = 'MANUFACTURER' | 'EXTERNAL'
+export type WarrantyStatus = 'ACTIVE' | 'EXPIRED' | 'NOT_STARTED' | 'UNKNOWN'
 export type AssignmentRoute = 'UNDER_CONTRACT' | 'EXTERNAL_APPROVED'
 
 export interface PageResponse<T> {
@@ -50,9 +52,10 @@ export interface PlanItem {
   proposedProviderName?: string | null
   rationale?: string | null
   warrantyImpactNote?: string | null
+  serviceChoice?: ServiceChoice | null
 }
 
-export interface PlanItemInput { equipmentId: number; plannedDate: string | null; classification?: CoverageClassification | null; coverageId?: number | null; proposedProviderId?: number | null; rationale?: string | null; warrantyImpactNote?: string | null; version?: number }
+export interface PlanItemInput { equipmentId: number; plannedDate: string | null; classification?: CoverageClassification | null; coverageId?: number | null; proposedProviderId?: number | null; rationale?: string | null; warrantyImpactNote?: string | null; version?: number; serviceChoice?: ServiceChoice | null }
 export interface CreatePlanRequest { title: string; periodStart: string; periodEnd: string; items: PlanItemInput[] }
 export interface EditPlanRequest extends CreatePlanRequest { version: number }
 export interface PlanCommandResponse { id: number; status: PlanStatus; version: number; approvalRequestId: number | null }
@@ -107,6 +110,7 @@ export interface ApprovalReview {
   proposedProviderName: string | null
   rationale: string | null
   warrantyImpactNote: string | null
+  serviceChoice?: ServiceChoice | null
 }
 export interface ApprovalDecisionRequest { version: number; outcome: ApprovalOutcome; comment: string | null }
 export interface PlanApprovalDecisionResponse {
@@ -129,6 +133,8 @@ export interface CoverageEvidence {
   verifiedByName: string | null
   verifiedAt: string | null
   basisNote: string | null
+  warrantyExpiresOn?: string | null
+  warrantyStatus?: WarrantyStatus
 }
 export interface ItemWorkflowResponse {
   planId: number
@@ -163,12 +169,27 @@ export interface VendorProposalRequest {
 }
 
 export interface MaintenanceSuggestion {
- equipmentId: number; equipmentCode: string; equipmentName: string; departmentId: number; departmentName: string;
+ equipmentId: number; equipmentCode: string; equipmentName: string; departmentId: number; departmentName: string; model?: string | null; serialNumber?: string | null; technicalSpec?: string | null; active?: boolean;
  lastMaintenanceDate: string | null; latestResult: string | null; latestStatus: PlanItemStatus | null;
  classification: CoverageClassification; coverageId: number | null; contractReference: string | null;
  contractualProviderName: string | null; lastExternalProviderName: string | null;
  suggestedDate: string | null; referenceDate: string; suggestionBasis: string; coverageNote: string; openPlanIds: number[];
+ warrantyExpiresOn?: string | null; warrantyStatus?: WarrantyStatus; manufacturerProviderId?: number | null; manufacturerName?: string | null; manufacturerContact?: string | null; serviceChoice?: ServiceChoice;
 }
 export interface UserNotification {
  id: number; notificationType: string; title: string; message: string; targetUrl: string; createdAt: string; readAt: string | null;
+}
+
+export interface WarrantyContract {
+ id: number; contractReference: string | null; providerName: string | null; providerContact: string | null;
+ coverageScope: string | null; effectiveFrom: string | null; effectiveTo: string | null;
+ warrantyExpiresOn: string | null; warrantyStatus: WarrantyStatus; basisNote: string | null;
+}
+export interface WarrantyInfo {
+ equipmentId: number; equipmentCode: string; equipmentName: string; referenceDate: string;
+ manufacturerProviderId: number | null; manufacturerName: string | null; manufacturerContact: string | null;
+ manufacturerActive: boolean | null; contracts: WarrantyContract[];
+}
+export interface UpdateWarrantyInput {
+ manufacturerProviderId: number | null; contracts: { id: number; warrantyExpiresOn: string | null }[];
 }

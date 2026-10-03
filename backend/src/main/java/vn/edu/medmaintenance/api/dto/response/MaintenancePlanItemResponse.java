@@ -10,4 +10,4 @@ public record MaintenancePlanItemResponse(
         PlanItemStatus status, Long assignedProviderId, String assignedProviderName,
         AssignmentRoute assignmentRoute, Integer version,
         vn.edu.medmaintenance.persistence.enums.CoverageClassification classification,Long coverageId,
-        Long proposedProviderId,String proposedProviderName,String rationale,String warrantyImpactNote) { }
+        Long proposedProviderId,String proposedProviderName,String rationale,String warrantyImpactNote, vn.edu.medmaintenance.persistence.enums.ServiceChoice serviceChoice) { }

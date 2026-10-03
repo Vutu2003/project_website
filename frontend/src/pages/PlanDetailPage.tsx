@@ -4,6 +4,8 @@ import { ApiError } from '../api/types'
 import { plansApi } from '../api/plansApi'
 import { useAuth } from '../auth/useAuth'
 import { Pagination } from '../components/Pagination'
+import { WarrantyModal } from '../components/WarrantyModal'
+import { serviceChoiceLabels } from '../utils/warranty'
 import { StatusBadge } from '../components/StatusBadge'
 import { WorkflowError, WorkflowSuccess } from '../components/WorkflowFeedback'
 import type { PageResponse, Plan, PlanItem } from '../types/workflow'
@@ -16,6 +18,7 @@ export function PlanDetailPage() {
   const location = useLocation()
   const [plan, setPlan] = useState<Plan | null>(null)
   const [items, setItems] = useState<PageResponse<PlanItem> | null>(null)
+  const [warranty, setWarranty] = useState<{ equipmentId: number; referenceDate?: string } | null>(null)
   const [itemPage, setItemPage] = useState(0)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -66,11 +69,12 @@ export function PlanDetailPage() {
         <div className="table-scroll"><table className="data-table"><thead><tr><th>Thiết bị</th><th>Khoa tại kế hoạch</th><th>Ngày dự kiến</th><th>Trạng thái</th><th>Đơn vị / tuyến</th><th></th></tr></thead>
           <tbody>{items.content.map(item => <tr key={item.id}><td><strong>{item.equipmentCode}</strong><span className="row-sub">{item.equipmentName} · v{item.version}</span></td>
             <td>{item.departmentNameAtPlan}</td><td>{businessDate(item.plannedDate)}</td><td><StatusBadge label={itemStatusLabels[item.status]} tone={item.status === 'PENDING_PROPOSAL' ? 'amber' : 'neutral'} /></td>
-            <td>{item.assignedProviderName || '—'}<span className="row-sub">{item.assignmentRoute ? assignmentRouteLabels[item.assignmentRoute] : 'Chưa phân tuyến'}</span></td>
-            <td>{['UNDER_CONTRACT', 'ASSIGNED_EXTERNAL', 'IN_MAINTENANCE', 'AWAITING_TECHNICAL_ACCEPTANCE', 'AWAITING_HANDOVER', 'REWORK_REQUIRED', 'REPAIR_REQUIRED', 'COMPLETED'].includes(item.status) && executionApproved && user?.role !== 'BAN_GIAM_DOC' && user?.role !== 'ADMIN' && <Link className="table-link" to={`/plans/${plan.id}/items/${item.id}/execution`}>Thực hiện / bàn giao</Link>}{canEdit && <Link className="table-link" to={`/plans/${plan.id}/edit`}>Hiệu chỉnh hình thức</Link>}{item.proposedProviderName && <span className="row-sub">Đề xuất: {item.proposedProviderName}<br />Căn cứ: {item.rationale || 'Chưa nhập'}</span>}{item.status === 'PLANNED' && <span className="warning-text">Chưa chọn hình thức bảo trì</span>}{!executionApproved && ['UNDER_CONTRACT', 'PENDING_PROPOSAL'].includes(item.status) && <span className="row-sub">Hình thức bảo trì đã được xác định. Chỉ có thể bắt đầu thực hiện sau khi kế hoạch được phê duyệt.</span>}</td></tr>)}</tbody></table></div>
+            <td>{item.assignedProviderName || '—'}<span className="row-sub">{item.serviceChoice ? serviceChoiceLabels[item.serviceChoice] : item.assignmentRoute ? assignmentRouteLabels[item.assignmentRoute] : 'Chưa phân tuyến'}</span></td>
+            <td><button type="button" className="button secondary compact" onClick={() => setWarranty({ equipmentId: item.equipmentId, referenceDate: item.plannedDate || plan.periodStart })}>Thông tin bảo hành</button>{['UNDER_CONTRACT', 'ASSIGNED_EXTERNAL', 'IN_MAINTENANCE', 'AWAITING_TECHNICAL_ACCEPTANCE', 'AWAITING_HANDOVER', 'REWORK_REQUIRED', 'REPAIR_REQUIRED', 'COMPLETED'].includes(item.status) && executionApproved && user?.role !== 'BAN_GIAM_DOC' && user?.role !== 'ADMIN' && <Link className="table-link" to={`/plans/${plan.id}/items/${item.id}/execution`}>Thực hiện / bàn giao</Link>}{canEdit && <Link className="table-link" to={`/plans/${plan.id}/edit`}>Hiệu chỉnh hình thức</Link>}{item.proposedProviderName && <span className="row-sub">Đề xuất: {item.proposedProviderName}<br />Căn cứ: {item.rationale || 'Chưa nhập'}</span>}{item.status === 'PLANNED' && <span className="warning-text">Chưa chọn hình thức bảo trì</span>}{!executionApproved && ['UNDER_CONTRACT', 'PENDING_PROPOSAL'].includes(item.status) && <span className="row-sub">Hình thức bảo trì đã được xác định. Chỉ có thể bắt đầu thực hiện sau khi kế hoạch được phê duyệt.</span>}</td></tr>)}</tbody></table></div>
         <Pagination data={items} onPage={next => { setItemPage(next); setLoading(true) }} />
       </>}
     </section>
     <Link className="text-link" to="/plans">← Danh sách kế hoạch</Link>
+    {warranty && <WarrantyModal equipmentId={warranty.equipmentId} referenceDate={warranty.referenceDate} onClose={() => setWarranty(null)} />}
   </div>
 }

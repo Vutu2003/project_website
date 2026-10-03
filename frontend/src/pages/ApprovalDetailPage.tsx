@@ -4,6 +4,8 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { ApiError } from '../api/types'
 import { approvalsApi } from '../api/approvalsApi'
 import { plansApi } from '../api/plansApi'
+import { WarrantyModal } from '../components/WarrantyModal'
+import { serviceChoiceLabels } from '../utils/warranty'
 import { StatusBadge } from '../components/StatusBadge'
 import { Pagination } from '../components/Pagination'
 import { WorkflowError } from '../components/WorkflowFeedback'
@@ -24,6 +26,7 @@ export function ApprovalDetailPage() {
   const [error, setError] = useState<unknown>(null)
   const [validation, setValidation] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [warranty, setWarranty] = useState<{ equipmentId: number; referenceDate?: string } | null>(null)
   const [itemPage, setItemPage] = useState(0)
   const reload = useCallback(() => { setLoading(true); setReloadKey(value => value + 1) }, [])
   useEffect(() => {
@@ -65,17 +68,18 @@ export function ApprovalDetailPage() {
     {plan && <section className="panel business-panel"><div className="panel-heading"><div><h2>Thông tin kế hoạch</h2><p>{businessDate(plan.periodStart)} – {businessDate(plan.periodEnd)} · {planStatusLabels[plan.status]}</p></div>
       <Link className="table-link" to={`/plans/${plan.id}`}>Xem kế hoạch</Link></div>
       {items && <><p className="muted">{items.totalElements} hạng mục · hình thức và đơn vị do Phòng VTYT chuẩn bị.</p>
-        <div className="table-scroll"><table className="data-table"><thead><tr><th>Thiết bị / khoa</th><th>Ngày dự kiến</th><th>Trạng thái</th><th>Hình thức</th><th>Đơn vị / căn cứ</th></tr></thead>
+        <div className="table-scroll"><table className="data-table"><thead><tr><th>Thiết bị / khoa</th><th>Ngày dự kiến</th><th>Trạng thái</th><th>Hình thức</th><th>Đơn vị / căn cứ</th><th>Bảo hành</th></tr></thead>
           <tbody>{items.content.map(item => <tr key={item.id}><td>{item.equipmentCode} · {item.equipmentName}<span className="row-sub">{item.departmentNameAtPlan}</span></td><td>{businessDate(item.plannedDate)}</td><td>{itemStatusLabels[item.status]}</td>
-            <td>{item.classification ? coverageLabels[item.classification] : 'Chưa xác định'}{item.coverageId && <span className="row-sub">Hồ sơ hợp đồng #{item.coverageId}</span>}</td>
+            <td>{item.serviceChoice ? serviceChoiceLabels[item.serviceChoice] : item.classification ? coverageLabels[item.classification] : 'Chưa xác định'}{item.coverageId && <span className="row-sub">Hồ sơ hợp đồng #{item.coverageId}</span>}</td>
             <td>{item.classification === 'FREE' ? item.assignedProviderName || '—' : item.proposedProviderName || item.assignedProviderName || '—'}
               {item.rationale && <span className="row-sub">Căn cứ: {item.rationale}</span>}{item.warrantyImpactNote && <span className="row-sub">Ghi chú bảo hành: {item.warrantyImpactNote}</span>}</td>
+            <td><button type="button" className="button secondary compact" onClick={() => setWarranty({ equipmentId: item.equipmentId, referenceDate: item.plannedDate || plan.periodStart })}>Thông tin bảo hành</button></td>
           </tr>)}</tbody></table></div><Pagination data={items} onPage={next => { setLoading(true); setItemPage(next) }} /></>}
     </section>}
     {review.requestType === 'VENDOR_SELECTION' && <section className="panel business-panel"><div className="panel-heading"><h2>Đề xuất đơn vị bảo trì</h2></div>
       <dl className="detail-list"><div><dt>Thiết bị</dt><dd>{review.equipmentCode} · {review.equipmentName}</dd></div>
         <div><dt>Đơn vị được đề xuất</dt><dd>{review.proposedProviderName || '—'}</dd></div>
-        <div><dt>Hình thức bảo trì</dt><dd>{review.coverageClassification ? coverageLabels[review.coverageClassification] : '—'}</dd></div>
+        <div><dt>Hình thức bảo trì</dt><dd>{review.serviceChoice ? serviceChoiceLabels[review.serviceChoice] : review.coverageClassification ? coverageLabels[review.coverageClassification] : '—'}</dd></div>
         <div><dt>Căn cứ hợp đồng</dt><dd>{review.coverageBasis || 'Không có hợp đồng áp dụng; xem căn cứ chọn đơn vị bên dưới.'}</dd></div>
         <div><dt>Lý do đề xuất</dt><dd>{review.rationale || '—'}</dd></div>
         <div><dt>Ảnh hưởng bảo hành</dt><dd>{review.warrantyImpactNote || '—'}</dd></div></dl>
@@ -89,5 +93,6 @@ export function ApprovalDetailPage() {
       <WorkflowError error={error} onReload={reload} />
       <div className="form-actions"><Link className="button secondary" to="/approvals">Hủy</Link><button className="button primary" type="button" disabled={busy || loading} onClick={() => void decide()}>{busy ? 'Đang ghi quyết định…' : 'Xác nhận quyết định'}</button></div>
     </section>
+    {warranty && <WarrantyModal equipmentId={warranty.equipmentId} referenceDate={warranty.referenceDate} onClose={() => setWarranty(null)} />}
   </div>
 }

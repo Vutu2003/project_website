@@ -47,6 +47,12 @@ public class MaintenanceCoverage {
     @Column(name = "basis_note", nullable = true, columnDefinition = "text")
     private String basisNote;
 
+    @Column(name = "warranty_expires_on")
+    private LocalDate warrantyExpiresOn;
+
+    public LocalDate getWarrantyExpiresOn() { return warrantyExpiresOn; }
+    public void setWarrantyExpiresOn(LocalDate date) { warrantyExpiresOn = date; }
+
     protected MaintenanceCoverage() {
     }
 

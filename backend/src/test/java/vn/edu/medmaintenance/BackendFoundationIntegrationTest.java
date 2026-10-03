@@ -56,16 +56,16 @@ class BackendFoundationIntegrationTest {
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM information_schema.columns
                 WHERE table_schema = 'public' AND table_name <> 'flyway_schema_history'
-                """, Integer.class)).isEqualTo(126);
+                """, Integer.class)).isEqualTo(129);
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM pg_constraint c
                 JOIN pg_namespace n ON n.oid = c.connamespace
                 WHERE n.nspname = 'public' AND c.contype = 'f'
-                """, Integer.class)).isEqualTo(32);
+                """, Integer.class)).isEqualTo(33);
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM flyway_schema_history
                 WHERE success = true AND type = 'SQL'
-                """, Integer.class)).isEqualTo(8);
+                """, Integer.class)).isEqualTo(9);
     }
 
     @Test

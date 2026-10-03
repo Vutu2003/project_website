@@ -1,3 +1,21 @@
+## Bảo hành và danh sách bảo trì
+
+VTYT dùng một mục **Thiết bị & bảo trì** tại `/equipment`, gộp danh mục, bảo hành, đề xuất và truy cập lịch sử. Đường dẫn `/maintenance-suggestions` cũ chuyển về mục này. Danh sách có tìm theo mã/tên/serial và lọc thiết bị đang/ngừng hoạt động.
+Thiết bị trong biểu mẫu kế hoạch và theo dõi tiến độ dùng bảng. Bảng chọn thiết bị và bảng đã chọn hiển thị nhanh trạng thái, ngày hết bảo hành theo ngày bắt đầu kế hoạch hoặc ngày dự kiến của từng thiết bị.
+Mỗi dòng có nút **Thông tin bảo hành** để xem thời hạn, trạng thái, hợp đồng và liên hệ.
+VTYT/ADMIN có thể cập nhật nhà sản xuất hoặc đại diện (từ danh mục đơn vị) và ngày hết bảo hành trong hộp thoại này.
+
+Migration V009 thêm `equipment.manufacturer_provider_id`,
+`maintenance_coverage.warranty_expires_on` và `maintenance_plan_item.service_choice`.
+Với hợp đồng hiện có, ngày kết thúc hợp đồng là ngày hết bảo hành ban đầu; có thể cập nhật lại theo hồ sơ thực tế.
+Trạng thái được tính theo ngày tham chiếu, còn hiệu lực đến hết ngày hết bảo hành;
+thiếu ngày thì hiển thị **Chưa rõ thời hạn**. Ngày kết thúc hợp đồng và ngày hết bảo hành được lưu riêng.
+
+Ngoài hợp đồng hoặc hết bảo hành có hai phương án: **Liên hệ nhà sản xuất** và **Bảo hành ngoài**.
+Phương án nhà sản xuất sử dụng đơn vị đã lưu trong hồ sơ thiết bị; cả hai vẫn cần căn cứ và BGĐ phê duyệt trước khi thực hiện.
+Hệ thống lưu phương án và hiển thị thông tin liên hệ để VTYT chủ động liên hệ.
+Backend tự áp dụng migration khi khởi động bằng `./scripts/start.sh` sau khi build JAR mới.
+
 # Chạy project trên máy hiện tại
 
 ## Nền tảng dữ liệu Version 3

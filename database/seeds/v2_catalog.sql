@@ -28,31 +28,31 @@ INSERT INTO user_account (username,password_hash,role_code,department_id,display
 
 INSERT INTO equipment (department_id, equipment_code, name, serial_number, model, technical_spec, active) VALUES (1, 'TB-001', 'Máy theo dõi bệnh nhân', 'SN-2026-0001', 'MON-01', 'Theo hồ sơ kỹ thuật và hướng dẫn vận hành của thiết bị', TRUE);
 
-INSERT INTO maintenance_coverage (equipment_id, provider_id, contract_reference, coverage_scope, effective_from, effective_to, classification, verified_by_user_id, verified_at, basis_note) VALUES (1, 1, 'HD-BT-2026-001', 'Kiểm tra, hiệu chuẩn và bảo dưỡng định kỳ', '2026-01-01', '2030-12-31', 'FREE', 2, '2026-01-01T08:00:00+07:00', 'Áp dụng điều khoản bảo trì theo hợp đồng còn hiệu lực');
+INSERT INTO maintenance_coverage (equipment_id, provider_id, contract_reference, coverage_scope, effective_from, effective_to, classification, verified_by_user_id, verified_at, basis_note, warranty_expires_on) VALUES (1, 1, 'HD-BT-2026-001', 'Kiểm tra, hiệu chuẩn và bảo dưỡng định kỳ', '2026-01-01', '2030-12-31', 'FREE', 2, '2026-01-01T08:00:00+07:00', 'Áp dụng điều khoản bảo trì theo hợp đồng còn hiệu lực', '2030-12-31');
 
 INSERT INTO equipment (department_id, equipment_code, name, serial_number, model, technical_spec, active) VALUES (1, 'TB-002', 'Bơm tiêm điện', 'SN-2026-0002', 'SYR-01', 'Theo hồ sơ kỹ thuật và hướng dẫn vận hành của thiết bị', TRUE);
 
-INSERT INTO maintenance_coverage (equipment_id, provider_id, contract_reference, coverage_scope, effective_from, effective_to, classification, verified_by_user_id, verified_at, basis_note) VALUES (2, NULL, NULL, NULL, '2026-01-01', '2030-12-31', 'NOT_FREE', 2, '2026-01-01T08:00:00+07:00', 'Thiết bị ngoài phạm vi hợp đồng bảo trì; cần đề xuất đơn vị thực hiện');
+INSERT INTO maintenance_coverage (equipment_id, provider_id, contract_reference, coverage_scope, effective_from, effective_to, classification, verified_by_user_id, verified_at, basis_note, warranty_expires_on) VALUES (2, NULL, NULL, NULL, '2026-01-01', '2030-12-31', 'NOT_FREE', 2, '2026-01-01T08:00:00+07:00', 'Thiết bị ngoài phạm vi hợp đồng bảo trì; cần đề xuất đơn vị thực hiện', NULL);
 
 INSERT INTO equipment (department_id, equipment_code, name, serial_number, model, technical_spec, active) VALUES (2, 'TB-003', 'Máy điện tim', 'SN-2026-0003', 'ECG-01', 'Theo hồ sơ kỹ thuật và hướng dẫn vận hành của thiết bị', TRUE);
 
-INSERT INTO maintenance_coverage (equipment_id, provider_id, contract_reference, coverage_scope, effective_from, effective_to, classification, verified_by_user_id, verified_at, basis_note) VALUES (3, 1, 'HD-BT-2026-003', 'Kiểm tra, hiệu chuẩn và bảo dưỡng định kỳ', '2026-01-01', '2030-12-31', 'FREE', 2, '2026-01-01T08:00:00+07:00', 'Áp dụng điều khoản bảo trì theo hợp đồng còn hiệu lực');
+INSERT INTO maintenance_coverage (equipment_id, provider_id, contract_reference, coverage_scope, effective_from, effective_to, classification, verified_by_user_id, verified_at, basis_note, warranty_expires_on) VALUES (3, 1, 'HD-BT-2026-003', 'Kiểm tra, hiệu chuẩn và bảo dưỡng định kỳ', '2026-01-01', '2030-12-31', 'FREE', 2, '2026-01-01T08:00:00+07:00', 'Áp dụng điều khoản bảo trì theo hợp đồng còn hiệu lực', '2030-12-31');
 
 INSERT INTO equipment (department_id, equipment_code, name, serial_number, model, technical_spec, active) VALUES (2, 'TB-004', 'Bơm truyền dịch', 'SN-2026-0004', 'INF-01', 'Theo hồ sơ kỹ thuật và hướng dẫn vận hành của thiết bị', TRUE);
 
-INSERT INTO maintenance_coverage (equipment_id, provider_id, contract_reference, coverage_scope, effective_from, effective_to, classification, verified_by_user_id, verified_at, basis_note) VALUES (4, NULL, NULL, NULL, '2026-01-01', '2030-12-31', 'NOT_FREE', 2, '2026-01-01T08:00:00+07:00', 'Thiết bị ngoài phạm vi hợp đồng bảo trì; cần đề xuất đơn vị thực hiện');
+INSERT INTO maintenance_coverage (equipment_id, provider_id, contract_reference, coverage_scope, effective_from, effective_to, classification, verified_by_user_id, verified_at, basis_note, warranty_expires_on) VALUES (4, NULL, NULL, NULL, '2026-01-01', '2030-12-31', 'NOT_FREE', 2, '2026-01-01T08:00:00+07:00', 'Thiết bị ngoài phạm vi hợp đồng bảo trì; cần đề xuất đơn vị thực hiện', NULL);
 
 INSERT INTO equipment (department_id, equipment_code, name, serial_number, model, technical_spec, active) VALUES (4, 'TB-005', 'Máy thở', 'SN-2026-0005', 'VENT-01', 'Theo hồ sơ kỹ thuật và hướng dẫn vận hành của thiết bị', TRUE);
 
-INSERT INTO maintenance_coverage (equipment_id, provider_id, contract_reference, coverage_scope, effective_from, effective_to, classification, verified_by_user_id, verified_at, basis_note) VALUES (5, 1, 'HD-BT-2026-005', 'Kiểm tra, hiệu chuẩn và bảo dưỡng định kỳ', '2026-01-01', '2030-12-31', 'FREE', 2, '2026-01-01T08:00:00+07:00', 'Áp dụng điều khoản bảo trì theo hợp đồng còn hiệu lực');
+INSERT INTO maintenance_coverage (equipment_id, provider_id, contract_reference, coverage_scope, effective_from, effective_to, classification, verified_by_user_id, verified_at, basis_note, warranty_expires_on) VALUES (5, 1, 'HD-BT-2026-005', 'Kiểm tra, hiệu chuẩn và bảo dưỡng định kỳ', '2026-01-01', '2030-12-31', 'FREE', 2, '2026-01-01T08:00:00+07:00', 'Áp dụng điều khoản bảo trì theo hợp đồng còn hiệu lực', '2030-12-31');
 
 INSERT INTO equipment (department_id, equipment_code, name, serial_number, model, technical_spec, active) VALUES (4, 'TB-006', 'Máy theo dõi bệnh nhân', 'SN-2026-0006', 'MON-02', 'Theo hồ sơ kỹ thuật và hướng dẫn vận hành của thiết bị', TRUE);
 
-INSERT INTO maintenance_coverage (equipment_id, provider_id, contract_reference, coverage_scope, effective_from, effective_to, classification, verified_by_user_id, verified_at, basis_note) VALUES (6, NULL, NULL, NULL, '2026-01-01', '2030-12-31', 'NOT_FREE', 2, '2026-01-01T08:00:00+07:00', 'Thiết bị ngoài phạm vi hợp đồng bảo trì; cần đề xuất đơn vị thực hiện');
+INSERT INTO maintenance_coverage (equipment_id, provider_id, contract_reference, coverage_scope, effective_from, effective_to, classification, verified_by_user_id, verified_at, basis_note, warranty_expires_on) VALUES (6, NULL, NULL, NULL, '2026-01-01', '2030-12-31', 'NOT_FREE', 2, '2026-01-01T08:00:00+07:00', 'Thiết bị ngoài phạm vi hợp đồng bảo trì; cần đề xuất đơn vị thực hiện', NULL);
 
 INSERT INTO equipment (department_id, equipment_code, name, serial_number, model, technical_spec, active) VALUES (5, 'TB-007', 'Máy siêu âm', 'SN-2026-0007', 'US-01', 'Theo hồ sơ kỹ thuật và hướng dẫn vận hành của thiết bị', TRUE);
 
-INSERT INTO maintenance_coverage (equipment_id, provider_id, contract_reference, coverage_scope, effective_from, effective_to, classification, verified_by_user_id, verified_at, basis_note) VALUES (7, 1, 'HD-BT-2026-007', 'Kiểm tra, hiệu chuẩn và bảo dưỡng định kỳ', '2026-01-01', '2030-12-31', 'FREE', 2, '2026-01-01T08:00:00+07:00', 'Áp dụng điều khoản bảo trì theo hợp đồng còn hiệu lực');
+INSERT INTO maintenance_coverage (equipment_id, provider_id, contract_reference, coverage_scope, effective_from, effective_to, classification, verified_by_user_id, verified_at, basis_note, warranty_expires_on) VALUES (7, 1, 'HD-BT-2026-007', 'Kiểm tra, hiệu chuẩn và bảo dưỡng định kỳ', '2026-01-01', '2030-12-31', 'FREE', 2, '2026-01-01T08:00:00+07:00', 'Áp dụng điều khoản bảo trì theo hợp đồng còn hiệu lực', '2030-12-31');
 
 INSERT INTO equipment (department_id, equipment_code, name, serial_number, model, technical_spec, active) VALUES (5, 'TB-008', 'Máy X-quang', 'SN-2026-0008', 'XR-01', 'Theo hồ sơ kỹ thuật và hướng dẫn vận hành của thiết bị', TRUE);
 

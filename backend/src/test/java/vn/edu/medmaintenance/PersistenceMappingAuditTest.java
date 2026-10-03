@@ -53,6 +53,7 @@ class PersistenceMappingAuditTest {
             Map.entry("maintenance_plan.status", "ck_plan_status"),
             Map.entry("maintenance_plan_item.status", "ck_item_status"),
             Map.entry("maintenance_plan_item.assignment_route", "ck_item_route"),
+            Map.entry("maintenance_plan_item.service_choice", "ck_item_service_choice"),
             Map.entry("approval_request.request_type", "ck_request_type"),
             Map.entry("approval_request.status", "ck_request_status"),
             Map.entry("approval_action.outcome", "ck_action_outcome"),
@@ -66,6 +67,7 @@ class PersistenceMappingAuditTest {
             Map.entry("maintenance_plan.status", Set.of("DRAFT", "SUBMITTED", "REVISION_REQUIRED", "APPROVED", "IN_PROGRESS", "AWAITING_REPORT", "REPORTED", "CLOSED")),
             Map.entry("maintenance_plan_item.status", Set.of("PLANNED", "UNDER_CONTRACT", "PENDING_PROPOSAL", "WAITING_VENDOR_APPROVAL", "ASSIGNED_EXTERNAL", "IN_MAINTENANCE", "AWAITING_TECHNICAL_ACCEPTANCE", "AWAITING_HANDOVER", "COMPLETED", "REWORK_REQUIRED", "REPAIR_REQUIRED")),
             Map.entry("maintenance_plan_item.assignment_route", Set.of("UNDER_CONTRACT", "EXTERNAL_APPROVED")),
+            Map.entry("maintenance_plan_item.service_choice", Set.of("MANUFACTURER", "EXTERNAL")),
             Map.entry("approval_request.request_type", Set.of("PLAN_APPROVAL", "VENDOR_SELECTION")),
             Map.entry("approval_request.status", Set.of("DRAFT", "PENDING", "DECIDED", "CANCELLED")),
             Map.entry("approval_action.outcome", Set.of("APPROVE", "REVISION_REQUIRED")),
@@ -118,7 +120,7 @@ class PersistenceMappingAuditTest {
                     String child = rs.getString(1), column = rs.getString(2), parent = rs.getString(3);
                     databaseForeignKeys.put(child + "." + column, new ForeignKey(child, column, parent, ""));
                 });
-        assertThat(databaseForeignKeys).hasSize(32);
+        assertThat(databaseForeignKeys).hasSize(33);
 
         Map<String, ForeignKey> mappedForeignKeys = new TreeMap<>();
         List<String> tableRows = new ArrayList<>();
@@ -182,8 +184,8 @@ class PersistenceMappingAuditTest {
                     + mappedColumns.size() + " | " + dbFkCount + " | " + fkCount + " | PASS |");
             mappedColumnCount += mappedColumns.size();
         }
-        assertThat(mappedColumnCount).isEqualTo(126);
-        assertThat(mappedForeignKeys).hasSize(32);
+        assertThat(mappedColumnCount).isEqualTo(129);
+        assertThat(mappedForeignKeys).hasSize(33);
         assertThat(mappedForeignKeys.keySet()).containsExactlyInAnyOrderElementsOf(databaseForeignKeys.keySet());
         for (var entry : databaseForeignKeys.entrySet()) {
             assertThat(mappedForeignKeys.get(entry.getKey()).parent())
