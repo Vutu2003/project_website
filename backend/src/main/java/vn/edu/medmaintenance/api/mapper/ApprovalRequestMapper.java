@@ -20,6 +20,6 @@ public final class ApprovalRequestMapper {
                 item == null ? null : item.getId(),
                 item == null ? null : item.getEquipment().getEquipmentCode(),
                 provider == null ? null : provider.getId(),
-                provider == null ? null : provider.getName());
+                provider == null ? null : provider.getName(),plan==null?null:plan.getPlanYear(),plan==null?null:plan.getPlanQuarter(),null);
     }
 }

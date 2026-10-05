@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, useLocation } from 'react-router'
+import { Link, useLocation, useSearchParams } from 'react-router'
 import { adminAccountsApi } from '../api/adminAccountsApi'
 import { adminCatalogsApi } from '../api/adminCatalogsApi'
 import { Pagination } from '../components/Pagination'
@@ -17,9 +17,10 @@ export function AdminAccountListPage() {
   const [page, setPage] = useState(0)
   const [input, setInput] = useState('')
   const [search, setSearch] = useState('')
-  const [role, setRole] = useState<Role | ''>('')
+  const [params] = useSearchParams()
+  const [role, setRole] = useState<Role | ''>(roles.includes(params.get('role') as Role) ? params.get('role') as Role : '')
   const [department, setDepartment] = useState('')
-  const [active, setActive] = useState('')
+  const [active, setActive] = useState(['true','false'].includes(params.get('active') ?? '') ? params.get('active')! : '')
   const [data, setData] = useState<PageResponse<AccountSummary> | null>(null)
   const [departments, setDepartments] = useState<Department[]>([])
   const [loading, setLoading] = useState(true)

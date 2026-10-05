@@ -10,7 +10,7 @@ import vn.edu.medmaintenance.persistence.entity.MaintenancePlanItem;
 import vn.edu.medmaintenance.persistence.enums.PlanItemStatus;
 
 public interface MaintenancePlanItemRepository extends JpaRepository<MaintenancePlanItem, Long> {
-    @EntityGraph(attributePaths = {"equipment", "departmentAtPlan", "assignedProvider"})
+    @EntityGraph(attributePaths = {"equipment", "departmentAtPlan", "assignedProvider", "coverage", "coverage.contract", "contract"})
     @org.springframework.data.jpa.repository.Query("""
             select i from MaintenancePlanItem i where i.plan.id = :planId
             and (:departmentId is null or i.departmentAtPlan.id = :departmentId)
@@ -32,14 +32,14 @@ public interface MaintenancePlanItemRepository extends JpaRepository<Maintenance
     @EntityGraph(attributePaths={"plan","equipment","departmentAtPlan","assignedProvider"})
     List<MaintenancePlanItem> findByEquipment_IdIn(java.util.Collection<Long> ids);
     List<MaintenancePlanItem> findAllByPlan_Id(Long planId);
-    @EntityGraph(attributePaths = {"equipment", "departmentAtPlan", "assignedProvider"})
+    @EntityGraph(attributePaths = {"equipment", "departmentAtPlan", "assignedProvider", "coverage", "coverage.contract", "contract"})
     @org.springframework.data.jpa.repository.Query("select i from MaintenancePlanItem i where i.plan.id = :planId order by i.id")
     List<MaintenancePlanItem> findReportItems(@org.springframework.data.repository.query.Param("planId") Long planId);
 
-    @EntityGraph(attributePaths = {"equipment", "departmentAtPlan", "assignedProvider"})
+    @EntityGraph(attributePaths = {"equipment", "departmentAtPlan", "assignedProvider", "coverage", "coverage.contract", "contract"})
     Page<MaintenancePlanItem> findByPlan_IdAndDepartmentAtPlan_Id(
             Long planId, Long departmentId, Pageable pageable);
-    @EntityGraph(attributePaths = {"equipment", "departmentAtPlan", "assignedProvider"})
+    @EntityGraph(attributePaths = {"equipment", "departmentAtPlan", "assignedProvider", "coverage", "coverage.contract", "contract"})
     Page<MaintenancePlanItem> findByPlan_Id(Long planId, Pageable pageable);
 
     @EntityGraph(attributePaths = "equipment")

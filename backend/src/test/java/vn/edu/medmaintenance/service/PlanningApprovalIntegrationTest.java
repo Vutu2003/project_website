@@ -33,6 +33,10 @@ import vn.edu.medmaintenance.security.principal.AuthenticatedUser;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class PlanningApprovalIntegrationTest {
+    private java.util.Map<Long,String> fixtureStatuses;
+    @org.junit.jupiter.api.BeforeEach void isolateOpenFixturePlans() { fixtureStatuses=PlanningTestData.archiveFixturePlans(jdbc); }
+    @org.junit.jupiter.api.AfterEach void restoreOpenFixturePlans() { PlanningTestData.restoreFixturePlans(jdbc,fixtureStatuses); }
+
     @Autowired TestRestTemplate http;
     @Autowired JdbcTemplate jdbc;
     @Autowired PlanningService planning;

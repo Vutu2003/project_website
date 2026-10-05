@@ -1,0 +1,29 @@
+{
+  "browser": "Google Chrome (headless, real DOM and HTTP)",
+  "scenarios": [
+    {
+      "scenario": "A — Automatic FREE and BGD approval",
+      "status": "PASS",
+      "planId": 1
+    },
+    {
+      "scenario": "B — NOT_FREE proposal and submission",
+      "status": "PASS",
+      "planId": 2
+    },
+    {
+      "scenario": "C — Department/date filtering and bulk selection",
+      "status": "PASS"
+    },
+    {
+      "scenario": "D — Contract/provider validity and equipment list",
+      "status": "PASS"
+    },
+    {
+      "scenario": "E — Two revision cycles, notifications and retained comments",
+      "status": "PASS"
+    }
+  ],
+  "errors": [],
+  "status": "PASS"
+}

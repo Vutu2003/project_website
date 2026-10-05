@@ -1,3 +1,4 @@
+import { ContractListPage, ContractDetailPage, ProviderDetailPage } from './pages/ContractPages'
 import { NotificationsPage } from './pages/NotificationsPage'
 import { Navigate, Route, Routes } from 'react-router'
 import { ProtectedRoute } from './auth/ProtectedRoute'
@@ -17,6 +18,7 @@ import { ExecutionItemPage } from './pages/ExecutionItemPage'
 import { ReportListPage } from './pages/ReportListPage'
 import { ReportDetailPage } from './pages/ReportDetailPage'
 import { EquipmentListPage } from './pages/EquipmentListPage'
+import { EquipmentDetailPage } from './pages/QuarterlyEquipmentPages'
 import { EquipmentHistoryPage } from './pages/EquipmentHistoryPage'
 
 import { AdminCatalogListPage, AdminCatalogDetailPage, AdminCatalogFormPage } from './pages/AdminCatalogPages'
@@ -29,13 +31,17 @@ export default function App() {
     <Route path="/login" element={<LoginPage />} />
     <Route element={<ProtectedRoute />}>
       <Route element={<AppLayout />}>
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/maintenance-suggestions" element={<RoleGuard roles={['PHONG_VTYT']}><Navigate replace to="/equipment" /></RoleGuard>} />
+        <Route path="/" element={<Navigate replace to="/dashboard" />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/maintenance-suggestions" element={<RoleGuard roles={['PHONG_VTYT']}><Navigate replace to="/plans" /></RoleGuard>} />
+        <Route path="/contracts" element={<RoleGuard roles={['ADMIN', 'PHONG_VTYT']}><ContractListPage /></RoleGuard>} />
+        <Route path="/contracts/:id" element={<RoleGuard roles={['ADMIN', 'PHONG_VTYT']}><ContractDetailPage /></RoleGuard>} />
+        <Route path="/providers/:id" element={<RoleGuard roles={['ADMIN', 'PHONG_VTYT']}><ProviderDetailPage /></RoleGuard>} />
         <Route path="/notifications" element={<NotificationsPage />} />
-        <Route path="/plans" element={<PlanListPage />} />
+        <Route path="/plans" element={<RoleGuard roles={['PHONG_VTYT', 'ADMIN', 'KHOA_PHONG']}><PlanListPage /></RoleGuard>} />
         <Route path="/plans/new" element={<RoleGuard roles={['PHONG_VTYT']}><PlanFormPage mode="create" /></RoleGuard>} />
         <Route path="/plans/:planId/edit" element={<RoleGuard roles={['PHONG_VTYT']}><PlanFormPage mode="edit" /></RoleGuard>} />
-        <Route path="/plans/:planId" element={<PlanDetailPage />} />
+        <Route path="/plans/:planId" element={<RoleGuard roles={['PHONG_VTYT', 'ADMIN', 'KHOA_PHONG']}><PlanDetailPage /></RoleGuard>} />
         <Route path="/maintenance-progress" element={<RoleGuard roles={['PHONG_VTYT']}><MaintenanceProgressPage /></RoleGuard>} />
         <Route path="/maintenance-progress/plans/:planId" element={<RoleGuard roles={['PHONG_VTYT']}><MaintenanceProgressPage key="progress-plan" /></RoleGuard>} />
         <Route path="/execution" element={<RoleGuard roles={['PHONG_VTYT', 'KHOA_PHONG']}><ExecutionQueuePage /></RoleGuard>} />
@@ -43,10 +49,11 @@ export default function App() {
         <Route path="/plans/:planId/items/:itemId/execution" element={<RoleGuard roles={['PHONG_VTYT', 'KHOA_PHONG']}><ExecutionItemPage /></RoleGuard>} />
         <Route path="/approvals" element={<RoleGuard roles={['BAN_GIAM_DOC']}><ApprovalQueuePage /></RoleGuard>} />
         <Route path="/approvals/:requestId" element={<RoleGuard roles={['BAN_GIAM_DOC']}><ApprovalDetailPage /></RoleGuard>} />
-        <Route path="/reports" element={<RoleGuard roles={['PHONG_VTYT', 'BAN_GIAM_DOC']}><ReportListPage /></RoleGuard>} />
-        <Route path="/plans/:planId/report" element={<RoleGuard roles={['PHONG_VTYT', 'BAN_GIAM_DOC']}><ReportDetailPage /></RoleGuard>} />
-        <Route path="/equipment" element={<RoleGuard roles={['PHONG_VTYT', 'BAN_GIAM_DOC', 'KHOA_PHONG']}><EquipmentListPage /></RoleGuard>} />
-        <Route path="/equipment/:equipmentId/history" element={<RoleGuard roles={['PHONG_VTYT', 'BAN_GIAM_DOC', 'KHOA_PHONG']}><EquipmentHistoryPage /></RoleGuard>} />
+        <Route path="/reports" element={<RoleGuard roles={['PHONG_VTYT', 'BAN_GIAM_DOC', 'KHOA_PHONG']}><ReportListPage /></RoleGuard>} />
+        <Route path="/plans/:planId/report" element={<RoleGuard roles={['PHONG_VTYT', 'BAN_GIAM_DOC', 'KHOA_PHONG']}><ReportDetailPage /></RoleGuard>} />
+        <Route path="/equipment" element={<RoleGuard roles={['PHONG_VTYT', 'KHOA_PHONG']}><EquipmentListPage /></RoleGuard>} />
+        <Route path="/equipment/:equipmentId" element={<RoleGuard roles={['PHONG_VTYT', 'ADMIN']}><EquipmentDetailPage /></RoleGuard>} />
+        <Route path="/equipment/:equipmentId/history" element={<RoleGuard roles={['PHONG_VTYT', 'KHOA_PHONG']}><EquipmentHistoryPage /></RoleGuard>} />
         <Route path="/admin/equipment" element={<RoleGuard roles={['ADMIN']}><EquipmentListPage warrantyOnly /></RoleGuard>} />
         <Route path="/admin/catalogs/departments" element={<RoleGuard roles={['ADMIN']}><AdminCatalogListPage kind="departments" /></RoleGuard>} />
         <Route path="/admin/catalogs/departments/new" element={<RoleGuard roles={['ADMIN']}><AdminCatalogFormPage kind="departments" mode="create" /></RoleGuard>} />

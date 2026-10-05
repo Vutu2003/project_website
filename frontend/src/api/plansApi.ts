@@ -14,6 +14,7 @@ export const plansApi = {
     if (status) params.set('status', status)
     return apiRequest(`/api/plans/${id}/items?${params}`)
   },
+  allItems(id: number): Promise<PlanItem[]> { return apiRequest(`/api/plans/${id}/items/all`) },
   create(body: CreatePlanRequest): Promise<PlanCommandResponse> {
     return apiRequest('/api/plans', { method: 'POST', body })
   },

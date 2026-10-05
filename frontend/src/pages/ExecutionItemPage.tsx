@@ -82,9 +82,8 @@ export function ExecutionItemPage() {
 
   const latestProgress = current ? orderedProgress(current.progress).at(-1) : undefined
   const latestDetails = latestProgress ? progressDetails(latestProgress) : undefined
-  const executionLabel = current?.endedAt ? 'Hoàn thành kỹ thuật' : !current ? 'Chưa bắt đầu'
-    : latestDetails?.status === 'PAUSED' || latestDetails?.status === 'WAITING_PARTS' || latestDetails?.status === 'WAITING_PROVIDER'
-      ? 'Tạm dừng' : 'Đang thực hiện'
+  const executionLabel = item?.status === 'REPAIR_REQUIRED' || latestDetails?.status === 'DAMAGE_DETECTED' ? 'Có hỏng hóc' : current?.endedAt || latestDetails?.status === 'WORK_DONE' ? 'Bảo trì xong' : !current ? 'Chưa bắt đầu' : 'Đang bảo trì'
+
 
   async function perform(action: () => Promise<unknown>, success: string, reset?: () => void) {
     if (inFlight.current) return
@@ -101,6 +100,7 @@ export function ExecutionItemPage() {
   }
   function appendProgress() {
     if (!current || !item || !canWork) return
+    if(progressStatus === 'DAMAGE_DETECTED' && !progressNote.trim()) {setError(new UserInputError('Vui lòng mô tả hỏng hóc.'));return}
     void perform(() => executionsApi.updateProgress(current.executionId, progressStatus, progressNote.trim() || null, item.version),
       'Đã lưu cập nhật tiến độ.', () => setProgressNote(''))
   }
@@ -163,7 +163,7 @@ export function ExecutionItemPage() {
     </section>
     {plan.status === 'AWAITING_REPORT' && <div className="retention-note">Kế hoạch đã sẵn sàng cho bước báo cáo. {isVtyt && <Link className="text-link" to={`/plans/${plan.id}/report`}>Mở báo cáo</Link>}</div>}
     {item.status === 'REPAIR_REQUIRED' && <div className="retention-note">Đã chuyển sang quy trình sửa chữa (ngoài phạm vi V1). Dữ liệu thực hiện và lý do vẫn được giữ lại.</div>}
-    {item.status === 'COMPLETED' && <div className="retention-note">Hạng mục đã hoàn tất nghiệm thu và bàn giao. Các lần thực hiện vẫn hiển thị bên dưới.</div>}
+    {item.status === 'COMPLETED' && <div className="retention-note">Hạng mục đã được xác nhận hoàn thành bảo trì. Lịch sử thực hiện và các biên bản nghiệm thu/bàn giao đã có vẫn hiển thị bên dưới.</div>}
     {isVtyt && !['APPROVED', 'IN_PROGRESS'].includes(plan.status) && ['UNDER_CONTRACT', 'ASSIGNED_EXTERNAL'].includes(item.status) && <p className="retention-note">Hình thức bảo trì đã được xác định. Chỉ có thể bắt đầu thực hiện sau khi kế hoạch được phê duyệt.</p>}
     {isVtyt && plan.pendingVendorApproval && <p className="retention-note">Cần phê duyệt xong các đơn vị đề xuất trước khi bắt đầu thực hiện kế hoạch.</p>}
     {canStart && <section className="panel business-panel"><div className="panel-heading"><div><h2>{item.status === 'REWORK_REQUIRED' ? 'Bắt đầu lần thực hiện lại' : 'Bắt đầu bảo trì'}</h2><p>Bắt đầu khi đơn vị bảo trì xác nhận triển khai công việc.</p></div></div>

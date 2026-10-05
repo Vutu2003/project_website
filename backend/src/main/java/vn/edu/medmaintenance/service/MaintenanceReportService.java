@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -49,12 +50,13 @@ public class MaintenanceReportService {
     private final MaintenanceExecutionRepository executions;
     private final MaintenanceProgressLogRepository progress;
     private final AcceptanceRecordRepository acceptances;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     public MaintenanceReportService(MaintenancePlanRepository plans, MaintenancePlanItemRepository items,
             MaintenanceReportRepository reports, UserAccountRepository users,
             CurrentUser currentUser, WorkflowHistory history, EntityManager entityManager,NotificationService notifications,
             MaintenanceExecutionRepository executions, MaintenanceProgressLogRepository progress,
-            AcceptanceRecordRepository acceptances) {
+            AcceptanceRecordRepository acceptances,org.springframework.jdbc.core.JdbcTemplate jdbc) {
         this.plans = plans;
         this.items = items;
         this.reports = reports;
@@ -64,7 +66,7 @@ public class MaintenanceReportService {
         this.entityManager = entityManager;this.notifications=notifications;
         this.executions = executions;
         this.progress = progress;
-        this.acceptances = acceptances;
+        this.acceptances = acceptances;this.jdbc=jdbc;
     }
 
     @Transactional
@@ -119,14 +121,14 @@ public class MaintenanceReportService {
         report.setFinalizedAt(at);
         plan.setStatus(PlanStatus.REPORTED);
         history.plan(plan, actor, "AWAITING_REPORT", "REPORTED", "FINALIZE_REPORT", null, at);
-        notifications.notifyRole(UserRole.BAN_GIAM_DOC,null,actor,"REPORT_FINALIZED","Báo cáo kết quả bảo trì đã được lập",plan.getTitle(),"/plans/"+planId+"/report");
+        // Recipients are notified only when VTYT explicitly sends the finalized report.
         entityManager.flush();
         return response(report, plan, planItems);
     }
 
     @Transactional(readOnly = true)
     public ReportResponse get(Long planId) {
-        requireReader();
+        requireReader(planId);
         MaintenancePlan plan = findPlan(planId);
         MaintenanceReport report = findReport(planId);
         return response(report, plan, items.findAllByPlan_Id(planId));
@@ -134,9 +136,9 @@ public class MaintenanceReportService {
 
     @Transactional(readOnly = true)
     public ReportEvidenceResponse evidence(Long planId) {
-        requireReader();
+        requireReader(planId);
         findPlan(planId);
-        var planItems = items.findReportItems(planId);
+        var planItems = visibleItems(items.findReportItems(planId));
         var itemIds = planItems.stream().map(MaintenancePlanItem::getId).toList();
         var attempts = itemIds.isEmpty() ? List.<MaintenanceExecution>of() : executions.findHistoryByItemIds(itemIds);
         var executionIds = attempts.stream().map(MaintenanceExecution::getId).toList();
@@ -174,10 +176,15 @@ public class MaintenanceReportService {
                 record.getVtytConfirmedAt());
     }
 
-    private void requireReader() {
+    private List<MaintenancePlanItem> visibleItems(List<MaintenancePlanItem> rows){
+        var viewer=currentUser.get();
+        return viewer.role()==UserRole.KHOA_PHONG?rows.stream().filter(i->Objects.equals(i.getDepartmentAtPlan().getId(),viewer.departmentId())).toList():rows;
+    }
+    private void requireReader(long planId) {
         var role = currentUser.get().role();
+        if(role==UserRole.KHOA_PHONG && currentUser.get().departmentId()!=null && jdbc.queryForObject("SELECT count(*) FROM maintenance_report_delivery v JOIN maintenance_report r ON r.id=v.report_id WHERE r.plan_id=? AND r.status='FINAL' AND v.department_id=?",Long.class,planId,currentUser.get().departmentId())>0)return;
         if (role != UserRole.PHONG_VTYT && role != UserRole.BAN_GIAM_DOC)
-            throw new BusinessRuleException(HttpStatus.FORBIDDEN, "BUSINESS_ACCESS_DENIED", "Report role required");
+            throw new BusinessRuleException(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "Report role required");
     }
 
     private MaintenancePlan lockedPlan(Long id) {
@@ -223,8 +230,13 @@ public class MaintenanceReportService {
 
     private ReportResponse response(MaintenanceReport report, MaintenancePlan plan,
             List<MaintenancePlanItem> planItems) {
+        planItems=visibleItems(planItems);
         long completed = planItems.stream().filter(i -> i.getStatus() == PlanItemStatus.COMPLETED).count();
         long repair = planItems.stream().filter(i -> i.getStatus() == PlanItemStatus.REPAIR_REQUIRED).count();
+        if(currentUser.get().role()==UserRole.KHOA_PHONG){
+            String work=planItems.stream().map(i->i.getEquipment().getEquipmentCode()+" · "+i.getEquipment().getName()+": "+(i.getStatus()==PlanItemStatus.COMPLETED?"Bảo trì xong":"Có hỏng hóc")).collect(Collectors.joining("\n"));
+            return new ReportResponse(report.getId(),plan.getId(),report.getStatus(),plan.getStatus(),plan.getVersion(),report.getReportDate(),report.getFinalizedAt(),report.getReportNumber(),work,completed+" thiết bị bảo trì xong.",repair+" thiết bị có hỏng hóc.",null,repair>0?"Xem ghi chú xử lý của từng thiết bị trong dữ liệu thực hiện.":null,null,null,completed,repair);
+        }
         return new ReportResponse(report.getId(), plan.getId(), report.getStatus(), plan.getStatus(),
                 plan.getVersion(), report.getReportDate(), report.getFinalizedAt(),
                 report.getReportNumber(), report.getWorkDone(), report.getAchieved(), report.getNotAchieved(),
@@ -235,7 +247,7 @@ public class MaintenanceReportService {
     private UserAccount requireRole(UserRole role) {
         var principal = currentUser.get();
         if (principal.role() != role)
-            throw new BusinessRuleException(HttpStatus.FORBIDDEN, "BUSINESS_ACCESS_DENIED", "Report role required");
+            throw new BusinessRuleException(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "Report role required");
         return users.getReferenceById(principal.id());
     }
 

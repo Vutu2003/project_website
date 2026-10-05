@@ -52,20 +52,20 @@ class BackendFoundationIntegrationTest {
                 "maintenance_coverage", "maintenance_plan", "maintenance_plan_item",
                 "approval_request", "approval_action", "maintenance_execution",
                 "maintenance_progress_log", "acceptance_record", "maintenance_report",
-                "status_history", "user_notification");
+                "status_history", "user_notification", "maintenance_contract", "equipment_maintenance_schedule", "maintenance_contract_equipment", "maintenance_report_delivery");
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM information_schema.columns
                 WHERE table_schema = 'public' AND table_name <> 'flyway_schema_history'
-                """, Integer.class)).isEqualTo(129);
+                """, Integer.class)).isEqualTo(158);
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM pg_constraint c
                 JOIN pg_namespace n ON n.oid = c.connamespace
                 WHERE n.nspname = 'public' AND c.contype = 'f'
-                """, Integer.class)).isEqualTo(33);
+                """, Integer.class)).isEqualTo(42);
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM flyway_schema_history
                 WHERE success = true AND type = 'SQL'
-                """, Integer.class)).isEqualTo(9);
+                """, Integer.class)).isEqualTo(12);
     }
 
     @Test

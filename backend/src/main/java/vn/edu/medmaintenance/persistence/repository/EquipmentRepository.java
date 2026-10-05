@@ -8,7 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import vn.edu.medmaintenance.persistence.entity.Equipment;
 
 public interface EquipmentRepository extends JpaRepository<Equipment, Long> {
-    @EntityGraph(attributePaths = "department")
+    @EntityGraph(attributePaths = {"department", "manufacturerProvider"})
     @org.springframework.data.jpa.repository.Query("""
             select e from Equipment e where
             (:departmentId is null or e.department.id = :departmentId or (:historicalScope = true and exists (
@@ -25,7 +25,7 @@ public interface EquipmentRepository extends JpaRepository<Equipment, Long> {
             @org.springframework.data.repository.query.Param("historicalScope") boolean historicalScope,
             @org.springframework.data.repository.query.Param("pattern") String pattern, Pageable pageable);
 
-    @EntityGraph(attributePaths = "department")
+    @EntityGraph(attributePaths = {"department", "manufacturerProvider"})
     @org.springframework.data.jpa.repository.Query("""
             select e from Equipment e where
             (e.department.id = :departmentId or exists (
@@ -38,7 +38,7 @@ public interface EquipmentRepository extends JpaRepository<Equipment, Long> {
             @org.springframework.data.repository.query.Param("active") Boolean active,
             Pageable pageable);
 
-    @EntityGraph(attributePaths = "department")
+    @EntityGraph(attributePaths = {"department", "manufacturerProvider"})
     @org.springframework.data.jpa.repository.Query("""
             select e from Equipment e where e.id = :id and
             (e.department.id = :departmentId or exists (
@@ -48,22 +48,22 @@ public interface EquipmentRepository extends JpaRepository<Equipment, Long> {
     Optional<Equipment> findVisibleForDepartmentById(
             @org.springframework.data.repository.query.Param("id") Long id,
             @org.springframework.data.repository.query.Param("departmentId") Long departmentId);
-    @EntityGraph(attributePaths = "department")
+    @EntityGraph(attributePaths = {"department", "manufacturerProvider"})
     Optional<Equipment> findByEquipmentCode(String equipmentCode);
 
-    @EntityGraph(attributePaths = "department")
+    @EntityGraph(attributePaths = {"department", "manufacturerProvider"})
     Page<Equipment> findByDepartment_Id(Long departmentId, Pageable pageable);
 
-    @EntityGraph(attributePaths = "department")
+    @EntityGraph(attributePaths = {"department", "manufacturerProvider"})
     Page<Equipment> findByActiveTrue(Pageable pageable);
 
-    @EntityGraph(attributePaths = "department")
+    @EntityGraph(attributePaths = {"department", "manufacturerProvider"})
     Page<Equipment> findAllBy(Pageable pageable);
 
-    @EntityGraph(attributePaths = "department")
+    @EntityGraph(attributePaths = {"department", "manufacturerProvider"})
     Page<Equipment> findByActive(Boolean active, Pageable pageable);
 
-    @EntityGraph(attributePaths = "department")
+    @EntityGraph(attributePaths = {"department", "manufacturerProvider"})
     Page<Equipment> findByDepartment_IdAndActive(Long departmentId, Boolean active, Pageable pageable);
 
     @org.springframework.data.jpa.repository.Query(

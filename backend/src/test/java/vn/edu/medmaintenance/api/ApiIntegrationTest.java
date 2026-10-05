@@ -159,6 +159,8 @@ class ApiIntegrationTest {
         assertThat(plans.getBody().at("/content/0/planTitle").asText()).isNotBlank();
         var vendors = get("/api/approvals/pending?requestType=VENDOR_SELECTION");
         assertThat(vendors.getBody().path("totalElements").asInt()).isEqualTo(2);
+        assertThat(vendors.getBody().at("/content/0/planTitle").asText()).isNotBlank();
+        assertThat(vendors.getBody().at("/content/0/equipmentCount").asLong()).isPositive();
         assertThat(vendors.getBody().at("/content/0/equipmentCode").asText()).isNotBlank();
         assertThat(vendors.getBody().at("/content/0/proposedProviderName").asText()).isNotBlank();
         assertError(get("/api/approvals/pending?requestType=UNKNOWN"), 400,

@@ -18,7 +18,7 @@ public final class PlanMapper {
     public static MaintenancePlanResponse toResponse(MaintenancePlan plan, Boolean pendingVendorApproval) {
         return new MaintenancePlanResponse(plan.getId(), plan.getTitle(), plan.getPeriodStart(),
                 plan.getPeriodEnd(), plan.getStatus(), plan.getCreatedAt(),
-                plan.getCreatedByUser().getId(), plan.getCreatedByUser().getDisplayName(), plan.getVersion(), pendingVendorApproval);
+                plan.getCreatedByUser().getId(), plan.getCreatedByUser().getDisplayName(), plan.getVersion(), pendingVendorApproval, plan.getPlanYear(), plan.getPlanQuarter(), null);
     }
 
     public static MaintenancePlanItemResponse toItemResponse(MaintenancePlanItem item, Long planId) {
@@ -38,6 +38,10 @@ public final class PlanMapper {
                 item.getCoverage()==null?null:item.getCoverage().getId(),
                 proposal==null||proposal.getProposedProvider()==null?null:proposal.getProposedProvider().getId(),
                 proposal==null||proposal.getProposedProvider()==null?null:proposal.getProposedProvider().getName(),
-                proposal==null?null:proposal.getRationale(),proposal==null?null:proposal.getWarrantyImpactNote(), item.getServiceChoice());
+                proposal==null?null:proposal.getRationale(),proposal==null?null:proposal.getWarrantyImpactNote(), item.getServiceChoice(),
+                item.getLastMaintenanceDate(),item.getMaintenanceDueDate(),
+                item.getContract()!=null?item.getContract().getId():item.getCoverage()==null || item.getCoverage().getContract()==null?null:item.getCoverage().getContract().getId(),
+                item.getContract()!=null?item.getContract().getCode():item.getCoverage()==null?null:item.getCoverage().getContractReference(),
+                item.getContract()!=null?item.getContract().getStartDate():item.getCoverage()==null?null:item.getCoverage().getEffectiveFrom(),item.getContract()!=null?item.getContract().getEndDate():item.getCoverage()==null?null:item.getCoverage().getEffectiveTo());
     }
 }

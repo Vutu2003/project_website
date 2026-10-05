@@ -16,8 +16,8 @@ import { EquipmentHistoryPage } from './EquipmentHistoryPage'
 
 const auth = vi.hoisted(() => ({ user: { role: 'PHONG_VTYT' } }))
 vi.mock('../auth/useAuth', () => ({ useAuth: () => auth }))
-vi.mock('../api/plansApi', () => ({ plansApi: { detail: vi.fn(), items: vi.fn(), list: vi.fn() } }))
-vi.mock('../api/reportsApi', () => ({ reportsApi: { evidence: vi.fn(), get: vi.fn(), create: vi.fn(), edit: vi.fn(), finalize: vi.fn() } }))
+vi.mock('../api/plansApi', () => ({ plansApi: { detail: vi.fn(), items: vi.fn(), allItems: vi.fn(), list: vi.fn() } }))
+vi.mock('../api/reportsApi', () => ({ reportsApi: { delivery: vi.fn(), send: vi.fn(), evidence: vi.fn(), get: vi.fn(), create: vi.fn(), edit: vi.fn(), finalize: vi.fn() } }))
 vi.mock('../api/equipmentApi', () => ({ equipmentApi: { list: vi.fn() } }))
 vi.mock('../api/approvalsApi', () => ({ approvalsApi: { review: vi.fn(), decide: vi.fn() } }))
 vi.mock('../api/historyApi', () => ({ historyApi: { get: vi.fn() } }))
@@ -41,6 +41,7 @@ afterEach(cleanup)
 beforeEach(() => {
   vi.clearAllMocks()
   auth.user.role = 'PHONG_VTYT'
+  vi.mocked(reportsApi.delivery).mockResolvedValue({reportId:99,canSend:false,departments:[],deliveries:[]})
   vi.mocked(reportsApi.evidence).mockResolvedValue(evidence)
   vi.mocked(plansApi.detail).mockResolvedValue(plan)
   vi.mocked(plansApi.items).mockResolvedValue({ content: [], page: 0, size: 100, totalElements: 0, totalPages: 0, last: true })
@@ -133,10 +134,10 @@ describe('BGD / KHOA audit gaps', () => {
   it('BGD plan review shows prepared methods, providers and proposal evidence', async () => {
     auth.user.role = 'BAN_GIAM_DOC'
     vi.mocked(approvalsApi.review).mockResolvedValue({ id: 20, requestType: 'PLAN_APPROVAL', status: 'PENDING', planId: 10, planVersion: 6 } as Awaited<ReturnType<typeof approvalsApi.review>>)
-    vi.mocked(plansApi.items).mockResolvedValue({ content: [
+    vi.mocked(plansApi.allItems).mockResolvedValue([
       { id: 1, equipmentCode: 'EQ-FREE', classification: 'FREE', assignedProviderName: 'Hợp đồng thử', status: 'UNDER_CONTRACT' },
       { id: 2, equipmentCode: 'EQ-PAID', classification: 'NOT_FREE', proposedProviderName: 'Đề xuất thử', rationale: 'Năng lực phù hợp', warrantyImpactNote: 'Bảo hành được giữ', status: 'PENDING_PROPOSAL' },
-    ] as Awaited<ReturnType<typeof plansApi.items>>['content'], page: 0, size: 20, totalElements: 2, totalPages: 1, last: true })
+    ] as Awaited<ReturnType<typeof plansApi.allItems>>)
     render(<MemoryRouter initialEntries={['/approvals/20']}><Routes><Route path="/approvals/:requestId" element={<ApprovalDetailPage />} /></Routes></MemoryRouter>)
     await screen.findByText('Hợp đồng thử')
     expect(screen.getByText('Đề xuất thử')).toBeTruthy()

@@ -8,4 +8,4 @@ public record ApprovalRequestResponse(
         Long id, ApprovalRequestType requestType, ApprovalRequestStatus status,
         OffsetDateTime submittedAt, Long createdByUserId, String createdByName,
         Long planId, String planTitle, Long planItemId, String equipmentCode,
-        Long proposedProviderId, String proposedProviderName) { }
+        Long proposedProviderId, String proposedProviderName,Integer planYear,String planQuarter,Long equipmentCount) { }

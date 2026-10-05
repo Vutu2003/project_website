@@ -1,173 +1,56 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { MemoryRouter, Navigate, Route, Routes } from 'react-router'
+import { MemoryRouter, Route, Routes } from 'react-router'
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { PlanFormPage } from './PlanFormPage'
-import { ExecutionItemPage } from './ExecutionItemPage'
-import { executionsApi } from '../api/executionsApi'
-import { PlanDetailPage } from './PlanDetailPage'
-import { EquipmentListPage } from './EquipmentListPage'
-import { navigationItems } from '../routes/navigation'
-import { NotificationsPage } from './NotificationsPage'
-import { NotificationBell } from '../components/NotificationBell'
-import { RoleGuard } from '../auth/RoleGuard'
+import { ApprovalDetailPage } from './ApprovalDetailPage'
+import { QuarterlyEquipmentListPage, EquipmentDetailPage } from './QuarterlyEquipmentPages'
+import { AppLayout } from '../layouts/AppLayout'
+import { quarterlyApi } from '../api/quarterlyApi'
 import { plansApi } from '../api/plansApi'
-import { equipmentApi } from '../api/equipmentApi'
 import { providersApi } from '../api/providersApi'
-import { maintenanceSuggestionsApi } from '../api/maintenanceSuggestionsApi'
-import { notificationsApi } from '../api/notificationsApi'
+import { approvalsApi } from '../api/approvalsApi'
 import { apiRequest } from '../api/client'
-import { itemCompleteness } from '../utils/itemCompleteness'
-import { freeCoverageReason } from '../utils/planningDecision'
-import type { CoverageEvidence, MaintenanceSuggestion, Plan, PlanItem, PlanStatus } from '../types/workflow'
-import type { Role } from '../types/auth'
-Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { value: function () {}, configurable: true, writable: true })
-const auth = vi.hoisted(() => ({ user: { id: 1, role: 'PHONG_VTYT' as Role } }))
+const auth = vi.hoisted(() => ({ user: { id: 1, username: 'vtyt', role: 'PHONG_VTYT' }, logout: vi.fn() }))
 vi.mock('../auth/useAuth', () => ({ useAuth: () => auth }))
-vi.mock('../api/plansApi', () => ({ plansApi: { detail: vi.fn(), items: vi.fn(), submit: vi.fn(), create: vi.fn(), edit: vi.fn() } }))
-vi.mock('../api/equipmentApi', () => ({ equipmentApi: { list: vi.fn(), coverages: vi.fn(), warranty: vi.fn(), updateWarranty: vi.fn() } }))
+vi.mock('../components/NotificationBell', () => ({ NotificationBell: () => null }))
+vi.mock('./EquipmentHistoryPage', () => ({ EquipmentHistoryPage: () => <p>Chưa có đợt bảo trì.</p> }))
+vi.mock('../api/quarterlyApi', async importOriginal => ({ ...await importOriginal<typeof import('../api/quarterlyApi')>(), quarterlyApi: { preview: vi.fn(), create: vi.fn() } }))
+vi.mock('../api/plansApi', () => ({ plansApi: { detail: vi.fn(), allItems: vi.fn(), edit: vi.fn(), submit: vi.fn() } }))
 vi.mock('../api/providersApi', () => ({ providersApi: { list: vi.fn() } }))
-vi.mock('../api/maintenanceSuggestionsApi', () => ({ maintenanceSuggestionsApi: { list: vi.fn() } }))
-vi.mock('../api/notificationsApi', () => ({ notificationsApi: { list: vi.fn(), unread: vi.fn(), read: vi.fn(), readAll: vi.fn() }, notificationsChanged: 'changed' }))
-vi.mock('../api/executionsApi', () => ({ executionsApi: { history: vi.fn(), start: vi.fn() } }))
+vi.mock('../api/approvalsApi', () => ({ approvalsApi: { review: vi.fn(), decide: vi.fn() } }))
 vi.mock('../api/client', () => ({ apiRequest: vi.fn() }))
-const plan: Plan = { id: 10, title: 'Kế hoạch mới', periodStart: '2026-11-01', periodEnd: '2026-11-30', status: 'DRAFT', version: 2, createdAt: '2026-10-02T00:00:00Z', createdByUserId: 1, createdByName: 'VTYT' }
-const item: PlanItem = { id: 31, planId: 10, equipmentId: 1, equipmentCode: 'EQ-01', equipmentName: 'Máy thử', departmentIdAtPlan: 1, departmentNameAtPlan: 'Khoa Nội', plannedDate: '2026-11-15', status: 'PLANNED', version: 0, assignedProviderId: null, assignedProviderName: null, assignmentRoute: null }
-const free: CoverageEvidence = { id: 15, equipmentId: 1, classification: 'FREE', providerId: 7, providerName: 'Đơn vị hợp đồng', providerActive: true, contractReference: 'HD-01', coverageScope: 'Định kỳ', effectiveFrom: '2026-01-01', effectiveTo: '2026-12-31', verifiedByName: 'VTYT', verifiedByRole: 'PHONG_VTYT', verifiedAt: '2026-01-01T00:00:00Z', basisNote: 'Hợp đồng hợp lệ' }
-const suggestion: MaintenanceSuggestion = { equipmentId: 1, equipmentCode: 'EQ-01', equipmentName: 'Máy thử', departmentId: 1, departmentName: 'Khoa Nội', lastMaintenanceDate: '2026-01-01', latestResult: 'PASS', latestStatus: 'COMPLETED', classification: 'FREE', coverageId: 15, contractReference: 'HD-01', contractualProviderName: 'Đơn vị hợp đồng', lastExternalProviderName: null, suggestedDate: '2026-11-15', referenceDate: '2026-11-15', suggestionBasis: 'Ngày dự kiến trong kế hoạch đang mở', coverageNote: 'Hợp đồng hợp lệ', openPlanIds: [3] }
-const notification = { id: 5, notificationType: 'PLAN_APPROVED', title: 'Kế hoạch được duyệt', message: 'Kế hoạch mới', targetUrl: '/plans/10', createdAt: '2026-10-02T00:00:00Z', readAt: null }
-function paged<T>(rows: T[]) { return { content: rows, page: 0, size: 10, totalElements: rows.length, totalPages: 1, last: true } }
-function page(path = '/plans/10/edit', state?: unknown) { return render(<MemoryRouter initialEntries={[{ pathname: path, state }]}><Routes><Route path="/plans/new" element={<PlanFormPage mode="create" />} /><Route path="/plans/:planId/edit" element={<PlanFormPage mode="edit" />} /><Route path="/plans/:planId/items/:itemId/execution" element={<ExecutionItemPage />} /><Route path="/plans/:planId" element={<PlanDetailPage />} /><Route path="/maintenance-suggestions" element={<RoleGuard roles={['PHONG_VTYT']}><Navigate replace to="/equipment" /></RoleGuard>} /><Route path="/equipment" element={<EquipmentListPage />} /><Route path="/notifications" element={<NotificationsPage />} /><Route path="/unauthorized" element={<p>Không có quyền</p>} /></Routes></MemoryRouter>) }
-async function openItem() { fireEvent.click(await screen.findByRole('button', { name: /(?:Thiết lập bảo trì|Xem chi tiết) EQ-01/ })) }
-afterEach(() => { cleanup(); vi.restoreAllMocks() })
+const equipment = { equipment_id: 1, equipment_code: 'TB-001', equipment_name: 'Máy siêu âm', department_name: 'Khoa Nội', quarters: 'Q1, Q3', classification: 'FREE', contract_status: 'VALID', provider_id: 7, provider_name: 'An Phát', contract_id: 15, contract_code: 'HD-01' }
+const preview = { year: 2027, quarter: 'Q1' as const, title: 'Kế hoạch bảo trì Quý I năm 2027', periodStart: '2027-01-01', periodEnd: '2027-03-31', referenceDate: '2027-01-01', equipment: [equipment] }
+const plan = { id: 10, title: preview.title, periodStart: preview.periodStart, periodEnd: preview.periodEnd, planYear: 2027, planQuarter: 'Q1' as const, status: 'DRAFT' as const, version: 0, createdAt: '', createdByUserId: 1, createdByName: 'VTYT' }
+const item = { id: 31, planId: 10, equipmentId: 1, equipmentCode: 'TB-001', equipmentName: 'Máy siêu âm', departmentIdAtPlan: 1, departmentNameAtPlan: 'Khoa Nội', plannedDate: '2027-01-01', status: 'UNDER_CONTRACT' as const, version: 0, assignedProviderId: 7, assignedProviderName: 'An Phát', assignmentRoute: 'UNDER_CONTRACT' as const, classification: 'FREE' as const, contractId: 15, contractCode: 'HD-01' }
+function page(path = '/plans/new') { return render(<MemoryRouter initialEntries={[path]}><Routes><Route path="/plans/new" element={<PlanFormPage mode="create" />} /><Route path="/plans/:planId/edit" element={<PlanFormPage mode="edit" />} /><Route path="/plans/:planId" element={<p>Chi tiết kế hoạch đã lưu</p>} /><Route path="/equipment" element={<QuarterlyEquipmentListPage />} /><Route path="/equipment/:equipmentId" element={<EquipmentDetailPage />} /><Route path="/approvals/:requestId" element={<ApprovalDetailPage />} /><Route path="/approvals" element={<p>Hàng chờ</p>} /></Routes></MemoryRouter>) }
+afterEach(cleanup)
 beforeEach(() => {
  vi.resetAllMocks(); auth.user.role = 'PHONG_VTYT'
- vi.spyOn(HTMLDialogElement.prototype, 'showModal').mockImplementation(function (this: HTMLDialogElement) { this.setAttribute('open', '') })
- vi.spyOn(window, 'confirm').mockReturnValue(true)
- vi.mocked(plansApi.detail).mockResolvedValue({ ...plan }); vi.mocked(plansApi.items).mockResolvedValue(paged([item]))
- vi.mocked(equipmentApi.list).mockResolvedValue(paged([{ id: 1, equipmentCode: 'EQ-01', name: 'Máy thử', active: true, departmentId: 1, departmentName: 'Khoa Nội', departmentCode: 'NOI', model: null, serialNumber: null }]))
- vi.mocked(equipmentApi.warranty).mockResolvedValue({ equipmentId: 1, equipmentCode: 'EQ-01', equipmentName: 'Máy thử', referenceDate: '2026-11-15', manufacturerProviderId: 7, manufacturerName: 'Đơn vị hợp đồng', manufacturerContact: '0123456789', manufacturerActive: true, contracts: [{ id: 15, contractReference: 'HD-01', providerName: 'Đơn vị hợp đồng', providerContact: null, coverageScope: 'Định kỳ', effectiveFrom: '2026-01-01', effectiveTo: '2026-12-31', warrantyExpiresOn: '2026-12-31', warrantyStatus: 'ACTIVE', basisNote: 'Hợp đồng hợp lệ' }] });
- vi.mocked(equipmentApi.coverages).mockResolvedValue([free]); vi.mocked(providersApi.list).mockResolvedValue([{ id: 7, code: 'P07', name: 'Đơn vị hợp đồng', active: true }, { id: 8, code: 'P08', name: 'Đơn vị ngoài', active: true }, { id: 9, code: 'P09', name: 'Ngừng hoạt động', active: false }])
- vi.mocked(plansApi.create).mockResolvedValue({ id: 10, status: 'DRAFT', version: 0, approvalRequestId: null }); vi.mocked(plansApi.edit).mockResolvedValue({ id: 10, status: 'DRAFT', version: 3, approvalRequestId: null })
- vi.mocked(maintenanceSuggestionsApi.list).mockResolvedValue(paged([suggestion])); vi.mocked(notificationsApi.list).mockResolvedValue(paged([notification])); vi.mocked(notificationsApi.unread).mockResolvedValue({ count: 3 }); vi.mocked(notificationsApi.read).mockResolvedValue({ ...notification, readAt: '2026-10-02T01:00:00Z' }); vi.mocked(notificationsApi.readAll).mockResolvedValue()
- vi.mocked(apiRequest).mockResolvedValue({ id: 1, equipmentCode: 'EQ-01', name: 'Máy thử', active: true, departmentName: 'Khoa Nội' })
+ vi.mocked(quarterlyApi.preview).mockResolvedValue(preview)
+ vi.mocked(quarterlyApi.create).mockResolvedValue({ id: 10, status: 'DRAFT', version: 0, approvalRequestId: null })
+ vi.mocked(providersApi.list).mockResolvedValue([{ id: 7, code: 'AP', name: 'An Phát', active: true }])
+ vi.mocked(plansApi.detail).mockResolvedValue(plan); vi.mocked(plansApi.allItems).mockResolvedValue([item])
+ vi.mocked(plansApi.edit).mockResolvedValue({ id: 10, status: 'DRAFT', version: 1, approvalRequestId: null })
+ vi.mocked(plansApi.submit).mockResolvedValue({ id: 10, status: 'SUBMITTED', version: 1, approvalRequestId: 20 })
+ vi.mocked(apiRequest).mockImplementation(async path => path === '/api/equipment-catalog' ? [equipment] : path.includes('quarterly-detail') ? { ...equipment, contracts: [{ contract_id: 15, contract_code: 'HD-01', provider_id: 7, provider_name: 'An Phát', valid: true, start_date: '2026-01-01', end_date: '2030-12-31' }] } : [])
 })
-describe('Planning decisions', () => {
- it('displays FREE evidence and saves contractual coverage', async () => { page(); await openItem(); fireEvent.click(await screen.findByLabelText('Theo hợp đồng')); fireEvent.click(await screen.findByRole('radio', { name: /HD-01/ })); expect(screen.getByText('Căn cứ: Hợp đồng hợp lệ')).toBeTruthy(); fireEvent.click(screen.getByRole('button', { name: 'Lưu chỉnh sửa' })); await waitFor(() => expect(plansApi.edit).toHaveBeenCalledWith(10, expect.objectContaining({ items: [expect.objectContaining({ classification: 'FREE', coverageId: 15, proposedProviderId: null })] }))) })
- it('prepares NOT_FREE provider and basis in editable form', async () => { page(); await openItem(); fireEvent.click(await screen.findByLabelText('Ngoài hợp đồng')); fireEvent.change(screen.getByLabelText('Đơn vị đề xuất EQ-01'), { target: { value: '8' } }); fireEvent.change(screen.getByLabelText('Căn cứ chọn đơn vị EQ-01'), { target: { value: 'Đủ năng lực' } }); expect(screen.getByText('✓ Đã đủ thông tin')).toBeTruthy(); expect(screen.queryByRole('option', { name: 'Ngừng hoạt động' })).toBeNull(); fireEvent.click(screen.getByRole('button', { name: 'Lưu chỉnh sửa' })); await waitFor(() => expect(plansApi.edit).toHaveBeenCalledWith(10, expect.objectContaining({ items: [expect.objectContaining({ classification: 'NOT_FREE', proposedProviderId: 8, rationale: 'Đủ năng lực' })] }))) })
- it('shows missing proposed provider', async () => { page(); await openItem(); fireEvent.click(await screen.findByLabelText('Ngoài hợp đồng')); expect(screen.getByText('⚠ Chưa chọn đơn vị đề xuất')).toBeTruthy() })
- it('shows missing basis', async () => { page(); await openItem(); fireEvent.click(await screen.findByLabelText('Ngoài hợp đồng')); fireEvent.change(screen.getByLabelText('Đơn vị đề xuất EQ-01'), { target: { value: '8' } }); expect(screen.getByText('⚠ Chưa nhập căn cứ chọn đơn vị')).toBeTruthy() })
- it('blocks UC03 and identifies equipment when incomplete', async () => { page('/plans/10'); fireEvent.click(await screen.findByRole('button', { name: 'Gửi phê duyệt' })); expect(await screen.findByText(/Thiết bị EQ-01 chưa đủ/)).toBeTruthy(); expect(plansApi.submit).not.toHaveBeenCalled() })
- it('submits complete external preparation', async () => { vi.mocked(plansApi.items).mockResolvedValue(paged([{ ...item, status: 'PENDING_PROPOSAL', proposedProviderId: 8, rationale: 'Đủ năng lực' }])); vi.mocked(plansApi.submit).mockResolvedValue({ id: 10, status: 'SUBMITTED', version: 3, approvalRequestId: 20 }); page('/plans/10'); fireEvent.click(await screen.findByRole('button', { name: 'Gửi phê duyệt' })); await waitFor(() => expect(plansApi.submit).toHaveBeenCalledWith(10, 2)) })
- it.each<PlanStatus>(['SUBMITTED', 'APPROVED', 'IN_PROGRESS', 'AWAITING_REPORT', 'REPORTED', 'CLOSED'])('locks all controls in %s', async status => { vi.mocked(plansApi.detail).mockResolvedValue({ ...plan, status }); page(); await openItem(); const radio = await screen.findByLabelText('Theo hợp đồng'); expect((radio as HTMLInputElement).closest('fieldset')?.disabled).toBe(true); expect((screen.getByLabelText('Tiêu đề') as HTMLInputElement).closest('fieldset')?.disabled).toBe(true); expect(screen.queryByRole('button', { name: 'Lưu chỉnh sửa' })).toBeNull() })
- it('revision restores method/date/provider editing', async () => { vi.mocked(plansApi.detail).mockResolvedValue({ ...plan, status: 'REVISION_REQUIRED' }); page(); await openItem(); const radio = await screen.findByLabelText('Ngoài hợp đồng'); expect((radio as HTMLInputElement).closest('fieldset')?.disabled).toBe(false); fireEvent.click(radio); expect(screen.getByLabelText('Đơn vị đề xuất EQ-01')).toBeTruthy() })
- it.each<PlanStatus>(['SUBMITTED', 'APPROVED'])('has no obsolete UC05/UC06 action in %s', async status => { vi.mocked(plansApi.detail).mockResolvedValue({ ...plan, status }); page('/plans/10'); await screen.findByText('Kế hoạch mới'); expect(screen.queryByText('Xác định hình thức & đối tác')).toBeNull(); expect(screen.queryByText('Đề xuất đơn vị')).toBeNull(); expect(screen.queryByText('UNKNOWN')).toBeNull() })
- it('creates a plan with FREE selected before saving', async () => { page('/plans/new'); fireEvent.click(await screen.findByRole('button', { name: 'Thêm EQ-01' })); fireEvent.change(screen.getByLabelText('Tiêu đề'), { target: { value: 'Thử mới' } }); fireEvent.change(screen.getByLabelText('Ngày bắt đầu'), { target: { value: '2026-11-01' } }); fireEvent.change(screen.getByLabelText('Ngày kết thúc'), { target: { value: '2026-11-30' } }); await openItem(); fireEvent.click(screen.getByLabelText('Theo hợp đồng')); fireEvent.click(await screen.findByRole('radio', { name: /HD-01/ })); fireEvent.click(screen.getByRole('button', { name: 'Tạo kế hoạch' })); await waitFor(() => expect(plansApi.create).toHaveBeenCalledWith(expect.objectContaining({ items: [expect.objectContaining({ classification: 'FREE', coverageId: 15 })] }))) })
-})
-describe('Warranty and table interactions', () => {
- it('opens warranty on demand and closes the dialog', async () => {
-  page('/maintenance-suggestions'); expect(screen.queryByRole('dialog')).toBeNull()
-  fireEvent.click(await screen.findByRole('button', { name: 'Thông tin bảo hành' }))
-  const dialog = await screen.findByRole('dialog', { name: 'Thông tin bảo hành' })
-  expect(await within(dialog).findByText('Còn bảo hành')).toBeTruthy()
-  expect(within(dialog).getByText('0123456789')).toBeTruthy()
-  fireEvent.click(within(dialog).getByRole('button', { name: 'Đóng' }))
-  expect(screen.queryByRole('dialog')).toBeNull()
+describe('Fixed quarterly planning', () => {
+ it('renders the exact VTYT navigation order', () => { render(<MemoryRouter><AppLayout /></MemoryRouter>); expect(within(screen.getByRole('navigation')).getAllByRole('link').map(a => a.textContent)).toEqual(['Tổng quan','Danh sách hợp đồng','Danh sách thiết bị','Kế hoạch bảo trì','Theo dõi tiến độ bảo trì','Báo cáo bảo trì']) })
+ it('limits BGD navigation to approval and reports', () => { auth.user.role='BAN_GIAM_DOC';render(<MemoryRouter><AppLayout /></MemoryRouter>);expect(within(screen.getByRole('navigation')).getAllByRole('link').map(a=>a.textContent)).toEqual(['Tổng quan','Phê duyệt','Báo cáo']) })
+ it('has only year and quarter selectors without manual title, devices or dates', async () => { page();await screen.findByRole('link',{name:'TB-001'});expect(screen.getByLabelText('Năm')).toBeTruthy();expect(screen.getByLabelText('Quý')).toBeTruthy();expect(screen.queryByRole('textbox',{name:/Tiêu đề/})).toBeNull();expect(screen.queryByRole('checkbox')).toBeNull();expect(document.querySelector('input[type=date]')).toBeNull() })
+ it('previews every automatically scheduled device and contract/provider links', async () => { page();await screen.findByRole('link',{name:'HD-01'});expect(screen.getByText('Còn hạn')).toBeTruthy();expect(screen.getByText('Theo hợp đồng')).toBeTruthy();expect(screen.getByRole('link',{name:'An Phát'}).getAttribute('href')).toBe('/providers/7');expect(screen.queryByLabelText('Đơn vị đề xuất TB-001')).toBeNull();expect(quarterlyApi.create).not.toHaveBeenCalled() })
+ it('reloads quarter preview without creating records', async () => { page();await screen.findByRole('link',{name:'TB-001'});fireEvent.change(screen.getByLabelText('Quý'),{target:{value:'Q2'}});await waitFor(()=>expect(quarterlyApi.preview).toHaveBeenLastCalledWith(2027,'Q2'));expect(quarterlyApi.create).not.toHaveBeenCalled() })
+ it('creates and submits from year/quarter', async () => {page();fireEvent.click(await screen.findByRole('button',{name:'Gửi phê duyệt'}));await screen.findByText('Chi tiết kế hoạch đã lưu');expect(quarterlyApi.create).toHaveBeenCalledWith(2027,'Q1',[]);expect(plansApi.submit).toHaveBeenCalledWith(10,0)})
+ it('highlights incomplete outside-contract proposals before submission', async () => {vi.mocked(quarterlyApi.preview).mockResolvedValue({...preview,equipment:[{...equipment,classification:'NOT_FREE',contract_status:'EXPIRED',provider_id:undefined,contract_id:undefined}]});page();await screen.findByLabelText('Đơn vị đề xuất TB-001');fireEvent.click(screen.getByRole('button',{name:'Gửi phê duyệt'}));expect(screen.getByRole('alert').textContent).toContain('Bổ sung');expect(quarterlyApi.create).not.toHaveBeenCalled();fireEvent.change(screen.getByLabelText('Đơn vị đề xuất TB-001'),{target:{value:'7'}});fireEvent.change(screen.getByLabelText('Căn cứ TB-001'),{target:{value:'Đủ năng lực bảo trì'}});fireEvent.click(screen.getByRole('button',{name:'Gửi phê duyệt'}));await screen.findByText('Chi tiết kế hoạch đã lưu');expect(quarterlyApi.create).toHaveBeenCalledWith(2027,'Q1',[{equipmentId:1,proposedProviderId:7,rationale:'Đủ năng lực bảo trì'}])})
+ it('keeps revision comments visible on the quarterly edit form', async () => {vi.mocked(apiRequest).mockResolvedValue([{id:2,request_id:22,comment:'Bổ sung căn cứ chọn đơn vị.',reviewer:'BGĐ',action_at:'2026-10-05T00:00:00Z'}]);page('/plans/10/edit');expect(await screen.findByText('Bổ sung căn cứ chọn đơn vị.')).toBeTruthy();expect((screen.getByLabelText('Quý') as HTMLSelectElement).disabled).toBe(true)})
+ it('shows a four-column equipment list linked to equipment detail', async () => {page('/equipment');await screen.findByRole('link',{name:'TB-001'});expect(screen.getAllByRole('columnheader').map(h=>h.textContent)).toEqual(['Mã thiết bị','Tên thiết bị','Khoa/Phòng','Thời hạn bảo hành','Trạng thái bảo hành','Lịch bảo trì']);expect(screen.getByRole('link',{name:'TB-001'}).getAttribute('href')).toBe('/equipment/1')})
+ it('shows equipment quarters, company/contracts and history', async () => {page('/equipment/1');await screen.findByText('Q3');expect(screen.getByRole('heading',{name:'Lịch sử bảo trì'})).toBeTruthy();expect(screen.getByRole('link',{name:'HD-01'}).getAttribute('href')).toBe('/contracts/15');expect(screen.getByText('Còn hạn')).toBeTruthy()})
+ it('shows all approval equipment in one table without accordions or paging', async () => {
+  vi.mocked(approvalsApi.review).mockResolvedValue({id:20,requestType:'PLAN_APPROVAL',status:'PENDING',planId:10,planTitle:plan.title,planVersion:0,createdByName:'VTYT'} as Awaited<ReturnType<typeof approvalsApi.review>>)
+  vi.mocked(plansApi.allItems).mockResolvedValue(Array.from({length:25},(_,i)=>({...item,id:i+1,equipmentCode:`TB-${i+1}`})))
+  page('/approvals/20');await screen.findByText('TB-25');expect(screen.getAllByRole('row')).toHaveLength(26);expect(document.querySelector('details')).toBeNull();expect(screen.queryByRole('button',{name:/Trang tiếp/})).toBeNull();expect(screen.getAllByText('Theo hợp đồng')).toHaveLength(25)
  })
- it('shows manufacturer and external choices for expired devices', async () => {
-  vi.mocked(maintenanceSuggestionsApi.list).mockResolvedValue(paged([{ ...suggestion, classification: 'NOT_FREE', warrantyStatus: 'EXPIRED', warrantyExpiresOn: '2026-10-01', manufacturerProviderId: 7 }]))
-  page('/maintenance-suggestions'); expect((await screen.findAllByText('Hết bảo hành')).some(node => node.classList.contains('status-badge'))).toBe(true)
-  fireEvent.click(screen.getByRole('button', { name: 'Liên hệ nhà sản xuất' }))
-  await openItem()
-  expect((screen.getByLabelText('Liên hệ nhà sản xuất') as HTMLInputElement).checked).toBe(true)
-  expect((screen.getByLabelText('Đơn vị đề xuất EQ-01') as HTMLSelectElement).value).toBe('7')
-  fireEvent.change(screen.getByLabelText('Tiêu đề'), { target: { value: 'Bảo trì máy hết bảo hành' } })
-  fireEvent.change(screen.getByLabelText('Căn cứ chọn đơn vị EQ-01'), { target: { value: 'Liên hệ đại diện của hãng' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Tạo kế hoạch' }))
-  await waitFor(() => expect(plansApi.create).toHaveBeenCalledWith(expect.objectContaining({ items: [expect.objectContaining({ serviceChoice: 'MANUFACTURER', proposedProviderId: 7 })] })))
- })
- it('saves warranty dates and manufacturer from the dialog', async () => {
-  vi.mocked(equipmentApi.updateWarranty).mockResolvedValue(await equipmentApi.warranty(1))
-  page('/maintenance-suggestions'); fireEvent.click(await screen.findByRole('button', { name: 'Thông tin bảo hành' }))
-  fireEvent.click(await screen.findByRole('button', { name: 'Cập nhật hồ sơ bảo hành' }))
-  fireEvent.change(await screen.findByLabelText('Ngày hết bảo hành · HD-01'), { target: { value: '2026-11-30' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Lưu hồ sơ' }))
-  await waitFor(() => expect(equipmentApi.updateWarranty).toHaveBeenCalledWith(1, { manufacturerProviderId: 7, contracts: [{ id: 15, warrantyExpiresOn: '2026-11-30' }] }))
- })
-})
-describe('Unified equipment workspace', () => {
- it('has one equipment navigation entry for VTYT and redirects the old suggestions URL', async () => {
-  const links = navigationItems.filter(link => link.roles.includes('PHONG_VTYT') && ['/equipment', '/maintenance-suggestions'].includes(link.path))
-  expect(links).toHaveLength(1); expect(links[0]).toMatchObject({ path: '/equipment', label: 'Thiết bị & bảo trì' })
-  page('/maintenance-suggestions')
-  expect(await screen.findByRole('heading', { name: 'Thiết bị & bảo trì' })).toBeTruthy()
-  expect(await screen.findByRole('link', { name: 'Xem lịch sử' })).toHaveProperty('href', expect.stringContaining('/equipment/1/history'))
-  expect(equipmentApi.list).not.toHaveBeenCalled()
- })
- it('filters the unified catalog through the API', async () => {
-  page('/equipment'); await screen.findByText('EQ-01 · Máy thử')
-  fireEvent.change(screen.getByRole('searchbox'), { target: { value: ' EQ-01 ' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Tìm kiếm' }))
-  await waitFor(() => expect(maintenanceSuggestionsApi.list).toHaveBeenLastCalledWith(0, 20, expect.objectContaining({ search: 'EQ-01', activity: 'all' })))
-  fireEvent.change(screen.getByLabelText('Hoạt động'), { target: { value: 'inactive' } })
-  await waitFor(() => expect(maintenanceSuggestionsApi.list).toHaveBeenLastCalledWith(0, 20, expect.objectContaining({ activity: 'inactive' })))
- })
- it('retains inactive equipment history but prevents adding it to plans', async () => {
-  vi.mocked(maintenanceSuggestionsApi.list).mockResolvedValue(paged([{ ...suggestion, active: false, model: 'MON-01', serialNumber: 'SN-001' }]))
-  page('/equipment')
-  expect(await screen.findByText('Ngừng hoạt động')).toBeTruthy()
-  expect(screen.getByText(/MON-01.*SN-001/)).toBeTruthy()
-  expect((screen.getByRole('checkbox') as HTMLInputElement).disabled).toBe(true)
-  expect(screen.getByRole('link', { name: 'Xem lịch sử' })).toBeTruthy()
-  expect(screen.queryByRole('button', { name: 'Đưa vào kế hoạch' })).toBeNull()
- })
- it('shows quick warranty before selecting equipment and recalculates for its planned date', async () => {
-  page('/plans/new')
-  const picker = (await screen.findByRole('heading', { name: 'Chọn thêm thiết bị' })).closest('section')!
-  await within(picker).findByText('Còn bảo hành')
-  expect(within(picker).getByText('Hết hạn: 31/12/2026')).toBeTruthy()
-  fireEvent.click(within(picker).getByRole('button', { name: 'Thêm EQ-01' }))
-  await openItem()
-  fireEvent.change(screen.getByLabelText('Ngày dự kiến EQ-01'), { target: { value: '2026-12-31' } })
-  const selected = screen.getByRole('heading', { name: 'Thiết bị trong kế hoạch' }).closest('section')!
-  await within(selected).findByText('Còn bảo hành')
-  fireEvent.change(screen.getByLabelText('Ngày dự kiến EQ-01'), { target: { value: '2027-01-01' } })
-  expect(within(selected).getByText('Hết bảo hành')).toBeTruthy()
-  expect(within(picker).getByText('Còn bảo hành')).toBeTruthy()
- })
-})
-describe('Suggestions', () => {
- it('aggregates history coverage and basis for VTYT', async () => { page('/maintenance-suggestions'); expect(await screen.findByText('EQ-01 · Máy thử')).toBeTruthy(); fireEvent.click(screen.getByRole('button', { name: 'Chi tiết thiết bị' })); expect(screen.getByText('Ngày dự kiến trong kế hoạch đang mở')).toBeTruthy(); expect(screen.getByText(/Đơn vị hợp đồng/)).toBeTruthy(); expect(screen.getByText(/Đang có trong kế hoạch/)).toBeTruthy() })
- it.each<Role>(['BAN_GIAM_DOC', 'KHOA_PHONG', 'ADMIN'])('denies %s', async role => { auth.user.role = role; page('/maintenance-suggestions'); expect(await screen.findByText('Không có quyền')).toBeTruthy(); expect(maintenanceSuggestionsApi.list).not.toHaveBeenCalled() })
- it('handles insufficient time data', async () => { vi.mocked(maintenanceSuggestionsApi.list).mockResolvedValue(paged([{ ...suggestion, suggestedDate: null, suggestionBasis: 'Chưa đủ dữ liệu' }])); page('/maintenance-suggestions'); expect(await screen.findByText('Chưa đủ dữ liệu để đề xuất thời gian')).toBeTruthy() })
- it('direct action preselects equipment and FREE without persisting', async () => { page('/maintenance-suggestions'); fireEvent.click(await screen.findByRole('button', { name: 'Đưa vào kế hoạch' })); await openItem(); expect((await screen.findAllByText('EQ-01 · Máy thử')).length).toBeGreaterThan(0); expect((screen.getByLabelText('Theo hợp đồng') as HTMLInputElement).checked).toBe(true); expect((screen.getByLabelText('Ngày dự kiến EQ-01') as HTMLInputElement).value).toBe('2026-11-15'); expect(plansApi.create).not.toHaveBeenCalled() })
- it('multi-select uses same creation flow', async () => { page('/maintenance-suggestions'); fireEvent.click(await screen.findByRole('checkbox')); fireEvent.click(screen.getByRole('button', { name: 'Tạo kế hoạch từ 1 thiết bị đã chọn' })); expect(await screen.findByText('Kế hoạch bảo trì mới')).toBeTruthy() })
- it('external prefill never chooses a historical provider', async () => { page('/plans/new', { suggestions: [{ ...suggestion, classification: 'NOT_FREE', coverageId: null, lastExternalProviderName: 'Đơn vị ngoài' }] }); const select = await screen.findByLabelText('Đơn vị đề xuất EQ-01'); expect((select as HTMLSelectElement).value).toBe('') })
-})
-describe('Notifications', () => {
- it('bell shows unread count and preview', async () => { render(<MemoryRouter><NotificationBell /></MemoryRouter>); const bell = await screen.findByRole('button', { name: 'Thông báo: 3 chưa đọc' }); fireEvent.click(bell); expect(await screen.findByText('Kế hoạch được duyệt')).toBeTruthy(); expect(screen.getByRole('link', { name: 'Xem tất cả' })).toBeTruthy() })
- it('list marks a notification read before navigating', async () => { page('/notifications'); fireEvent.click(await screen.findByRole('button', { name: /Kế hoạch được duyệt/ })); await waitFor(() => expect(notificationsApi.read).toHaveBeenCalledWith(5)); expect(await screen.findByText('Kế hoạch mới')).toBeTruthy() })
- it('marks all read and reloads list', async () => { page('/notifications'); await screen.findByText(/Kế hoạch được duyệt/); fireEvent.click(screen.getByRole('button', { name: 'Đánh dấu tất cả đã đọc' })); await waitFor(() => expect(notificationsApi.readAll).toHaveBeenCalled()); await waitFor(() => expect(notificationsApi.list).toHaveBeenCalledTimes(2)) })
- it('handles empty list', async () => { vi.mocked(notificationsApi.list).mockResolvedValue(paged([])); page('/notifications'); expect(await screen.findByText('Chưa có thông báo.')).toBeTruthy() })
- it('shows ownership denial without navigating', async () => { const { ApiError } = await import('../api/types'); vi.mocked(notificationsApi.read).mockRejectedValue(new ApiError(404, 'NOTIFICATION_NOT_FOUND', 'Không tìm thấy')); page('/notifications'); fireEvent.click(await screen.findByRole('button', { name: /Kế hoạch được duyệt/ })); expect(await screen.findByText(/Không tìm thấy dữ liệu/)).toBeTruthy(); expect(plansApi.detail).not.toHaveBeenCalled() })
-})
-describe('Coverage and completeness validation', () => {
- it.each([
-  [{ providerActive: false }, 'Đơn vị hợp đồng không hoạt động'], [{ verifiedAt: null }, 'Thiếu căn cứ xác minh hợp đồng'], [{ basisNote: ' ' }, 'Thiếu căn cứ xác minh hợp đồng'], [{ verifiedByRole: 'ADMIN' }, 'Thiếu căn cứ xác minh hợp đồng'], [{ equipmentId: 99 }, 'Hồ sơ khác thiết bị'], [{ effectiveTo: '2026-10-01' }, 'Hợp đồng không áp dụng vào ngày tham chiếu'], [{ effectiveFrom: '2027-01-01' }, 'Hợp đồng không áp dụng vào ngày tham chiếu'],
- ])('rejects invalid evidence %j', (patch, reason) => { expect(freeCoverageReason({ ...free, ...patch } as CoverageEvidence, 1, '2026-11-15')).toBe(reason) })
- it('includes boundary dates', () => { expect(freeCoverageReason(free, 1, '2026-01-01')).toBeNull(); expect(freeCoverageReason(free, 1, '2026-12-31')).toBeNull() })
- it('requires an explicit method', () => { expect(itemCompleteness({ equipmentId: 1, plannedDate: null }, '2026-11-01')).toBe('Chưa chọn hình thức bảo trì') })
- it('renders information within the item card', async () => { page(); await openItem(); const card = await screen.findByRole('article', { name: 'Hạng mục EQ-01' }); expect(within(card).getByText('Khoa Nội')).toBeTruthy() })
 })
 
-describe('Prepared vendor execution gate', () => {
- it.each([true, false])('gates direct execution URL when pending=%s', async pendingVendorApproval => {
-  vi.mocked(plansApi.detail).mockResolvedValue({ ...plan, status: 'APPROVED', pendingVendorApproval })
-  vi.mocked(plansApi.items).mockResolvedValue(paged([{ ...item, status: 'UNDER_CONTRACT', assignmentRoute: 'UNDER_CONTRACT', assignedProviderName: 'Đơn vị hợp đồng' }]))
-  vi.mocked(executionsApi.history).mockResolvedValue({ equipmentId: 1, equipmentCode: 'EQ-01', equipmentName: 'Máy thử', currentDepartmentId: 1, campaigns: [] })
-  page('/plans/10/items/31/execution')
-  await screen.findByText('TRẠNG THÁI HẠNG MỤC')
-  expect(Boolean(screen.queryByRole('button', { name: 'Bắt đầu bảo trì' }))).toBe(!pendingVendorApproval)
-  expect(Boolean(screen.queryByText('Cần phê duyệt xong các đơn vị đề xuất trước khi bắt đầu thực hiện kế hoạch.'))).toBe(pendingVendorApproval)
-  expect(executionsApi.start).not.toHaveBeenCalled()
- })
-})
+it('preselects current quarter from a dashboard shortcut',async()=>{page('/plans/new?year=2026&quarter=Q4');await screen.findByRole('link',{name:'TB-001'});expect(quarterlyApi.preview).toHaveBeenCalledWith(2026,'Q4');expect((screen.getByLabelText('Năm') as HTMLSelectElement).value).toBe('2026');expect((screen.getByLabelText('Quý') as HTMLSelectElement).value).toBe('Q4')})

@@ -30,3 +30,6 @@ export interface ReportEvidence {
   items: { itemId: number; equipmentCode: string; equipmentName: string; departmentName: string;
     status: PlanItemStatus; providerName: string | null; attempts: ExecutionAttempt[] }[]
 }
+
+export interface ReportDelivery {reportId:number;canSend:boolean;departments:{id:number;name:string}[];deliveries:{id:number;department_id:number|null;recipient:string;sent_at:string;sent_by:string}[]}
+export interface ReceivedReport {id:number;title:string;period_start:string;period_end:string;status:string;equipment_count:number;sent_at:string;sent_by:string}

@@ -7,10 +7,11 @@ import { LoginPage } from './LoginPage'
 const login = vi.hoisted(() => vi.fn())
 vi.mock('../auth/useAuth', () => ({ useAuth: () => ({ status: 'anonymous', login, message: null }) }))
 
-function page() {
-  return render(<MemoryRouter initialEntries={['/login']}><Routes>
+function page(from?: string) {
+  return render(<MemoryRouter initialEntries={[{pathname:'/login',state:from?{from}:null}]}><Routes>
     <Route path="/login" element={<LoginPage />} />
-    <Route path="/" element={<p>Đã đăng nhập</p>} />
+    <Route path="/dashboard" element={<p>Đã đăng nhập</p>} />
+    <Route path="/contracts" element={<p>Hợp đồng sau đăng nhập</p>} />
   </Routes></MemoryRouter>)
 }
 afterEach(cleanup)
@@ -59,3 +60,5 @@ describe('Login password visibility', () => {
     await waitFor(() => expect(login).toHaveBeenCalledTimes(1))
   })
 })
+
+it('preserves a protected deep link instead of overriding it with the dashboard',async()=>{page('/contracts?search=HD');fireEvent.change(screen.getByLabelText('Tên đăng nhập'),{target:{value:'vtyt'}});fireEvent.change(screen.getByLabelText('Mật khẩu'),{target:{value:crypto.randomUUID()}});fireEvent.submit(screen.getByLabelText('Mật khẩu').closest('form')!);expect(await screen.findByText('Hợp đồng sau đăng nhập')).toBeTruthy()})

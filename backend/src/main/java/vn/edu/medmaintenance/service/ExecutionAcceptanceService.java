@@ -119,7 +119,9 @@ public class ExecutionAcceptanceService {
         String note = optional(command.note());
         log.setWorkNote(command.status() == null ? required(command.workNote(), "WORK_NOTE_REQUIRED")
                 : command.status().label() + (blank(note) ? "" : "\n" + note));
-        log.setDamageNote(optional(command.damageNote()));
+        if(command.status()==MaintenanceProgressStatus.DAMAGE_DETECTED && blank(note))
+            throw new BusinessRuleException(HttpStatus.BAD_REQUEST,"DAMAGE_NOTE_REQUIRED","Vui lòng mô tả hỏng hóc để lưu kết quả.");
+        log.setDamageNote(command.status()==MaintenanceProgressStatus.DAMAGE_DETECTED?note:optional(command.damageNote()));
         progress.save(log);
         entityManager.flush();
         return new ProgressResponse(log.getId(), attempt.getId(), log.getEventAt());

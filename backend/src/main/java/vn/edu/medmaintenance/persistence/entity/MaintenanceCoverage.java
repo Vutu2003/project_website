@@ -53,6 +53,8 @@ public class MaintenanceCoverage {
     public LocalDate getWarrantyExpiresOn() { return warrantyExpiresOn; }
     public void setWarrantyExpiresOn(LocalDate date) { warrantyExpiresOn = date; }
 
+    @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="contract_id") private MaintenanceContract contract;
+    public MaintenanceContract getContract(){return contract;}
     protected MaintenanceCoverage() {
     }
 

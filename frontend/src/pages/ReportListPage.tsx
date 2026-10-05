@@ -1,3 +1,4 @@
+import { ReceivedReportsPage } from './ReceivedReportsPage'
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { plansApi } from '../api/plansApi'
@@ -8,7 +9,8 @@ import { WorkflowError } from '../components/WorkflowFeedback'
 import type { PageResponse, Plan, PlanStatus } from '../types/workflow'
 import { businessDate, planStatusLabels } from '../utils/workflowLabels'
 
-export function ReportListPage() {
+export function ReportListPage(){const {user}=useAuth();return user?.role==='KHOA_PHONG'||user?.role==='BAN_GIAM_DOC'?<ReceivedReportsPage/>:<PlanningReportsPage/>}
+function PlanningReportsPage() {
   const { user } = useAuth()
   const [status, setStatus] = useState<Extract<PlanStatus, 'AWAITING_REPORT' | 'REPORTED'>>(user?.role === 'BAN_GIAM_DOC' ? 'REPORTED' : 'AWAITING_REPORT')
   const [page, setPage] = useState(0)
@@ -23,8 +25,8 @@ export function ReportListPage() {
     return () => { active = false }
   }, [page, status, refresh])
   return <div className="page-stack">
-    <div className="page-title-block"><p className="eyebrow">UC11 · BÁO CÁO BẢO TRÌ</p><h1>Báo cáo bảo trì</h1>
-      <p>Danh sách lấy theo trạng thái kế hoạch trên backend. Mở kế hoạch để lập hoặc xem báo cáo.</p></div>
+    <div className="page-title-block"><p className="eyebrow">BÁO CÁO BẢO TRÌ</p><h1>Báo cáo bảo trì</h1>
+      <p>Các kế hoạch đã hoàn thành bảo trì. Mở báo cáo để kiểm tra, hoàn tất và gửi đến người nhận.</p></div>
     <section className="panel business-panel"><div className="panel-heading"><h2>Kế hoạch</h2>
       <label className="inline-filter">Trạng thái <select value={status} onChange={event => { setStatus(event.target.value as typeof status); setPage(0); setLoading(true) }}>
         <option value="AWAITING_REPORT">Chờ báo cáo</option><option value="REPORTED">Đã báo cáo</option>

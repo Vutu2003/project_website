@@ -15,6 +15,7 @@ count="$("${PSQL[@]}" -At -c 'SELECT count(*) FROM department')"
 if [[ "${count}" == 0 ]]; then
     "${ROOT}/backend/scripts/seed-dev-db.sh" --baseline v3
 else
-    "${PSQL[@]}" --single-transaction -f "${ROOT}/database/seeds/v3_catalog.sql"
+    "${PSQL[@]}" --single-transaction -f "${ROOT}/database/seeds/v3_catalog.sql" -f "${ROOT}/database/seeds/v3_automation.sql" \
+    -f "${ROOT}/database/seeds/v3_quarters.sql"
     echo 'V3 catalog ready; existing accounts and workflows preserved.'
 fi

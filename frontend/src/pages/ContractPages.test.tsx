@@ -1,0 +1,15 @@
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { MemoryRouter, Route, Routes } from 'react-router'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { apiRequest } from '../api/client'
+import { ContractListPage, ProviderDetailPage, ContractDetailPage } from './ContractPages'
+vi.mock('../api/client', () => ({ apiRequest: vi.fn() }))
+const contract = {id:15,contract_code:'HD-01',contract_name:'Bảo dưỡng định kỳ',provider_id:7,provider_name:'An Phát',start_date:'2026-01-01',end_date:'2030-12-31',status:'ACTIVE'}
+afterEach(cleanup)
+beforeEach(()=>{vi.resetAllMocks();vi.mocked(apiRequest).mockImplementation(async path=>path==='/api/companies'?[{id:7,name:'An Phát',contact_details:'024 1234 5678',contract_count:2,active_contract_count:1,covered_equipment_count:8}]:path==='/api/providers/7/detail'?{id:7,name:'An Phát',contact_details:'024 1234 5678',covered_equipment_count:8,contracts:[contract]}:path==='/api/providers/7/equipment'?[{equipment_id:1,equipment_code:'TB-001',equipment_name:'Máy siêu âm',department_name:'Khoa Nội',quarters:'Q1, Q3',contracts:'HD-01',warranty_start_date:'2026-01-01',warranty_end_date:'2030-12-31',warranty_status:'VALID'}]:path==='/api/contracts/15'?contract:[{id:1,equipment_code:'TB-001',name:'Máy siêu âm',department_name:'Khoa Nội',quarters:'Q1, Q3'}])})
+function page(path='/contracts'){return render(<MemoryRouter initialEntries={[path]}><Routes><Route path="/contracts" element={<ContractListPage/>}/><Route path="/providers/:id" element={<ProviderDetailPage/>}/><Route path="/contracts/:id" element={<ContractDetailPage/>}/><Route path="/equipment/:equipmentId" element={<p>Chi tiết thiết bị</p>}/></Routes></MemoryRouter>)}
+it('starts the contract list with companies, contacts and counts',async()=>{page();await screen.findByRole('link',{name:/An Phát/});expect(screen.getAllByRole('columnheader').map(h=>h.textContent)).toEqual(['Công ty / Đơn vị','Liên hệ','Số hợp đồng','Hợp đồng còn hạn','Số thiết bị']);expect(screen.getByText('024 1234 5678')).toBeTruthy()})
+it('navigates company → contract → equipment',async()=>{page();fireEvent.click(await screen.findByRole('link',{name:/An Phát/}));fireEvent.click(await screen.findByRole('link',{name:'HD-01'}));expect(await screen.findByText('Q1, Q3')).toBeTruthy();fireEvent.click(screen.getByRole('link',{name:'TB-001'}));expect(await screen.findByText('Chi tiết thiết bị')).toBeTruthy()})
+it('normalizes non-valid contract statuses to Hết hạn',async()=>{vi.mocked(apiRequest).mockImplementation(async path=>path.endsWith('/equipment')?[]:{...contract,status:'FUTURE'});page('/contracts/15');expect(await screen.findByText('Hết hạn')).toBeTruthy()})
+
+it('shows company equipment below contracts with explicit warranty dates',async()=>{page('/providers/7');await screen.findByText('Đến 31/12/2030');expect(screen.getByText('Từ 01/01/2026')).toBeTruthy();expect(screen.getByRole('heading',{name:'Danh sách thiết bị'})).toBeTruthy();expect(screen.getByRole('link',{name:'TB-001'}).getAttribute('href')).toBe('/equipment/1')})

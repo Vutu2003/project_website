@@ -37,6 +37,13 @@ public class MaintenancePlan {
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
+    @Column(name="plan_year") private Integer planYear;
+    @Column(name="plan_quarter",columnDefinition="text") private String planQuarter;
+    public Integer getPlanYear(){return planYear;}
+    public String getPlanQuarter(){return planQuarter;}
+    public void setPlanYear(Integer value){planYear=value;}
+    public void setPlanQuarter(String value){planQuarter=value;}
+
     public MaintenancePlan() {
     }
 

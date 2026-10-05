@@ -20,6 +20,8 @@ export interface PageResponse<T> {
 }
 
 export interface Plan {
+  planYear?: number | null; planQuarter?: import("../api/quarterlyApi").Quarter | null; equipmentCount?: number
+
   id: number
   title: string
   periodStart: string
@@ -33,6 +35,7 @@ export interface Plan {
 }
 
 export interface PlanItem {
+  lastMaintenanceDate?: string | null; nextMaintenanceDueDate?: string | null; contractId?: number | null; contractCode?: string | null; contractStartDate?: string | null; contractEndDate?: string | null
   id: number
   planId: number
   equipmentId: number
@@ -75,6 +78,7 @@ export interface Department { id: number; code: string; name: string; active: bo
 export interface Provider { id: number; code: string; name: string; contactDetails?: string | null; active: boolean }
 
 export interface ApprovalQueueItem {
+  planYear?: number; planQuarter?: string; equipmentCount?: number
   id: number
   requestType: ApprovalRequestType
   status: ApprovalRequestStatus
@@ -169,6 +173,9 @@ export interface VendorProposalRequest {
 }
 
 export interface MaintenanceSuggestion {
+ maintenanceIntervalValue?: number | null; maintenanceIntervalUnit?: string | null; maintenanceEnabled?: boolean;
+ nextMaintenanceDueDate?: string | null; dueStatus?: string; contractId?: number | null; contractualProviderId?: number | null;
+ contractStartDate?: string | null; contractEndDate?: string | null; contractStatus?: string;
  equipmentId: number; equipmentCode: string; equipmentName: string; departmentId: number; departmentName: string; model?: string | null; serialNumber?: string | null; technicalSpec?: string | null; active?: boolean;
  lastMaintenanceDate: string | null; latestResult: string | null; latestStatus: PlanItemStatus | null;
  classification: CoverageClassification; coverageId: number | null; contractReference: string | null;

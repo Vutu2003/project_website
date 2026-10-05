@@ -1,22 +1,33 @@
-## Bảo hành và danh sách bảo trì
+## Tổng quan theo vai trò
 
-VTYT dùng một mục **Thiết bị & bảo trì** tại `/equipment`, gộp danh mục, bảo hành, đề xuất và truy cập lịch sử. Đường dẫn `/maintenance-suggestions` cũ chuyển về mục này. Danh sách có tìm theo mã/tên/serial và lọc thiết bị đang/ngừng hoạt động.
-Thiết bị trong biểu mẫu kế hoạch và theo dõi tiến độ dùng bảng. Bảng chọn thiết bị và bảng đã chọn hiển thị nhanh trạng thái, ngày hết bảo hành theo ngày bắt đầu kế hoạch hoặc ngày dự kiến của từng thiết bị.
-Mỗi dòng có nút **Thông tin bảo hành** để xem thời hạn, trạng thái, hợp đồng và liên hệ.
-VTYT/ADMIN có thể cập nhật nhà sản xuất hoặc đại diện (từ danh mục đơn vị) và ngày hết bảo hành trong hộp thoại này.
+Sau đăng nhập, `/dashboard` mở tổng quan phù hợp với VTYT, BGD, khoa/phòng hoặc ADMIN. Menu **Tổng quan** đứng đầu cho mọi vai trò. Một yêu cầu `GET /api/dashboard` trả các DTO đọc theo vai trò đăng nhập; dữ liệu khoa/phòng được lọc tại backend theo phạm vi khoa trong kế hoạch. Không có thao tác thay đổi nghiệp vụ từ tổng quan.
 
-Migration V009 thêm `equipment.manufacturer_provider_id`,
-`maintenance_coverage.warranty_expires_on` và `maintenance_plan_item.service_choice`.
-Với hợp đồng hiện có, ngày kết thúc hợp đồng là ngày hết bảo hành ban đầu; có thể cập nhật lại theo hồ sơ thực tế.
-Trạng thái được tính theo ngày tham chiếu, còn hiệu lực đến hết ngày hết bảo hành;
-thiếu ngày thì hiển thị **Chưa rõ thời hạn**. Ngày kết thúc hợp đồng và ngày hết bảo hành được lưu riêng.
+VTYT có việc cần xử lý, kế hoạch quý hiện tại, tiến độ, hợp đồng và báo cáo. BGD có hồ sơ chờ duyệt, quyết định gần đây và báo cáo đã được gửi. Khoa/phòng có bàn giao, bảo trì đang thực hiện và lịch sử riêng. ADMIN có tài khoản, danh mục và các cảnh báo thiếu dữ liệu. Nút tạo kế hoạch truyền năm/quý; các thẻ phê duyệt và tài khoản truyền bộ lọc vào màn hình hiện có. Đường dẫn được bảo vệ trước đăng nhập vẫn được giữ lại.
 
-Ngoài hợp đồng hoặc hết bảo hành có hai phương án: **Liên hệ nhà sản xuất** và **Bảo hành ngoài**.
-Phương án nhà sản xuất sử dụng đơn vị đã lưu trong hồ sơ thiết bị; cả hai vẫn cần căn cứ và BGĐ phê duyệt trước khi thực hiện.
-Hệ thống lưu phương án và hiển thị thông tin liên hệ để VTYT chủ động liên hệ.
-Backend tự áp dụng migration khi khởi động bằng `./scripts/start.sh` sau khi build JAR mới.
+Chrome smoke ngắn cho bốn vai trò: `./backend/scripts/test-v3-browser.sh --dashboard` (1366×768, database tạm).
 
-# Chạy project trên máy hiện tại
+## Version 3 — kế hoạch bảo trì theo quý
+
+VTYT dùng **Danh sách hợp đồng → Danh sách thiết bị → Kế hoạch bảo trì → Theo dõi tiến độ bảo trì → Báo cáo bảo trì**.
+Hợp đồng được tổ chức theo công ty → hợp đồng → thiết bị. Trang công ty có danh sách thiết bị dưới hợp đồng, kèm khoa/phòng, lịch quý và ngày bảo hành cụ thể. Ngày chưa có trong hồ sơ hiển thị “Chưa cập nhật”, không lấy ngày hết hạn hợp đồng làm ngày bảo hành.
+VTYT cập nhật ba mức: **Đang bảo trì / Bảo trì xong / Có hỏng hóc**; hỏng hóc cần mô tả. Khi tất cả thiết bị có kết quả, VTYT xác nhận hoàn thành để tạo báo cáo nháp từ dữ liệu thực hiện. Sau khi kiểm tra và hoàn tất, VTYT gửi báo cáo cho BGĐ và các khoa/phòng có thiết bị trong kế hoạch. Khoa/phòng chỉ xem thiết bị của mình; hệ thống lưu người gửi, thời điểm và thông báo nhận báo cáo.
+Tạo kế hoạch chỉ chọn năm/quý: backend sinh tên, thời gian và toàn bộ thiết bị có lịch trong quý.
+Hợp đồng còn hạn tại ngày đầu quý tự xác định đơn vị; ngoài hợp đồng cần đề xuất đơn vị và căn cứ trước khi gửi duyệt.
+BGĐ dùng **Phê duyệt → Báo cáo**, xem tất cả thiết bị trong một bảng. Ý kiến chỉnh sửa được giữ nguyên và hiện cho VTYT.
+
+Migration **V011** thêm lịch quý, quan hệ hợp đồng–thiết bị và năm/quý kế hoạch; **V012** lưu nơi nhận báo cáo. Các migration giữ dữ liệu lịch sử.
+Setup không xóa kế hoạch hoặc đổi mật khẩu. Áp dụng local:
+
+```bash
+source scripts/use-toolchain.sh
+env -u DEBUG mvn -f backend/pom.xml -DskipTests package
+./backend/scripts/setup-v3.sh
+./scripts/stop.sh
+./scripts/start.sh
+```
+
+Kiểm tra: `npm run build --prefix frontend`, `npm run lint --prefix frontend`, `npm run test --prefix frontend`,
+`./backend/scripts/test-v2.sh`. Smoke Chrome ngắn: `./backend/scripts/test-v3-browser.sh` (database tạm, không thay đổi dữ liệu đang sử dụng).
 
 ## Nền tảng dữ liệu Version 3
 

@@ -17,6 +17,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import vn.edu.medmaintenance.persistence.enums.*;
 
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT) @TestInstance(TestInstance.Lifecycle.PER_CLASS) class ProviderRoutingIntegrationTest {
+    private java.util.Map<Long,String> fixtureStatuses;
+    @org.junit.jupiter.api.BeforeEach void isolateOpenFixturePlans() { fixtureStatuses=PlanningTestData.archiveFixturePlans(jdbc); }
+    @org.junit.jupiter.api.AfterEach void restoreOpenFixturePlans() { PlanningTestData.restoreFixturePlans(jdbc,fixtureStatuses); }
+
     @Autowired TestRestTemplate http;
     @Autowired JdbcTemplate jdbc;
     @MockitoSpyBean vn.edu.medmaintenance.persistence.repository.UserNotificationRepository notifications;
@@ -76,11 +80,10 @@ import vn.edu.medmaintenance.persistence.enums.*;
         var p=create(external(id("DEMO-EQ-003")));
         assertThat(submit(p).path("status").asText()).isEqualTo("SUBMITTED");
     }
-    @Test void incompleteClassificationBlocksSubmissionWithEquipmentCode() {
+    @Test void missingClientClassificationIsDerivedBeforeSubmission() {
         var p=create(Map.of("equipmentId", eq));
-        var fail=send(HttpMethod.POST, "/api/plans/"+p+"/submit", vtyt, Map.of("version", pv(p)));
-        assertThat(ok(fail, 409).path("message").asText()).contains("DEMO-EQ-001");
-        assertThat(text("SELECT status FROM maintenance_plan WHERE id=?", p)).isEqualTo("DRAFT");
+        assertThat(submit(p).path("status").asText()).isEqualTo("SUBMITTED");
+        assertThat(text("SELECT status FROM maintenance_plan_item WHERE plan_id=?",p)).isEqualTo("UNDER_CONTRACT");
     }
     @Test void externalProviderRequiredAtSubmission() {
         var input=new HashMap<>(external(paid));
@@ -124,21 +127,20 @@ import vn.edu.medmaintenance.persistence.enums.*;
     }
     @ParameterizedTest @ValueSource(strings= {
         "DRAFT", "REVISION_REQUIRED"
-    }) void editablePlanCanChangeDateMethodAndProposal(String status) {
+    }) void editablePlanDerivesMethodFromChangedDate(String status) {
         var p=create(free());
         jdbc.update("UPDATE maintenance_plan SET status=? WHERE id=?", status, p);
         var input=new HashMap<>(external(eq));
         input.put("plannedDate", "2026-11-16");
         ok(send(HttpMethod.PATCH, "/api/plans/"+p, vtyt, edit(p, input)), 200);
-        assertThat(text("SELECT status FROM maintenance_plan_item WHERE plan_id=?", p)).isEqualTo("PENDING_PROPOSAL");
+        assertThat(text("SELECT status FROM maintenance_plan_item WHERE plan_id=?", p)).isEqualTo("UNDER_CONTRACT");
         assertThat(submit(p).path("status").asText()).isEqualTo("SUBMITTED");
     }
-    @Test void revisionCanChangeBackToFreePreservingOldContent() {
+    @Test void validContractCannotBeOverriddenByClientClassification() {
+        // The client cannot override a valid contract with NOT_FREE.
         var p=create(external(eq));
-        long i=item(p);
-        ok(send(HttpMethod.PATCH, "/api/plans/"+p, vtyt, edit(p, free())), 200);
-        assertThat(text("SELECT status FROM approval_request WHERE plan_item_id=?", i)).isEqualTo("CANCELLED");
-        assertThat(text("SELECT status FROM maintenance_plan_item WHERE id=?", i)).isEqualTo("UNDER_CONTRACT");
+        assertThat(text("SELECT status FROM maintenance_plan_item WHERE plan_id=?",p)).isEqualTo("UNDER_CONTRACT");
+        assertThat(number("SELECT count(*) FROM approval_request WHERE plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)",p)).isZero();
     }
     @Test void proposalReplacementPreservesOldBasisAndHasOneActive() {
         var p=create(external(paid));
@@ -230,15 +232,11 @@ import vn.edu.medmaintenance.persistence.enums.*;
         submit(p);
         assertCode(send(HttpMethod.PATCH, "/api/plans/"+p, vtyt, edit(p, free())), 409, "PLAN_NOT_EDITABLE");
     }
-    @Test void legacyPlanRemainsReadableAndApprovalDoesNotFabricateContent() {
-        long p=create(Map.of("equipmentId", paid));
-        jdbc.update("UPDATE maintenance_plan_item SET status='PENDING_PROPOSAL' WHERE plan_id=?", p);
-        jdbc.update("UPDATE maintenance_plan SET status='SUBMITTED' WHERE id=?", p);
-        long user=number("SELECT id FROM user_account WHERE username='demo_vtyt'");
-        long q=jdbc.queryForObject("INSERT INTO approval_request(request_type,plan_id,status,created_by_user_id,submitted_at) VALUES('PLAN_APPROVAL',?,'PENDING',?,NOW()) RETURNING id", Long.class, p, user);
-        decide(q, pv(p), "APPROVE");
-        ok(send(HttpMethod.GET, "/api/plans/"+p+"/items", vtyt, null), 200);
-        assertThat(number("SELECT count(*) FROM approval_request WHERE plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)", p)).isZero();
+    @Test void incompleteExternalDraftRemainsReadableAndCannotSubmit() {
+        long p=create(Map.of("equipmentId",paid));
+        ok(send(HttpMethod.GET,"/api/plans/"+p+"/items",vtyt,null),200);
+        assertCode(send(HttpMethod.POST,"/api/plans/"+p+"/submit",vtyt,Map.of("version",pv(p))),409,"PLAN_ITEM_INCOMPLETE");
+        assertThat(number("SELECT count(*) FROM approval_request WHERE plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)",p)).isEqualTo(1);
     }
     @Test void stalePlanVersionRejectsWithoutProposalMutation() {
         var p=create(free());
@@ -301,13 +299,10 @@ import vn.edu.medmaintenance.persistence.enums.*;
             assertThat(row.path("departmentName").asText()).isNotBlank();
             if (row.path("suggestedDate").isNull()) {
                 insufficient=true;
-                assertThat(row.path("suggestionBasis").asText()).contains("Chưa đủ dữ liệu");
+                assertThat(row.path("suggestionBasis").asText()).contains("Cần cấu hình");
             }
         }
         assertThat(insufficient).isTrue();
-    }
-    @Test void inferredIntervalUsesRealDates() {
-        assertThat(MaintenanceSuggestionService.observedInterval(List.of(java.time.LocalDate.parse("2026-01-01"), java.time.LocalDate.parse("2026-01-11"), java.time.LocalDate.parse("2026-01-25")))).isEqualTo(12);
     }
     @Test void obsoleteRoutingAndManualSendingAreRejected() {
         var p=create(free());
@@ -315,18 +310,15 @@ import vn.edu.medmaintenance.persistence.enums.*;
         assertCode(send(HttpMethod.POST, "/api/plan-items/"+i+"/route", vtyt, Map.of("version", iv(i), "coverageId", coverage)), 409, "PLANNING_WORKFLOW_REQUIRED");
         assertCode(send(HttpMethod.POST, "/api/plan-items/"+i+"/vendor-proposals", vtyt, Map.of("version", iv(i))), 409, "PLANNING_WORKFLOW_REQUIRED");
     }
-    @Test void invalidFreeCoverageBlocksCreate() {
-        var input=new HashMap<>(free());
-        input.put("coverageId", number("SELECT id FROM maintenance_coverage WHERE equipment_id=?", paid));
-        assertCode(send(HttpMethod.POST, "/api/plans", vtyt, body(input)), 409, "INVALID_FREE_COVERAGE");
+    @Test void clientCoverageOverrideIsIgnored() {
+        var input=new HashMap<>(free());input.put("coverageId",number("SELECT id FROM maintenance_coverage WHERE equipment_id=?",paid));
+        var p=create(input);
+        assertThat(number("SELECT coverage_id FROM maintenance_plan_item WHERE plan_id=?",p)).isEqualTo(coverage);
     }
-    @Test void freeCoverageDateBoundsInclusive() {
-        var input=new HashMap<>(free());
-        input.put("plannedDate", "2027-01-01");
-        var b=body(input);
-        b.put("periodStart", "2027-01-01");
-        b.put("periodEnd", "2027-01-31");
-        assertCode(send(HttpMethod.POST, "/api/plans", vtyt, b), 409, "INVALID_FREE_COVERAGE");
+    @Test void expiredContractAutomaticallyBecomesExternal() {
+        var b=body(free());b.put("periodStart","2027-01-01");b.put("periodEnd","2027-01-31");
+        long p=ok(send(HttpMethod.POST,"/api/plans",vtyt,b),201).path("id").asLong();plans.add(p);
+        assertThat(text("SELECT status FROM maintenance_plan_item WHERE plan_id=?",p)).isEqualTo("PENDING_PROPOSAL");
     }
     @Test void inactiveDirectorReceivesNothing() {
         var p=create(free());
@@ -340,30 +332,32 @@ import vn.edu.medmaintenance.persistence.enums.*;
             jdbc.update("UPDATE user_account SET active=true WHERE id=?", recipient);
         }
     }
-    @Test void historyProjectionInfersIntervalOnlyFromCompletedPassEvents() {
+    @Test void configuredCycleUsesCompletedPassEvents() {
         long device=projectionEquipment();
+        jdbc.update("UPDATE equipment SET maintenance_enabled=true,maintenance_interval_value=6,maintenance_interval_unit='MONTH' WHERE id=?",device);
         completedFixture(device, "2026-01-01");
         completedFixture(device, "2026-03-01");
         var row=suggestion(device);
         assertThat(row.path("lastMaintenanceDate").asText()).isEqualTo("2026-03-01");
-        assertThat(row.path("suggestedDate").asText()).isEqualTo("2026-04-29");
-        assertThat(row.path("suggestionBasis").asText()).contains("2 lần", "59 ngày");
+        assertThat(row.path("suggestedDate").asText()).isEqualTo("2026-09-01");
+        assertThat(row.path("suggestionBasis").asText()).contains("Chu kỳ cấu hình");
         assertThat(row.path("classification").asText()).isEqualTo("NOT_FREE");
         assertThat(row.path("lastExternalProviderName").asText()).isNotBlank();
     }
-    @Test void futurePlannedDateTakesPriorityOverInferredHistory() {
+    @Test void openPlanDatesDoNotReplacePeriodicDueDate() {
         long device=projectionEquipment();
+        jdbc.update("UPDATE equipment SET maintenance_enabled=true,maintenance_interval_value=6,maintenance_interval_unit='MONTH' WHERE id=?",device);
         completedFixture(device, "2026-01-01");
         completedFixture(device, "2026-03-01");
         var input=new HashMap<>(external(device));
         input.put("plannedDate", "2026-11-16");
         var p=create(input);
         var row=suggestion(device);
-        assertThat(row.path("suggestedDate").asText()).isEqualTo("2026-11-16");
-        assertThat(row.path("suggestionBasis").asText()).contains("kế hoạch");
+        assertThat(row.path("suggestedDate").asText()).isEqualTo("2026-09-01");
+        assertThat(row.path("suggestionBasis").asText()).contains("Chu kỳ cấu hình");
         assertThat(row.path("openPlanIds").toString()).contains(Long.toString(p));
     }
-    @Test void warrantyDeadlineIncludesLastDayAndBlocksContractAfterExpiry() {
+    @Test void warrantyExpiryDoesNotInvalidateSeparateMaintenanceContract() {
         var original=jdbc.queryForObject("SELECT warranty_expires_on FROM maintenance_coverage WHERE id=?", java.sql.Date.class, coverage);
         try {
             var input=Map.of("manufacturerProviderId", provider, "contracts", List.of(Map.of("id", coverage, "warrantyExpiresOn", "2026-11-01")));
@@ -374,7 +368,9 @@ import vn.edu.medmaintenance.persistence.enums.*;
             var expired=ok(send(HttpMethod.GET, "/api/equipment/"+eq+"/warranty?referenceDate=2026-11-02", vtyt, null), 200);
             assertThat(expired.path("contracts").get(0).path("warrantyStatus").asText()).isEqualTo("EXPIRED");
             var invalid=new HashMap<>(free()); invalid.put("plannedDate", "2026-11-02");
-            assertCode(send(HttpMethod.POST, "/api/plans", vtyt, body(invalid)), 409, "INVALID_FREE_COVERAGE");
+            long p=create(invalid);
+            assertThat(text("SELECT status FROM maintenance_plan_item WHERE plan_id=?",p)).isEqualTo("UNDER_CONTRACT");
+            jdbc.update("UPDATE maintenance_plan SET status='CLOSED' WHERE id=?",p);
             var valid=new HashMap<>(free()); valid.put("plannedDate", "2026-11-01");
             create(valid);
         } finally {
@@ -393,7 +389,7 @@ import vn.edu.medmaintenance.persistence.enums.*;
             approve(p);
             assertThat(text("SELECT status FROM maintenance_plan_item WHERE id=?", i)).isEqualTo("WAITING_VENDOR_APPROVAL");
             input.put("proposedProviderId", provider2);
-            assertCode(send(HttpMethod.POST, "/api/plans", vtyt, body(input)), 409, "INVALID_MANUFACTURER");
+            assertCode(send(HttpMethod.POST, "/api/plans", vtyt, body(input)), 409, "EQUIPMENT_IN_OPEN_PLAN");
         } finally { jdbc.update("UPDATE equipment SET manufacturer_provider_id=NULL WHERE id=?", paid); }
     }
     @Test void warrantyWritesAreScopedValidatedAndAtomic() {

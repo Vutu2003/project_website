@@ -1,3 +1,4 @@
+import { ReportDeliveryPanel } from '../components/ReportDeliveryPanel'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { reportsApi } from '../api/reportsApi'
@@ -99,12 +100,13 @@ export function ReportDetailPage() {
   const completed = report?.completedCount ?? items.filter(item => item.status === 'COMPLETED').length
   const repair = report?.repairRequiredCount ?? items.filter(item => item.status === 'REPAIR_REQUIRED').length
   return <div className="page-stack report-page">
-    <div className="page-title-row"><div className="page-title-block"><p className="eyebrow">UC11 · KẾ HOẠCH #{plan.id}</p><h1>Báo cáo bảo trì</h1><p>{plan.title} · {businessDate(plan.periodStart)} – {businessDate(plan.periodEnd)}</p></div>
+    <div className="page-title-row"><div className="page-title-block"><p className="eyebrow">KẾ HOẠCH #{plan.id}</p><h1>Báo cáo bảo trì</h1><p>{plan.title} · {businessDate(plan.periodStart)} – {businessDate(plan.periodEnd)}</p></div>
       <Link className="button secondary" to="/reports">Về danh sách</Link></div>
     <WorkflowSuccess message={notice} /><WorkflowError error={error} onReload={reload} />
     <section className="panel business-panel summary-panel"><div><span className="card-label">KẾ HOẠCH</span><StatusBadge label={planStatusLabels[plan.status]} tone={plan.status === 'REPORTED' ? 'teal' : 'neutral'} /></div>
-      <div><span className="card-label">BÁO CÁO</span><ReportStatusBadge report={report} /></div><div><span className="card-label">PHIÊN BẢN KẾ HOẠCH</span><strong>v{plan.version}</strong></div>
+      <div><span className="card-label">BÁO CÁO</span><ReportStatusBadge report={report} /></div><div><span className="card-label">NGÀY LẬP</span><strong>{businessDate(report?.reportDate)}</strong></div>
       <button className="button secondary" type="button" onClick={reload}>Tải lại</button></section>
+    {user?.role==='KHOA_PHONG' && <p className="retention-note">Báo cáo được giới hạn theo khoa/phòng của bạn; các thiết bị thuộc khoa khác không hiển thị.</p>}
     <OutcomeSummary completed={completed} repair={repair} provisional={!report} />
     {plan.status === 'AWAITING_REPORT' && unfinished.length > 0 && <p className="retention-note">Chưa thể chốt báo cáo: {unfinished.map(item => item.equipmentCode).join(', ')} chưa có kết quả xử lý cuối cùng.</p>}
     <section className="panel business-panel"><div className="panel-heading"><div><h2>Dữ liệu thực hiện và nghiệm thu</h2>
@@ -121,7 +123,8 @@ export function ReportDetailPage() {
         <div className="form-actions left-actions"><button className="button secondary" type="button" disabled={busy} onClick={save}>{busy ? 'Đang lưu…' : report ? 'Lưu bản nháp' : 'Tạo bản nháp'}</button>
           {report && <button className="button primary" type="button" disabled={busy} onClick={finalize}>Hoàn tất báo cáo</button>}</div></> : report ? <ReportReadView report={report} /> :
         <p className="empty-state">Chưa có báo cáo để xem hoặc kế hoạch chưa ở trạng thái cho phép lập báo cáo.</p>}
-      {report?.status === 'FINAL' && <p className="retention-note">Báo cáo chính thức chỉ đọc. Kế hoạch đã báo cáo; không có thao tác đóng kế hoạch trong V1.</p>}
+      {report?.status === 'FINAL' && <p className="retention-note">Báo cáo chính thức chỉ đọc. Có thể gửi báo cáo đến BGĐ và các khoa/phòng liên quan.</p>}
     </section>
+    {report && user?.role==='PHONG_VTYT' && <ReportDeliveryPanel planId={id} version={plan.version} final={report.status==='FINAL'} />}
   </div>
 }

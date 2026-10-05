@@ -48,10 +48,11 @@ public class PlanningService {
     private final EntityManager entityManager;
     private final PlanningDecisionService decisions;
     private final NotificationService notifications;
+    private final MaintenanceAutomationService automation;
 
     public PlanningService(MaintenancePlanRepository plans, MaintenancePlanItemRepository items,
             EquipmentRepository equipment, ApprovalRequestRepository requests, UserAccountRepository users,
-            CurrentUser currentUser, WorkflowHistory history, EntityManager entityManager, PlanningDecisionService decisions, NotificationService notifications) {
+            CurrentUser currentUser, WorkflowHistory history, EntityManager entityManager, PlanningDecisionService decisions, NotificationService notifications, MaintenanceAutomationService automation) {
         this.plans = plans;
         this.items = items;
         this.equipment = equipment;
@@ -59,14 +60,26 @@ public class PlanningService {
         this.users = users;
         this.currentUser = currentUser;
         this.history = history;
-        this.entityManager = entityManager;this.decisions=decisions;this.notifications=notifications;
+        this.entityManager = entityManager;this.decisions=decisions;this.notifications=notifications;this.automation=automation;
     }
 
     @Transactional
-    public PlanCommandResponse create(CreatePlanRequest command) {
+    public PlanCommandResponse createQuarterly(int year, MaintenanceQuarter quarter, List<PlanItemInput> inputs) {
+        // Transaction advisory lock makes the friendly duplicate check safe across concurrent requests.
+        entityManager.createNativeQuery("SELECT pg_advisory_xact_lock(:key)")
+            .setParameter("key", (long)year * 4 + quarter.ordinal()).getSingleResult();
+        Long count=((Number)entityManager.createNativeQuery("SELECT count(*) FROM maintenance_plan WHERE plan_year=:year AND plan_quarter=:quarter AND status NOT IN ('CLOSED','REPORTED')")
+            .setParameter("year",year).setParameter("quarter",quarter.name()).getSingleResult()).longValue();
+        if(count>0)conflict("DUPLICATE_QUARTER_PLAN",quarter.title(year)+" đã tồn tại.");
+        return create(new CreatePlanRequest(quarter.title(year),quarter.start(year),quarter.end(year),inputs),year,quarter);
+    }
+    @Transactional
+    public PlanCommandResponse create(CreatePlanRequest command) { return create(command,null,null); }
+    private PlanCommandResponse create(CreatePlanRequest command,Integer year,MaintenanceQuarter quarter) {
         UserAccount actor = planner();
         validatePeriod(command.periodStart(), command.periodEnd());
         MaintenancePlan plan = new MaintenancePlan();
+        plan.setPlanYear(year);plan.setPlanQuarter(quarter==null?null:quarter.name());
         plan.setTitle(command.title().trim());
         plan.setPeriodStart(command.periodStart());
         plan.setPeriodEnd(command.periodEnd());
@@ -77,7 +90,7 @@ public class PlanningService {
         plans.save(plan);
         history.plan(plan, actor, null, "DRAFT", "CREATE", null, now);
         Set<Long> seen = new HashSet<>();
-        for (PlanItemInput input : command.items()) {
+        for (PlanItemInput input : command.items().stream().sorted(java.util.Comparator.comparing(PlanItemInput::equipmentId)).toList()) {
             if (!seen.add(input.equipmentId())) conflict("DUPLICATE_PLAN_EQUIPMENT", "Equipment appears more than once");
             addItem(plan, input, actor, now);
         }
@@ -94,6 +107,8 @@ public class PlanningService {
             conflict("PLAN_NOT_EDITABLE", "Plan is not editable in its current state");
         if (command.removeEquipmentIds() != null && !command.removeEquipmentIds().isEmpty())
             conflict("PLAN_ITEM_RETENTION_CONFLICT", "Removing audited plan items is not supported by the frozen schema");
+        if(plan.getPlanYear()!=null && (!plan.getTitle().equals(command.title()) || !plan.getPeriodStart().equals(command.periodStart()) || !plan.getPeriodEnd().equals(command.periodEnd())))
+            conflict("FIXED_QUARTER_PERIOD","Tên và thời gian kế hoạch quý do hệ thống xác định.");
         validatePeriod(command.periodStart(), command.periodEnd());
         Map<Long, MaintenancePlanItem> existing = new HashMap<>();
         for (MaintenancePlanItem item : items.findAllByPlan_Id(planId)) {
@@ -105,10 +120,12 @@ public class PlanningService {
         plan.setPeriodEnd(command.periodEnd());
         if (command.items() != null) {
             Set<Long> seen = new HashSet<>();
-            for (PlanItemInput input : command.items()) {
+            for (PlanItemInput input : command.items().stream().sorted(java.util.Comparator.comparing(PlanItemInput::equipmentId)).toList()) {
                 if (!seen.add(input.equipmentId())) conflict("DUPLICATE_PLAN_EQUIPMENT", "Equipment appears more than once");
                 validateDate(input.plannedDate(), command.periodStart(), command.periodEnd());
                 MaintenancePlanItem item = existing.get(input.equipmentId());
+                if(plan.getPlanYear()!=null && (item==null || !plan.getPeriodStart().equals(input.plannedDate())))
+                    conflict("FIXED_QUARTER_EQUIPMENT","Thiết bị và ngày bảo trì của quý do hệ thống xác định.");
                 if (item == null) {
                     addItem(plan, input, actor, OffsetDateTime.now(ZoneOffset.UTC));
                 } else {
@@ -120,6 +137,7 @@ public class PlanningService {
                     if(!Objects.equals(item.getPlannedDate(),input.plannedDate()))
                         history.itemTransition(item,actor,item.getStatus().name(),item.getStatus().name(),"UPDATE_PLANNING_DATE","old="+item.getPlannedDate()+"; new="+input.plannedDate(),OffsetDateTime.now(ZoneOffset.UTC));
                     item.setPlannedDate(input.plannedDate());
+                    automation.snapshot(item);
                     decisions.apply(item,input,actor);
                 }
             }
@@ -194,6 +212,12 @@ public class PlanningService {
                         "EQUIPMENT_NOT_FOUND", "Equipment not found"));
         if (!Boolean.TRUE.equals(device.getActive()))
             conflict("EQUIPMENT_INACTIVE", "Equipment is not active");
+        entityManager.lock(device, LockModeType.PESSIMISTIC_WRITE);
+        boolean duplicate=items.findByEquipment_IdIn(List.of(device.getId())).stream().anyMatch(i ->
+            !i.getPlan().getId().equals(plan.getId()) &&
+            !Set.of(PlanStatus.CLOSED,PlanStatus.REPORTED,PlanStatus.AWAITING_REPORT).contains(i.getPlan().getStatus()) &&
+            i.getStatus()!=PlanItemStatus.COMPLETED && i.getStatus()!=PlanItemStatus.REPAIR_REQUIRED);
+        if(duplicate && plan.getPlanYear()==null)conflict("EQUIPMENT_IN_OPEN_PLAN","Thiết bị "+device.getEquipmentCode()+" đã có trong kế hoạch đang mở.");
         MaintenancePlanItem item = new MaintenancePlanItem();
         item.setPlan(plan);
         item.setEquipment(device);
@@ -202,6 +226,7 @@ public class PlanningService {
         item.setStatus(PlanItemStatus.PLANNED);
         items.save(item);
         history.item(item, actor, "CREATE", now);
+        automation.snapshot(item);
         decisions.apply(item,input,actor);
     }
 

@@ -6,7 +6,7 @@ import { Pagination } from '../components/Pagination'
 import { StatusBadge } from '../components/StatusBadge'
 import { WorkflowError } from '../components/WorkflowFeedback'
 import type { PageResponse, Plan, PlanStatus } from '../types/workflow'
-import { businessDate, dateTime, planStatusLabels } from '../utils/workflowLabels'
+import { dateTime, planStatusLabels } from '../utils/workflowLabels'
 
 export function PlanListPage() {
   const { user } = useAuth()
@@ -28,7 +28,7 @@ export function PlanListPage() {
   return <div className="page-stack">
     <div className="page-title-row"><div className="page-title-block"><p className="eyebrow">KẾ HOẠCH BẢO TRÌ</p><h1>Danh sách kế hoạch</h1>
       <p>Dữ liệu và trạng thái được tải từ backend; chọn một kế hoạch để xem chi tiết.</p></div>
-      {user?.role === 'PHONG_VTYT' && <Link className="button primary" to="/plans/new">Tạo kế hoạch</Link>}
+      {user?.role === 'PHONG_VTYT' && <Link className="button primary" to="/plans/new">Tạo kế hoạch bảo trì</Link>}
     </div>
     <section className="panel business-panel">
       <div className="panel-heading"><div><h2>Kế hoạch hiện có</h2><p>Tối đa 10 bản ghi mỗi trang</p></div>
@@ -37,11 +37,11 @@ export function PlanListPage() {
         </select></label>
       </div>
       {loading ? <p className="muted">Đang tải kế hoạch…</p> : error ? <WorkflowError error={error} onReload={() => { setLoading(true); load() }} /> : data && data.content.length === 0 ? <p className="empty-state">Chưa có kế hoạch trong phạm vi hiển thị.</p> : data && <>
-        <div className="table-scroll"><table className="data-table"><thead><tr><th>Tiêu đề</th><th>Thời gian</th><th>Trạng thái</th><th>Người tạo</th><th>Ngày tạo</th><th></th></tr></thead>
-          <tbody>{data.content.map(plan => <tr key={plan.id}><td><Link className="table-link" to={`/plans/${plan.id}`}>{plan.title}</Link><span className="row-sub">ID #{plan.id} · v{plan.version}</span></td>
-            <td>{businessDate(plan.periodStart)} – {businessDate(plan.periodEnd)}</td>
+        <div className="table-scroll"><table className="data-table"><thead><tr><th>Kế hoạch</th><th>Năm</th><th>Quý</th><th>Số thiết bị</th><th>Trạng thái</th><th>Ngày tạo</th><th></th></tr></thead>
+          <tbody>{data.content.map(plan => <tr key={plan.id}><td><Link className="table-link" to={`/plans/${plan.id}`}>{plan.title}</Link></td>
+            <td>{plan.planYear ?? plan.periodStart.slice(0, 4)}</td><td>{plan.planQuarter ?? "—"}</td><td>{plan.equipmentCount ?? "—"}</td>
             <td><StatusBadge label={planStatusLabels[plan.status]} tone={plan.status === 'APPROVED' ? 'teal' : plan.status === 'REVISION_REQUIRED' ? 'amber' : 'neutral'} /></td>
-            <td>{plan.createdByName}</td><td>{dateTime(plan.createdAt)}</td><td><Link className="table-link" to={`/plans/${plan.id}`}>Xem</Link></td></tr>)}</tbody></table></div>
+            <td>{dateTime(plan.createdAt)}</td><td><Link className="table-link" to={`/plans/${plan.id}`}>Xem</Link></td></tr>)}</tbody></table></div>
         <Pagination data={data} onPage={next => { setPage(next); setLoading(true) }} />
       </>}
     </section>

@@ -8,6 +8,13 @@ import vn.edu.medmaintenance.persistence.enums.*;
 @Entity
 @Table(name = "maintenance_plan_item")
 public class MaintenancePlanItem {
+    @Column(name="last_maintenance_date") private LocalDate lastMaintenanceDate;
+    @Column(name="maintenance_due_date") private LocalDate maintenanceDueDate;
+    public LocalDate getLastMaintenanceDate(){return lastMaintenanceDate;}
+    public void setLastMaintenanceDate(LocalDate d){lastMaintenanceDate=d;}
+    public LocalDate getMaintenanceDueDate(){return maintenanceDueDate;}
+    public void setMaintenanceDueDate(LocalDate d){maintenanceDueDate=d;}
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id", nullable = false)
@@ -54,6 +61,10 @@ public class MaintenancePlanItem {
 
     public ServiceChoice getServiceChoice() { return serviceChoice; }
     public void setServiceChoice(ServiceChoice choice) { serviceChoice = choice; }
+
+    @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="contract_id") private MaintenanceContract contract;
+    public MaintenanceContract getContract(){return contract;}
+    public void setContract(MaintenanceContract value){contract=value;}
 
     public MaintenancePlanItem() {
     }

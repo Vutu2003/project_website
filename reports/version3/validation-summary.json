@@ -1,0 +1,110 @@
+{
+  "status": "PASS",
+  "date": "2026-10-05",
+  "backend": {
+    "tests": 156,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "frontend": {
+    "tests": 136,
+    "files": 15,
+    "build": "PASS",
+    "lint": "PASS"
+  },
+  "migration_upgrade": "PASS: populated V009 to V010, all workflow rows preserved",
+  "chrome": {
+    "browser": "Google Chrome (headless, real DOM and HTTP)",
+    "scenarios": [
+      {
+        "scenario": "A — Automatic FREE and BGD approval",
+        "status": "PASS",
+        "planId": 1
+      },
+      {
+        "scenario": "B — NOT_FREE proposal and submission",
+        "status": "PASS",
+        "planId": 2
+      },
+      {
+        "scenario": "C — Department/date filtering and bulk selection",
+        "status": "PASS"
+      },
+      {
+        "scenario": "D — Contract/provider validity and equipment list",
+        "status": "PASS"
+      },
+      {
+        "scenario": "E — Two revision cycles, notifications and retained comments",
+        "status": "PASS"
+      }
+    ],
+    "errors": [],
+    "status": "PASS"
+  },
+  "primary_runtime": "Not migrated or restarted; all workflow validation used disposable databases",
+  "files_changed": [
+    "README.md",
+    "backend/scripts/setup-v3.sh",
+    "backend/scripts/test-v3-browser.sh",
+    "backend/scripts/test-v3-migration.sh",
+    "backend/src/main/java/vn/edu/medmaintenance/api/controller/MaintenanceAutomationController.java",
+    "backend/src/main/java/vn/edu/medmaintenance/api/controller/MaintenanceSuggestionController.java",
+    "backend/src/main/java/vn/edu/medmaintenance/api/controller/PlanController.java",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/MaintenancePlanItemResponse.java",
+    "backend/src/main/java/vn/edu/medmaintenance/api/dto/response/MaintenanceSuggestionResponse.java",
+    "backend/src/main/java/vn/edu/medmaintenance/api/mapper/PlanMapper.java",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/entity/Equipment.java",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/entity/MaintenanceContract.java",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/entity/MaintenanceCoverage.java",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/entity/MaintenancePlanItem.java",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/repository/EquipmentRepository.java",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/repository/MaintenanceCoverageRepository.java",
+    "backend/src/main/java/vn/edu/medmaintenance/persistence/repository/MaintenancePlanItemRepository.java",
+    "backend/src/main/java/vn/edu/medmaintenance/security/config/SecurityConfig.java",
+    "backend/src/main/java/vn/edu/medmaintenance/service/MaintenanceAutomationService.java",
+    "backend/src/main/java/vn/edu/medmaintenance/service/MaintenanceSuggestionService.java",
+    "backend/src/main/java/vn/edu/medmaintenance/service/PeriodicSchedule.java",
+    "backend/src/main/java/vn/edu/medmaintenance/service/PlanningDecisionService.java",
+    "backend/src/main/java/vn/edu/medmaintenance/service/PlanningService.java",
+    "backend/src/test/java/vn/edu/medmaintenance/BackendFoundationIntegrationTest.java",
+    "backend/src/test/java/vn/edu/medmaintenance/PersistenceMappingAuditTest.java",
+    "backend/src/test/java/vn/edu/medmaintenance/service/BackendBusinessFinalIntegrationTest.java",
+    "backend/src/test/java/vn/edu/medmaintenance/service/ExecutionAcceptanceIntegrationTest.java",
+    "backend/src/test/java/vn/edu/medmaintenance/service/MaintenanceAutomationIntegrationTest.java",
+    "backend/src/test/java/vn/edu/medmaintenance/service/PeriodicScheduleTest.java",
+    "backend/src/test/java/vn/edu/medmaintenance/service/PlanningApprovalIntegrationTest.java",
+    "backend/src/test/java/vn/edu/medmaintenance/service/PlanningTestData.java",
+    "backend/src/test/java/vn/edu/medmaintenance/service/ProviderRoutingIntegrationTest.java",
+    "database/migrations/V010__periodic_maintenance_and_contracts.sql",
+    "database/seeds/v3_automation.sql",
+    "database/seeds/v3_canonical.sql",
+    "docs/v3-maintenance-automation.md",
+    "frontend/src/App.tsx",
+    "frontend/src/api/maintenanceSuggestionsApi.ts",
+    "frontend/src/components/ReviewComments.tsx",
+    "frontend/src/components/ScheduleEditor.tsx",
+    "frontend/src/pages/ApprovalDetailPage.tsx",
+    "frontend/src/pages/ContractPages.test.tsx",
+    "frontend/src/pages/ContractPages.tsx",
+    "frontend/src/pages/EquipmentListPage.tsx",
+    "frontend/src/pages/MaintenanceSuggestionsPage.tsx",
+    "frontend/src/pages/PlanDetailPage.tsx",
+    "frontend/src/pages/PlanFormPage.tsx",
+    "frontend/src/pages/PlanningRedesign.test.tsx",
+    "frontend/src/routes/navigation.ts",
+    "frontend/src/types/workflow.ts",
+    "frontend/src/utils/maintenanceSchedule.ts",
+    "reports/version3/automatic-free-draft.png",
+    "reports/version3/bgd-approval-summary.png",
+    "reports/version3/chrome-validation.json",
+    "reports/version3/contract-equipment.png",
+    "reports/version3/department-date-filter.png",
+    "reports/version3/maintenance-automation-review.md",
+    "reports/version3/revision-first.png",
+    "reports/version3/revision-second.png",
+    "reports/version3/validation-summary.json",
+    "scripts/validate-v3-chrome.mjs"
+  ]
+}

@@ -29,6 +29,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class BackendBusinessFinalIntegrationTest {
+    private java.util.Map<Long,String> fixtureStatuses;
+    @org.junit.jupiter.api.BeforeEach void isolateOpenFixturePlans() { fixtureStatuses=PlanningTestData.archiveFixturePlans(jdbc); }
+    @org.junit.jupiter.api.AfterEach void restoreOpenFixturePlans() { PlanningTestData.restoreFixturePlans(jdbc,fixtureStatuses); }
+
     @Autowired TestRestTemplate http;
     @Autowired JdbcTemplate jdbc;
     @Autowired EntityManagerFactory emf;
@@ -55,6 +59,7 @@ class BackendBusinessFinalIntegrationTest {
         reset(history);
         for (long plan : plans) {
             PlanningTestData.cleanNotifications(jdbc,plan);
+            jdbc.update("DELETE FROM maintenance_report_delivery WHERE report_id IN (SELECT id FROM maintenance_report WHERE plan_id=?)", plan);
             jdbc.update("DELETE FROM maintenance_report WHERE plan_id=?", plan);
             jdbc.update("DELETE FROM acceptance_record WHERE execution_id IN (SELECT e.id FROM maintenance_execution e JOIN maintenance_plan_item i ON i.id=e.plan_item_id WHERE i.plan_id=?)", plan);
             jdbc.update("DELETE FROM maintenance_progress_log WHERE execution_id IN (SELECT e.id FROM maintenance_execution e JOIN maintenance_plan_item i ON i.id=e.plan_item_id WHERE i.plan_id=?)", plan);
@@ -114,7 +119,8 @@ class BackendBusinessFinalIntegrationTest {
         assertThat(campaign.path("attempts").get(0).path("technicalAcceptance").path("result").asText()).isEqualTo("PASS");
         assertThat(campaign.path("attempts").get(0).path("handoverAcceptance").path("result").asText()).isEqualTo("PASS");
         assertThat(campaign.path("report").path("status").asText()).isEqualTo("FINAL");
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_notification WHERE notification_type='REPORT_FINALIZED' AND target_url=?",Integer.class,"/plans/"+plan+"/report")).isGreaterThan(0);
+        ok(send(HttpMethod.POST,"/api/plans/"+plan+"/report/send",vtyt,Map.of("version",planVersion(plan)),null),200);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_notification WHERE notification_type='REPORT_SHARED' AND target_url=?",Integer.class,"/plans/"+plan+"/report")).isGreaterThan(0);
         assertThat(campaign.path("planHistory").size()).isEqualTo(6);
         assertSafe(historyResponse);
     }

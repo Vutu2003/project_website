@@ -42,6 +42,14 @@ public class Equipment {
     public ServiceProvider getManufacturerProvider() { return manufacturerProvider; }
     public void setManufacturerProvider(ServiceProvider provider) { manufacturerProvider = provider; }
 
+    @Column(name="maintenance_enabled",nullable=false) private Boolean maintenanceEnabled;
+    @Column(name="maintenance_interval_value") private Integer maintenanceIntervalValue;
+    @Column(name="maintenance_interval_unit",columnDefinition="text") private String maintenanceIntervalUnit;
+    @Column(name="commissioning_date") private LocalDate commissioningDate;
+    public Boolean getMaintenanceEnabled(){return maintenanceEnabled;}
+    public Integer getMaintenanceIntervalValue(){return maintenanceIntervalValue;}
+    public String getMaintenanceIntervalUnit(){return maintenanceIntervalUnit;}
+    public LocalDate getCommissioningDate(){return commissioningDate;}
     protected Equipment() {
     }
 

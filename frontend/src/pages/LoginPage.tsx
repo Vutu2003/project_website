@@ -15,9 +15,9 @@ export function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   if (status === 'initializing') return <LoadingState label="Đang xác minh phiên đăng nhập…" />
-  if (status === 'authenticated') return <Navigate to="/" replace />
   const destination = typeof location.state?.from === 'string' && location.state.from.startsWith('/') && !location.state.from.startsWith('//')
-    ? location.state.from : '/'
+    ? location.state.from : '/dashboard'
+  if (status === 'authenticated') return <Navigate to={destination} replace />
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

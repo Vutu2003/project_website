@@ -12,6 +12,6 @@ export function ProtectedRoute() {
       <button className="button primary" onClick={() => void auth.retryRestore()}>Thử lại</button>
     </section></main>
   }
-  if (!auth.isAuthenticated) return <Navigate to="/login" state={{ from: location.pathname }} replace />
+  if (!auth.isAuthenticated) return <Navigate to="/login" state={{ from: location.pathname + location.search + location.hash }} replace />
   return <Outlet />
 }

@@ -26,6 +26,10 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ExecutionAcceptanceIntegrationTest {
+    private java.util.Map<Long,String> fixtureStatuses;
+    @org.junit.jupiter.api.BeforeEach void isolateOpenFixturePlans() { fixtureStatuses=PlanningTestData.archiveFixturePlans(jdbc); }
+    @org.junit.jupiter.api.AfterEach void restoreOpenFixturePlans() { PlanningTestData.restoreFixturePlans(jdbc,fixtureStatuses); }
+
     @Autowired TestRestTemplate http;
     @Autowired JdbcTemplate jdbc;
     @MockitoSpyBean WorkflowHistory history;
@@ -131,8 +135,8 @@ class ExecutionAcceptanceIntegrationTest {
         ok(send(endpoint, vtyt, Map.of("status", "WAITING_PROVIDER", "version", version(item))), 201);
         ok(send(endpoint, vtyt, Map.of("status", "WORK_DONE", "version", version(item))), 201);
         assertThat(jdbc.queryForList("SELECT work_note FROM maintenance_progress_log WHERE execution_id=? ORDER BY event_at,id",
-                String.class, execution)).containsExactly("Đang thực hiện", "Tạm dừng\nTạm ngừng kiểm tra",
-                        "Chờ linh kiện\nChờ bộ lọc", "Chờ đơn vị bảo trì", "Đã xử lý xong");
+                String.class, execution)).containsExactly("Đang bảo trì", "Tạm dừng\nTạm ngừng kiểm tra",
+                        "Chờ linh kiện\nChờ bộ lọc", "Chờ đơn vị bảo trì", "Bảo trì xong");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM maintenance_progress_log WHERE execution_id=? AND recorded_by_user_id=?",
                 Integer.class, execution, vtytId)).isEqualTo(5);
         // WORK_DONE is an informational update. Completion requires its explicit command.

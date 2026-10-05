@@ -18,7 +18,7 @@ function StateTimeline({ title, events, kind }: { title: string; events: StateEv
     {event.reason && <p>Lý do: {event.reason}</p>}
   </li>)}</ol> : <p className="muted">Không có sự kiện trạng thái.</p>}</div>
 }
-export function EquipmentHistoryPage() {
+export function EquipmentHistoryPage({ embedded = false }: { embedded?: boolean }) {
   const id = Number(useParams().equipmentId)
   const { user } = useAuth()
   const [history, setHistory] = useState<EquipmentExecutionHistory | null>(null)
@@ -35,9 +35,9 @@ export function EquipmentHistoryPage() {
   }, [id, refresh])
   if (loading && !history) return <p className="muted">Đang tải lịch sử thiết bị…</p>
   if (!history) return <div className="page-stack"><WorkflowError error={error} onReload={reload} /><Link to="/equipment">Về danh sách thiết bị</Link></div>
-  return <div className="page-stack history-page"><div className="page-title-row"><div className="page-title-block"><p className="eyebrow">UC12 · LỊCH SỬ THIẾT BỊ</p>
+  return <div className="page-stack history-page">{!embedded && <div className="page-title-row"><div className="page-title-block"><p className="eyebrow">UC12 · LỊCH SỬ THIẾT BỊ</p>
     <h1>{history.equipmentCode} · {history.equipmentName}</h1><p>Khoa hiện tại #{history.currentDepartmentId ?? '—'} · {history.campaigns.length} đợt bảo trì trong phạm vi được phép.</p></div>
-    <div className="header-actions"><button className="button secondary" type="button" onClick={reload}>Tải lại</button><Link className="button secondary" to="/equipment">Về thiết bị</Link></div></div>
+    <div className="header-actions"><button className="button secondary" type="button" onClick={reload}>Tải lại</button><Link className="button secondary" to="/equipment">Về thiết bị</Link></div></div>}
     <WorkflowError error={error} onReload={reload} />
     {history.campaigns.length === 0 ? <p className="empty-state">Thiết bị chưa có đợt bảo trì trong phạm vi được phép.</p> :
       <section className="campaign-list" aria-label="Các đợt bảo trì">{history.campaigns.map((campaign, index) => <article className="panel business-panel campaign-card" key={campaign.itemId}>

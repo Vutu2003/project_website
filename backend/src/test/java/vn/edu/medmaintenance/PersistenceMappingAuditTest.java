@@ -46,7 +46,7 @@ class PersistenceMappingAuditTest {
             "department", "user_account", "equipment", "service_provider",
             "maintenance_coverage", "maintenance_plan", "maintenance_plan_item",
             "approval_request", "approval_action", "maintenance_execution",
-            "maintenance_progress_log", "acceptance_record", "maintenance_report", "status_history", "user_notification");
+            "maintenance_progress_log", "acceptance_record", "maintenance_report", "status_history", "user_notification", "maintenance_contract", "equipment_maintenance_schedule", "maintenance_contract_equipment", "maintenance_report_delivery");
     private static final Map<String, String> ENUM_CHECKS = Map.ofEntries(
             Map.entry("user_account.role_code", "ck_user_account_role"),
             Map.entry("maintenance_coverage.classification", "ck_coverage_classification"),
@@ -86,7 +86,7 @@ class PersistenceMappingAuditTest {
     void allMappingsMatchTheFrozenPostgresqlMetadata() throws IOException {
         assertThat(environment.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("validate");
         var entities = entityManager.getMetamodel().getEntities();
-        assertThat(entities).hasSize(15);
+        assertThat(entities).hasSize(19);
         Map<String, Class<?>> classes = new TreeMap<>();
         for (var entity : entities) {
             Class<?> javaClass = entity.getJavaType();
@@ -120,7 +120,7 @@ class PersistenceMappingAuditTest {
                     String child = rs.getString(1), column = rs.getString(2), parent = rs.getString(3);
                     databaseForeignKeys.put(child + "." + column, new ForeignKey(child, column, parent, ""));
                 });
-        assertThat(databaseForeignKeys).hasSize(33);
+        assertThat(databaseForeignKeys).hasSize(42);
 
         Map<String, ForeignKey> mappedForeignKeys = new TreeMap<>();
         List<String> tableRows = new ArrayList<>();
@@ -184,8 +184,8 @@ class PersistenceMappingAuditTest {
                     + mappedColumns.size() + " | " + dbFkCount + " | " + fkCount + " | PASS |");
             mappedColumnCount += mappedColumns.size();
         }
-        assertThat(mappedColumnCount).isEqualTo(129);
-        assertThat(mappedForeignKeys).hasSize(33);
+        assertThat(mappedColumnCount).isEqualTo(158);
+        assertThat(mappedForeignKeys).hasSize(42);
         assertThat(mappedForeignKeys.keySet()).containsExactlyInAnyOrderElementsOf(databaseForeignKeys.keySet());
         for (var entry : databaseForeignKeys.entrySet()) {
             assertThat(mappedForeignKeys.get(entry.getKey()).parent())

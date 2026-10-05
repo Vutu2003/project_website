@@ -20,23 +20,72 @@ import vn.edu.medmaintenance.persistence.repository.*;
     private final WorkflowHistory history;
     private final NotificationService notifications;
     private final EntityManager em;
-    public PlanningDecisionService(MaintenanceCoverageRepository c, ServiceProviderRepository p, ApprovalRequestRepository r, MaintenancePlanItemRepository i, WorkflowHistory h, NotificationService n, EntityManager em) {
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
+    public PlanningDecisionService(MaintenanceCoverageRepository c, ServiceProviderRepository p, ApprovalRequestRepository r, MaintenancePlanItemRepository i, WorkflowHistory h, NotificationService n, EntityManager em, org.springframework.jdbc.core.JdbcTemplate jdbc) {
         coverages=c;
         providers=p;
         requests=r;
         items=i;
         history=h;
         notifications=n;
-        this.em=em;
+        this.em=em;this.jdbc=jdbc;
     }
     public static boolean validFree(MaintenanceCoverage c, Long equipment, LocalDate date) {
-        return c!=null && c.getClassification()==CoverageClassification.FREE && c.getEquipment().getId().equals(equipment) && c.getVerifiedByUser()!=null && c.getVerifiedByUser().getRoleCode()==UserRole.PHONG_VTYT && c.getVerifiedAt()!=null && c.getBasisNote()!=null && !c.getBasisNote().isBlank() && c.getProvider()!=null && Boolean.TRUE.equals(c.getProvider().getActive()) && (c.getEffectiveFrom()==null || !c.getEffectiveFrom().isAfter(date)) && (c.getEffectiveTo()==null || !c.getEffectiveTo().isBefore(date)) && (c.getWarrantyExpiresOn()==null || !c.getWarrantyExpiresOn().isBefore(date));
+        if(c==null || !c.getEquipment().getId().equals(equipment))return false;
+        var k=c.getContract();
+        if(k!=null)return Boolean.TRUE.equals(k.getActive()) && Boolean.TRUE.equals(k.getProvider().getActive())
+            && !date.isBefore(k.getStartDate()) && !date.isAfter(k.getEndDate());
+        // Legacy coverage inserted by old integrations remains compatible until normalized.
+        return c.getClassification()==CoverageClassification.FREE && c.getVerifiedByUser()!=null
+            && c.getVerifiedByUser().getRoleCode()==UserRole.PHONG_VTYT && c.getVerifiedAt()!=null
+            && c.getBasisNote()!=null && !c.getBasisNote().isBlank() && c.getProvider()!=null
+            && Boolean.TRUE.equals(c.getProvider().getActive())
+            && (c.getEffectiveFrom()==null || !date.isBefore(c.getEffectiveFrom()))
+            && (c.getEffectiveTo()==null || !date.isAfter(c.getEffectiveTo()));
+    }
+    public static List<MaintenanceCoverage> eligibleCoverages(List<MaintenanceCoverage> evidence,Long equipmentId,LocalDate date){
+        var contracts=new java.util.TreeMap<Long,MaintenanceCoverage>();
+        for(var c:evidence)if(validFree(c,equipmentId,date)){
+            // Negative keys distinguish legacy evidence from normalized contract identities.
+            long key=c.getContract()==null?-c.getId():c.getContract().getId();
+            contracts.merge(key,c,(a,b)->a.getId()>b.getId()?a:b);
+        }
+        return new ArrayList<>(contracts.values());
+    }
+    @org.springframework.transaction.annotation.Transactional(readOnly=true)
+    public Map<String,Object> preview(Long equipmentId,LocalDate referenceDate){
+        var eligible=eligibleCoverages(coverages.findDetailedEvidenceForEquipment(equipmentId),equipmentId,referenceDate);
+        var result=new HashMap<String,Object>();
+        result.put("classification",eligible.isEmpty()?"NOT_FREE":"FREE");result.put("conflict",eligible.size()>1);
+        if(eligible.size()==1){var c=eligible.get(0);result.put("coverageId",c.getId());result.put("providerId",c.getProvider().getId());result.put("providerName",c.getProvider().getName());
+            result.put("contractId",c.getContract()==null?null:c.getContract().getId());result.put("contractCode",c.getContractReference());
+            result.put("contractStartDate",c.getEffectiveFrom());result.put("contractEndDate",c.getEffectiveTo());}
+        return result;
     }
     private LocalDate date(MaintenancePlanItem i) {
         return i.getPlannedDate()==null?i.getPlan().getPeriodStart():i.getPlannedDate();
     }
+    private List<MaintenanceCoverage> eligible(MaintenancePlanItem item,boolean capture,UserAccount actor){
+        if(item.getPlan().getPlanYear()==null)return eligibleCoverages(coverages.findEvidenceForEquipment(item.getEquipment().getId()),item.getEquipment().getId(),date(item));
+        // Contract membership is the source of truth. Coverage is only retained execution evidence.
+        var ids=jdbc.queryForList("SELECT k.id FROM maintenance_contract_equipment m JOIN maintenance_contract k ON k.id=m.contract_id JOIN service_provider p ON p.id=k.provider_id WHERE m.equipment_id=? AND k.active AND p.active AND ?::date BETWEEN k.start_date AND k.end_date ORDER BY k.id",Long.class,item.getEquipment().getId(),date(item));
+        if(ids.size()>1)fail("CONTRACT_CONFLICT","Thiết bị "+item.getEquipment().getEquipmentCode()+" có nhiều hợp đồng hợp lệ.");
+        if(ids.isEmpty())return List.of();
+        long contractId=ids.get(0);
+        var evidence=coverages.findDetailedEvidenceForEquipment(item.getEquipment().getId()).stream().filter(c->c.getContract()!=null && c.getContract().getId()==contractId).max(Comparator.comparing(MaintenanceCoverage::getId));
+        if(evidence.isEmpty() && capture){
+            long evidenceId=jdbc.queryForObject("INSERT INTO maintenance_coverage(equipment_id,contract_id,provider_id,classification,verified_by_user_id,verified_at,basis_note) SELECT ?,id,provider_id,'FREE',?,now(),'Danh mục thiết bị thuộc hợp đồng' FROM maintenance_contract WHERE id=? RETURNING id",Long.class,item.getEquipment().getId(),actor.getId(),contractId);
+            return List.of(coverages.findById(evidenceId).orElseThrow());
+        }
+        return evidence.map(List::of).orElseGet(List::of);
+    }
     public void apply(MaintenancePlanItem item, PlanItemInput input, UserAccount actor) {
-        if (input.classification()==null)return;
+        var eligible=eligible(item,true,actor);
+        if(eligible.size()>1)fail("CONTRACT_CONFLICT","Thiết bị "+item.getEquipment().getEquipmentCode()+" có nhiều hợp đồng hợp lệ vào ngày dự kiến. Cần kiểm tra hợp đồng.");
+        var derived=eligible.isEmpty()?CoverageClassification.NOT_FREE:CoverageClassification.FREE;
+        input=new PlanItemInput(input.equipmentId(),input.plannedDate(),derived,
+            eligible.isEmpty()?null:eligible.get(0).getId(),input.proposedProviderId(),input.rationale(),input.warrantyImpactNote(),input.version(),
+            derived==CoverageClassification.FREE?null:input.serviceChoice());
         // Incomplete drafts can be saved, never submitted.
         if (item.getPlan().getStatus()!=PlanStatus.DRAFT && item.getPlan().getStatus()!=PlanStatus.REVISION_REQUIRED)fail("PLAN_NOT_EDITABLE", "Kế hoạch đã khóa hình thức bảo trì.");
         if (input.version()!=null && !input.version().equals(item.getVersion()))fail("OPTIMISTIC_LOCK_CONFLICT", "Hạng mục đã thay đổi, hãy tải lại.");
@@ -74,6 +123,7 @@ import vn.edu.medmaintenance.persistence.repository.*;
         // release the active-content unique key before inserting replacement
         item.setServiceChoice(choice);
         item.setCoverage(coverage);
+        item.setContract(coverage==null?null:coverage.getContract());
         item.setAssignedProvider(null);
         item.setAssignmentRoute(null);
         if (input.classification()==CoverageClassification.FREE) {
@@ -99,8 +149,11 @@ import vn.edu.medmaintenance.persistence.repository.*;
     public void validateComplete(MaintenancePlanItem i) {
         em.lock(i, LockModeType.OPTIMISTIC);
         String code=i.getEquipment().getEquipmentCode();
+        var valid=eligible(i,false,null);
+        if(valid.size()>1)fail("CONTRACT_CONFLICT","Nhiều hợp đồng hợp lệ cho thiết bị "+code);
+        if(i.getStatus()==PlanItemStatus.PENDING_PROPOSAL && !valid.isEmpty())fail("PLAN_ITEM_INCOMPLETE","Hợp đồng đã thay đổi cho thiết bị "+code+"; hãy lưu lại kế hoạch.");
         if (i.getStatus()==PlanItemStatus.UNDER_CONTRACT) {
-            if (!validFree(i.getCoverage(), i.getEquipment().getId(), date(i)) || i.getAssignedProvider()==null || !i.getAssignedProvider().getId().equals(i.getCoverage().getProvider().getId()) || i.getAssignmentRoute()!=AssignmentRoute.UNDER_CONTRACT)fail("PLAN_ITEM_INCOMPLETE", "Thiết bị "+code+" chưa có hợp đồng và đơn vị hợp lệ.");
+            if (valid.isEmpty() || (i.getPlan().getPlanYear()!=null && (i.getContract()==null || !i.getContract().getId().equals(valid.get(0).getContract().getId()))) || !validFree(i.getCoverage(), i.getEquipment().getId(), date(i)) || i.getAssignedProvider()==null || !i.getAssignedProvider().getId().equals(i.getCoverage().getProvider().getId()) || i.getAssignmentRoute()!=AssignmentRoute.UNDER_CONTRACT)fail("PLAN_ITEM_INCOMPLETE", "Thiết bị "+code+" chưa có hợp đồng và đơn vị hợp lệ.");
         }
         else if (i.getStatus()==PlanItemStatus.PENDING_PROPOSAL) {
             var q=draft(i);

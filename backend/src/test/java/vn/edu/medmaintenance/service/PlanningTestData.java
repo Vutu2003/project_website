@@ -4,6 +4,13 @@ import java.util.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 final class PlanningTestData {
+    static Map<Long,String> archiveFixturePlans(JdbcTemplate jdbc){
+        var statuses=new HashMap<Long,String>();
+        jdbc.query("SELECT id,status FROM maintenance_plan WHERE id<=8",(org.springframework.jdbc.core.RowCallbackHandler) rs->statuses.put(rs.getLong(1),rs.getString(2)));
+        jdbc.update("UPDATE maintenance_plan SET status='CLOSED' WHERE id<=8");return statuses;
+    }
+    static void restoreFixturePlans(JdbcTemplate jdbc,Map<Long,String> statuses){statuses.forEach((id,status)->jdbc.update("UPDATE maintenance_plan SET status=? WHERE id=?",status,id));}
+
     static Map<String, Object> complete(JdbcTemplate jdbc, long equipmentId) {
         var row=new HashMap<String, Object>();
         row.put("equipmentId", equipmentId);

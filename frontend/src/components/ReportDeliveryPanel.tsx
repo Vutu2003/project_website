@@ -1,0 +1,11 @@
+import { useEffect, useState } from 'react'
+import { reportsApi } from '../api/reportsApi'
+import type { ReportDelivery } from '../types/report'
+import { WorkflowError, WorkflowSuccess } from './WorkflowFeedback'
+import { dateTime } from '../utils/workflowLabels'
+export function ReportDeliveryPanel({planId,version,final}:{planId:number;version:number;final:boolean}){
+ const [delivery,setDelivery]=useState<ReportDelivery|null>(null);const [error,setError]=useState<unknown>(null);const [busy,setBusy]=useState(false);const [notice,setNotice]=useState<string|null>(null)
+ useEffect(()=>{let active=true;reportsApi.delivery(planId).then(r=>{if(active)setDelivery(r)}).catch(e=>{if(active)setError(e)});return()=>{active=false}},[planId,final])
+ async function send(){if(busy||!final||!delivery||!window.confirm('Gửi báo cáo chính thức cho BGĐ và các khoa/phòng có thiết bị trong kế hoạch?'))return;setBusy(true);setError(null);try{setDelivery(await reportsApi.send(planId,version));setNotice('Đã gửi báo cáo cho BGĐ và các khoa/phòng liên quan.')}catch(e){setError(e)}finally{setBusy(false)}}
+ return <section className="panel business-panel report-delivery-panel"><div className="panel-heading"><div><h2>Gửi báo cáo bảo trì</h2><p>Báo cáo chính thức được gửi trong hệ thống, kèm thông báo cho người nhận.</p></div></div><WorkflowError error={error}/><WorkflowSuccess message={notice}/>{delivery&&<><div className="report-recipient-chips"><span>Ban Giám đốc</span>{delivery.departments.map(d=><span key={d.id}>{d.name}</span>)}</div>{delivery.deliveries.length?<><p className="report-delivered-status">✓ Báo cáo đã được gửi</p><div className="table-scroll"><table className="data-table compact-table"><thead><tr><th>Nơi nhận</th><th>Người gửi</th><th>Thời điểm gửi</th></tr></thead><tbody>{delivery.deliveries.map(d=><tr key={d.id}><td>{d.recipient}</td><td>{d.sent_by}</td><td>{dateTime(d.sent_at)}</td></tr>)}</tbody></table></div></>:<div className="maintenance-completion-panel"><p>{final?'Báo cáo đã hoàn tất và sẵn sàng gửi. Mỗi khoa/phòng chỉ xem các thiết bị thuộc phạm vi của mình.':'Hoàn tất nội dung báo cáo trước khi gửi cho BGĐ và khoa/phòng.'}</p><button className="button primary" disabled={busy||!final} onClick={()=>void send()}>{busy?'Đang gửi…':'Gửi báo cáo cho BGĐ và khoa/phòng'}</button></div>}</>}</section>
+}
