@@ -55,6 +55,9 @@ public class PlanApprovalService {
             throw new BusinessRuleException(HttpStatus.CONFLICT, "APPROVAL_REQUEST_WRONG_TYPE",
                     "Request does not target a plan");
         MaintenancePlan plan = request.getPlan();
+        entityManager.lock(plan, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        entityManager.refresh(plan);
+        entityManager.refresh(request);
         if (!plan.getVersion().equals(command.version()))
             throw new BusinessRuleException(HttpStatus.CONFLICT, "OPTIMISTIC_LOCK_CONFLICT",
                     "Plan has changed; reload before retrying");
@@ -84,7 +87,7 @@ public class PlanApprovalService {
         history.plan(plan, action.getActorUser(), "SUBMITTED", next.name(),
                 next == PlanStatus.APPROVED ? "RECORD_APPROVAL" : "RECORD_REVISION",
                 next == PlanStatus.REVISION_REQUIRED ? comment : null, now);
-        if(next==PlanStatus.APPROVED)decisions.activate(plan,action.getActorUser(),now);
+        if(next==PlanStatus.APPROVED)decisions.approvePreparedProviders(plan,action);
         notifications.notifyRole(UserRole.PHONG_VTYT,null,action.getActorUser(),next==PlanStatus.APPROVED?"PLAN_APPROVED":"PLAN_REVISION",next==PlanStatus.APPROVED?"Kế hoạch đã được phê duyệt":"Kế hoạch cần hiệu chỉnh",plan.getTitle()+(comment==null?"":" — "+comment),"/plans/"+plan.getId()+(next==PlanStatus.REVISION_REQUIRED?"/edit":""));
         entityManager.flush();
         return new ApprovalDecisionResponse(requestId, action.getId(), plan.getId(),

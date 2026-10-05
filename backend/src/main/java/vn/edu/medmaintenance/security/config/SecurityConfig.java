@@ -33,7 +33,7 @@ public class SecurityConfig {
         }
         CorsConfiguration cors = new CorsConfiguration();
         cors.setAllowedOrigins(List.of(frontendOrigin));
-        cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "OPTIONS"));
+        cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         cors.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-VTYT-Authorization"));
         cors.setAllowCredentials(false);
         cors.setMaxAge(3600L);
@@ -55,8 +55,13 @@ public class SecurityConfig {
                 .httpBasic(basic -> basic.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(HttpMethod.POST,"/api/equipment").hasRole("PHONG_VTYT")
+                        .requestMatchers(HttpMethod.DELETE,"/api/equipment/*","/api/plans/*").hasRole("PHONG_VTYT")
+                        .requestMatchers("/api/maintenance-tracking-plans").hasRole("PHONG_VTYT")
+                        .requestMatchers(HttpMethod.GET,"/api/maintenance-history").hasAnyRole("PHONG_VTYT","BAN_GIAM_DOC","KHOA_PHONG")
+                        .requestMatchers(HttpMethod.GET,"/api/maintenance-history/plans").hasRole("PHONG_VTYT")
                         .requestMatchers(HttpMethod.GET, "/api/dashboard").hasAnyRole("PHONG_VTYT", "BAN_GIAM_DOC", "KHOA_PHONG", "ADMIN")
-                        .requestMatchers("/api/plans/*/tracking", "/api/plans/*/complete-maintenance").hasRole("PHONG_VTYT")
+                        .requestMatchers("/api/plans/*/tracking", "/api/plans/*/complete-maintenance", "/api/plans/*/start-maintenance", "/api/plans/*/mark-work-done").hasRole("PHONG_VTYT")
                         .requestMatchers("/api/maintenance-suggestions").hasRole("PHONG_VTYT")
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()

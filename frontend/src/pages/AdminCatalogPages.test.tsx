@@ -11,6 +11,7 @@ import type { Role } from '../types/auth'
 
 const auth = vi.hoisted(() => ({ user: { id: 4, username: 'demo_admin', role: 'ADMIN' as Role, departmentId: 2 },
   status: 'authenticated', isAuthenticated: true, logout: vi.fn(), retryRestore: vi.fn() }))
+vi.mock('./DashboardPage',()=>({DashboardPage:()=> <h1>Tổng quan theo vai trò</h1>}))
 vi.mock('../auth/useAuth', () => ({ useAuth: () => auth }))
 vi.mock('../api/adminCatalogsApi', () => ({ adminCatalogsApi: {
   list: vi.fn(), detail: vi.fn(), create: vi.fn(), edit: vi.fn(), activate: vi.fn(), deactivate: vi.fn(),
@@ -52,7 +53,7 @@ describe('ADMIN catalog navigation and guards', () => {
     expect(screen.queryByRole('link', { name: 'Khoa / Phòng' })).toBeNull()
     view.unmount()
     render(<MemoryRouter initialEntries={['/admin/catalogs/providers']}><App /></MemoryRouter>)
-    expect(screen.getByRole('heading', { name: 'Không có quyền xem trang' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Tổng quan theo vai trò' })).toBeTruthy()
     expect(adminCatalogsApi.list).not.toHaveBeenCalled()
   })
 })

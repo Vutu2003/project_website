@@ -22,5 +22,9 @@ BEGIN
  VALUES('Chrome — kế hoạch chờ BGĐ',CURRENT_DATE,CURRENT_DATE,'SUBMITTED',actor) RETURNING id INTO pending;
  INSERT INTO approval_request(plan_id,request_type,status,created_by_user_id,submitted_at)
  VALUES(pending,'PLAN_APPROVAL','PENDING',actor,now());
+ INSERT INTO user_notification(user_account_id,notification_type,title,message,target_url)
+ VALUES (actor,'MAINTENANCE_STARTED','Chrome — tiến độ bảo trì','Kế hoạch đang được thực hiện.','/maintenance-progress/plans/'||campaign),
+        (actor,'REPORT_SHARED','Chrome — cập nhật báo cáo','Kiểm tra các kết quả bảo trì.','/maintenance-progress/plans/'||campaign),
+        (actor,'PLAN_APPROVED','Chrome — kế hoạch đã duyệt','Theo dõi các thiết bị trong kế hoạch.','/maintenance-progress/plans/'||campaign);
 END $$;
 COMMIT;

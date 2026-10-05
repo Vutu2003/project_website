@@ -15,6 +15,7 @@ import type { AccountDetail } from '../types/account'
 
 const auth = vi.hoisted(() => ({ user: { id: 4, username: 'demo_admin', role: 'ADMIN' as Role, departmentId: 2 },
   status: 'authenticated', isAuthenticated: true, logout: vi.fn(), retryRestore: vi.fn() }))
+vi.mock('./DashboardPage',()=>({DashboardPage:()=> <h1>Tổng quan theo vai trò</h1>}))
 vi.mock('../auth/useAuth', () => ({ useAuth: () => auth }))
 vi.mock('../api/adminAccountsApi', () => ({ adminAccountsApi: { list: vi.fn(), detail: vi.fn(), create: vi.fn(), edit: vi.fn(), activate: vi.fn(), deactivate: vi.fn(), resetPassword: vi.fn() } }))
 vi.mock('../api/departmentsApi', () => ({ departmentsApi: { list: vi.fn() } }))
@@ -57,7 +58,7 @@ describe('ADMIN routes and navigation', () => {
     expect(screen.queryByRole('link', { name: 'Quản lý tài khoản' })).toBeNull()
     view.unmount()
     render(<MemoryRouter initialEntries={['/admin/accounts']}><App /></MemoryRouter>)
-    expect(screen.getByRole('heading', { name: 'Không có quyền xem trang' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Tổng quan theo vai trò' })).toBeTruthy()
     expect(adminAccountsApi.list).not.toHaveBeenCalled()
   })
 })

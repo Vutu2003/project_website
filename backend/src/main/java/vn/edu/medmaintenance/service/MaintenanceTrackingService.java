@@ -16,6 +16,7 @@ import vn.edu.medmaintenance.security.principal.CurrentUser;
 @Service
 public class MaintenanceTrackingService {
  private final JdbcTemplate jdbc;
+ private final ExecutionAcceptanceService workflow;
  private final MaintenancePlanRepository plans;
  private final MaintenancePlanItemRepository items;
  private final MaintenanceExecutionRepository executions;
@@ -26,8 +27,8 @@ public class MaintenanceTrackingService {
  private final EntityManager em;
  public MaintenanceTrackingService(JdbcTemplate jdbc,MaintenancePlanRepository plans,MaintenancePlanItemRepository items,
    MaintenanceExecutionRepository executions,MaintenanceReportRepository reports,UserAccountRepository users,
-   CurrentUser current,WorkflowHistory history,EntityManager em){
-  this.jdbc=jdbc;this.plans=plans;this.items=items;this.executions=executions;this.reports=reports;
+   CurrentUser current,WorkflowHistory history,EntityManager em,ExecutionAcceptanceService workflow){
+  this.jdbc=jdbc;this.workflow=workflow;this.plans=plans;this.items=items;this.executions=executions;this.reports=reports;
   this.users=users;this.current=current;this.history=history;this.em=em;
  }
  private UserAccount planner(){if(current.get().role()!=UserRole.PHONG_VTYT)throw new BusinessRuleException(HttpStatus.FORBIDDEN,"BUSINESS_ACCESS_DENIED","Chỉ Phòng VTYT được cập nhật bảo trì.");return users.getReferenceById(current.get().id());}
@@ -56,6 +57,25 @@ public class MaintenanceTrackingService {
   if(first.equals("Bảo trì xong") || first.equals("Đã xử lý xong"))return "WORK_DONE";
   if(first.equals("Có hỏng hóc"))return "DAMAGE_DETECTED";
   return "IN_PROGRESS";
+ }
+ @Transactional
+ public Map<String,Object> startAll(long planId,FinalizeReportRequest command){
+  planner();var p=plan(planId);em.lock(p,LockModeType.PESSIMISTIC_WRITE);em.refresh(p);
+  if(!Objects.equals(p.getVersion(),command.version()))fail("OPTIMISTIC_LOCK_CONFLICT","Kế hoạch đã thay đổi. Vui lòng tải lại.");
+  if(!Set.of(PlanStatus.APPROVED,PlanStatus.IN_PROGRESS).contains(p.getStatus()))fail("PLAN_NOT_EXECUTABLE","Kế hoạch chưa được duyệt hoặc đã hoàn thành.");
+  var all=items.findAllByPlan_Id(planId);
+  if(all.isEmpty()||all.stream().anyMatch(i->Set.of(PlanItemStatus.PLANNED,PlanItemStatus.PENDING_PROPOSAL,PlanItemStatus.WAITING_VENDOR_APPROVAL).contains(i.getStatus())))fail("PLAN_ASSIGNMENT_INCOMPLETE","Kế hoạch thiếu thông tin phân công bảo trì. Vui lòng tải lại và kiểm tra kế hoạch.");
+  for(var i:all)if(Set.of(PlanItemStatus.UNDER_CONTRACT,PlanItemStatus.ASSIGNED_EXTERNAL,PlanItemStatus.REWORK_REQUIRED).contains(i.getStatus()))workflow.start(i.getId(),new vn.edu.medmaintenance.api.dto.request.StartExecutionRequest(i.getVersion(),p.getVersion()));
+  return Map.of("planId",planId,"planVersion",p.getVersion());
+ }
+ @Transactional
+ public Map<String,Object> markWorkDone(long planId,FinalizeReportRequest command){
+  planner();var p=plan(planId);em.lock(p,LockModeType.PESSIMISTIC_WRITE);em.refresh(p);
+  if(!Objects.equals(p.getVersion(),command.version()))fail("OPTIMISTIC_LOCK_CONFLICT","Kế hoạch đã thay đổi. Vui lòng tải lại.");
+  if(p.getStatus()!=PlanStatus.IN_PROGRESS)fail("PLAN_NOT_EXECUTABLE","Bắt đầu kế hoạch trước khi cập nhật kết quả.");
+  // Preserve recorded damage; the bulk action completes only devices still in progress.
+  for(var row:tracking(planId))if(row.get("status").equals("IN_MAINTENANCE")&&row.get("progress_status").equals("IN_PROGRESS"))workflow.addProgress(((Number)row.get("execution_id")).longValue(),new vn.edu.medmaintenance.api.dto.request.ProgressRequest(vn.edu.medmaintenance.api.dto.request.MaintenanceProgressStatus.WORK_DONE,"VTYT ghi nhận kết quả bảo trì trong mô phỏng.",((Number)row.get("version")).intValue(),null,null));
+  return Map.of("planId",planId,"planVersion",p.getVersion());
  }
  @Transactional
  public Map<String,Object> complete(long planId,FinalizeReportRequest command){

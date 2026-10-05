@@ -65,12 +65,13 @@ public class QuarterlyPlanningService {
  SELECT p.id,p.code,p.name,p.contact_details,p.active,
  count(DISTINCT k.id) contract_count,
  count(DISTINCT k.id) FILTER(WHERE k.active AND p.active AND (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date BETWEEN k.start_date AND k.end_date) active_contract_count,
- count(DISTINCT m.equipment_id) covered_equipment_count
+ count(DISTINCT m.equipment_id) FILTER(WHERE e.active) covered_equipment_count
  FROM service_provider p LEFT JOIN maintenance_contract k ON k.provider_id=p.id LEFT JOIN maintenance_contract_equipment m ON m.contract_id=k.id
+ LEFT JOIN equipment e ON e.id=m.equipment_id
  GROUP BY p.id ORDER BY p.name
  """);}
  public List<Map<String,Object>> equipment(){
-  var rows=jdbc.queryForList(EQUIPMENT_SQL+" ORDER BY e.equipment_code");
+  var rows=jdbc.queryForList(EQUIPMENT_SQL+" WHERE e.active ORDER BY e.equipment_code");
   var contracts=jdbc.queryForList(CONTRACT_SQL,LocalDate.now(ZoneId.of("Asia/Ho_Chi_Minh")));
   var validIds=new HashSet<Long>();for(var c:contracts)if(Boolean.TRUE.equals(c.get("valid")))validIds.add(((Number)c.get("equipment_id")).longValue());
   for(var row:rows)row.put("contract_status",validIds.contains(((Number)row.get("equipment_id")).longValue())?"VALID":"EXPIRED");return rows;
@@ -78,7 +79,7 @@ public class QuarterlyPlanningService {
  public List<Map<String,Object>> providerEquipment(long providerId){
   if(jdbc.queryForObject("SELECT count(*) FROM service_provider WHERE id=?",Long.class,providerId)==0)
    throw new vn.edu.medmaintenance.api.exception.ResourceNotFoundException("Provider");
-  return jdbc.queryForList("SELECT x.*,k.contracts FROM ("+EQUIPMENT_SQL+") x JOIN (SELECT m.equipment_id,string_agg(k.contract_code,', ' ORDER BY k.contract_code) contracts FROM maintenance_contract_equipment m JOIN maintenance_contract k ON k.id=m.contract_id WHERE k.provider_id=? GROUP BY m.equipment_id) k ON k.equipment_id=x.equipment_id ORDER BY x.equipment_code",providerId);
+  return jdbc.queryForList("SELECT x.*,k.contracts FROM ("+EQUIPMENT_SQL+") x JOIN (SELECT m.equipment_id,string_agg(k.contract_code,', ' ORDER BY k.contract_code) contracts FROM maintenance_contract_equipment m JOIN maintenance_contract k ON k.id=m.contract_id WHERE k.provider_id=? GROUP BY m.equipment_id) k ON k.equipment_id=x.equipment_id WHERE x.active ORDER BY x.equipment_code",providerId);
  }
  public Map<String,Object> equipment(long id){
   var row=jdbc.queryForList(EQUIPMENT_SQL+" WHERE e.id=?",id).stream().findFirst().orElseThrow(()->new vn.edu.medmaintenance.api.exception.ResourceNotFoundException("Equipment"));

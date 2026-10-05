@@ -1,6 +1,5 @@
 import { NotificationBell } from '../components/NotificationBell'
-import { Fragment } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router'
 import { useAuth } from '../auth/useAuth'
 import { navigationItems } from '../routes/navigation'
 import { roleLabels } from '../utils/roleLabels'
@@ -16,20 +15,12 @@ export function AppLayout() {
   function handleLogout() { logout(); navigate('/login', { replace: true }) }
   return <div className="app-frame">
     <aside className="sidebar" aria-label="Điều hướng chính">
-      <div className="brand-block"><span className="brand-mark" aria-hidden="true">+</span><div>
-        <strong>MEDMAINT</strong><small>QUẢN LÝ BẢO TRÌ THIẾT BỊ Y TẾ</small>
-      </div></div>
+      <Link className="brand-block" to="/dashboard"><span className="brand-mark" aria-hidden="true">+</span><strong>MEDMAINT</strong></Link>
       <nav className="side-nav" aria-label="Chức năng">
-        <span className="nav-heading">KHÔNG GIAN LÀM VIỆC</span>
-        {items.length > 0 && <span className="nav-heading nav-heading-gap">CHỨC NĂNG THEO VAI TRÒ</span>}
-        {items.map(item => <Fragment key={item.path}>
-          {user.role === 'ADMIN' && item.path === '/admin/accounts' && <span className="nav-heading nav-heading-gap">QUẢN TRỊ</span>}
-          {user.role === 'ADMIN' && item.path === '/admin/catalogs/departments' && <span className="nav-heading nav-heading-gap">DANH MỤC HỆ THỐNG</span>}
-          <NavLink end={item.path === '/dashboard'} to={item.path} className={({ isActive }) => `nav-link${(reportDetail ? item.path === '/reports' : executionDetail ? item.path === (user.role === 'PHONG_VTYT' ? '/maintenance-progress' : '/execution') : isActive) ? ' active' : ''}`} >
+        {items.map(item => <NavLink key={item.path} end={item.path === '/dashboard'} to={item.path} className={({ isActive }) => `nav-link${(reportDetail ? item.path === '/reports' : executionDetail ? item.path === (user.role === 'PHONG_VTYT' ? '/maintenance-progress' : '/execution') : isActive) ? ' active' : ''}`} >
           {item.label}
-        </NavLink></Fragment>)}
+        </NavLink>)}
       </nav>
-      <div className="sidebar-foot">Bảo trì thiết bị y tế</div>
     </aside>
     <div className="app-column">
       <header className="app-header">

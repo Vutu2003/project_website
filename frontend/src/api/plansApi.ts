@@ -8,6 +8,7 @@ export const plansApi = {
     if (itemStatus) params.set('itemStatus', itemStatus)
     return apiRequest(`/api/plans?${params}`)
   },
+  remove(id: number, version: number): Promise<void> { return apiRequest(`/api/plans/${id}?version=${version}`, { method: 'DELETE' }) },
   detail(id: number): Promise<Plan> { return apiRequest(`/api/plans/${id}`) },
   items(id: number, page = 0, size = 20, status?: PlanItemStatus): Promise<PageResponse<PlanItem>> {
     const params = new URLSearchParams({ page: String(page), size: String(size), sort: 'id,asc' })

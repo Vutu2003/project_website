@@ -1,3 +1,4 @@
+import '../dashboard.css'
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router'
 import { useAuth } from '../auth/useAuth'

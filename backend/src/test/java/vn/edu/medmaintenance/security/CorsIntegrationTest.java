@@ -45,4 +45,12 @@ class CorsIntegrationTest {
         assertThat(anonymous.getStatusCode().value()).isEqualTo(401);
         assertThat(anonymous.getHeaders().getAccessControlAllowOrigin()).isEqualTo("http://localhost:5173");
     }
+    @Test
+    void frontendMayPreflightDeviceAndPlanDeletion() {
+        for (String path : new String[]{"/api/equipment/1", "/api/plans/1"}) {
+            var response=preflight("http://localhost:5173",path,"DELETE","authorization");
+            assertThat(response.getStatusCode().value()).isEqualTo(200);
+            assertThat(response.getHeaders().getAccessControlAllowMethods()).contains(HttpMethod.DELETE);
+        }
+    }
 }

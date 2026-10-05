@@ -65,7 +65,7 @@ class BackendFoundationIntegrationTest {
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM flyway_schema_history
                 WHERE success = true AND type = 'SQL'
-                """, Integer.class)).isEqualTo(12);
+                """, Integer.class)).isEqualTo(13);
     }
 
     @Test

@@ -468,8 +468,7 @@ class ExecutionAcceptanceIntegrationTest {
 
     private long routeExternal(long plan, long equipmentId) {
         long item = item(plan, equipmentId);
-        long request=jdbc.queryForObject("SELECT id FROM approval_request WHERE plan_item_id=? AND status='PENDING'",Long.class,item);
-        ok(send("/api/approvals/"+request+"/decision",director,Map.of("version",version(item),"outcome","APPROVE")),200);
+        assertThat(jdbc.queryForObject("SELECT status FROM maintenance_plan_item WHERE id=?",String.class,item)).isEqualTo("ASSIGNED_EXTERNAL");
         return item;
     }
 

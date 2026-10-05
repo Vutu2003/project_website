@@ -39,9 +39,10 @@ public class MaintenanceAutomationService {
   return jdbc.queryForList("""
    SELECT k.id,k.contract_code,k.contract_name,k.provider_id,p.name provider_name,k.start_date,k.end_date,k.active,k.notes,
    CASE WHEN NOT k.active OR NOT p.active THEN 'INACTIVE' WHEN k.end_date<(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date THEN 'EXPIRED' WHEN k.start_date>(CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date THEN 'FUTURE' ELSE 'ACTIVE' END status,
-   count(DISTINCT c.equipment_id) equipment_count
+   count(DISTINCT c.equipment_id) FILTER (WHERE e.active) equipment_count
    FROM maintenance_contract k JOIN service_provider p ON p.id=k.provider_id
    LEFT JOIN maintenance_contract_equipment c ON c.contract_id=k.id
+   LEFT JOIN equipment e ON e.id=c.equipment_id
    WHERE (?::bigint IS NULL OR k.provider_id=?) GROUP BY k.id,p.id ORDER BY k.start_date DESC,k.id DESC
    """,provider,provider);
  }
@@ -49,15 +50,15 @@ public class MaintenanceAutomationService {
   .orElseThrow(()->new vn.edu.medmaintenance.api.exception.ResourceNotFoundException("Contract"));}
  public List<Map<String,Object>> contractEquipment(long id){
   contract(id);
-  return jdbc.queryForList("SELECT e.id,e.equipment_code,e.name,d.name department_name,e.active,(SELECT string_agg(s.quarter,', ' ORDER BY s.quarter) FROM equipment_maintenance_schedule s WHERE s.equipment_id=e.id) quarters FROM maintenance_contract_equipment m JOIN equipment e ON e.id=m.equipment_id JOIN department d ON d.id=e.department_id WHERE m.contract_id=? ORDER BY e.equipment_code",id);
+  return jdbc.queryForList("SELECT e.id,e.equipment_code,e.name,d.name department_name,e.active,(SELECT string_agg(s.quarter,', ' ORDER BY s.quarter) FROM equipment_maintenance_schedule s WHERE s.equipment_id=e.id) quarters FROM maintenance_contract_equipment m JOIN equipment e ON e.id=m.equipment_id JOIN department d ON d.id=e.department_id WHERE m.contract_id=? AND e.active ORDER BY e.equipment_code",id);
  }
  public Map<String,Object> provider(long id){
   var p=jdbc.queryForList("SELECT id,code,name,contact_details,active FROM service_provider WHERE id=?",id).stream().findFirst()
    .orElseThrow(()->new vn.edu.medmaintenance.api.exception.ResourceNotFoundException("Provider"));
   var contracts=contracts(id);p.put("contracts",contracts);
   p.put("covered_equipment_count",jdbc.queryForObject("""
-   SELECT count(DISTINCT c.equipment_id) FROM maintenance_contract_equipment c JOIN maintenance_contract k ON k.id=c.contract_id JOIN service_provider p ON p.id=k.provider_id
-   WHERE k.provider_id=? AND k.active AND p.active AND (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date BETWEEN k.start_date AND k.end_date
+   SELECT count(DISTINCT c.equipment_id) FROM maintenance_contract_equipment c JOIN maintenance_contract k ON k.id=c.contract_id JOIN service_provider p ON p.id=k.provider_id JOIN equipment e ON e.id=c.equipment_id
+   WHERE e.active AND k.provider_id=? AND k.active AND p.active AND (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Ho_Chi_Minh')::date BETWEEN k.start_date AND k.end_date
    """,Long.class,id));return p;
  }
  @Transactional public Map<String,Object> configure(long id,ScheduleInput input){

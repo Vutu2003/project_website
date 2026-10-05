@@ -165,63 +165,102 @@ import vn.edu.medmaintenance.persistence.enums.*;
         assertThat(number("SELECT count(*) FROM approval_request WHERE plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)", p)).isZero();
         assertThat(number("SELECT count(*) FROM user_notification WHERE notification_type='PLAN_APPROVED' AND target_url=?", "/plans/"+p)).isGreaterThan(0);
     }
-    @Test void planApprovalAutomaticallyActivatesPreparedVendorWithoutDuplicates() {
-        var p=create(external(paid));
-        long i=item(p);
+    @Test void planApprovalIncludesPreparedProvidersWithoutAdditionalRequests() {
+        long p=create(external(paid)), i=item(p);
+        long before=ok(send(HttpMethod.GET,"/api/dashboard",bgd,null),200).path("summary").path("approvedThisMonth").asLong();
         var a=approve(p);
-        assertThat(text("SELECT status FROM maintenance_plan_item WHERE id=?", i)).isEqualTo("WAITING_VENDOR_APPROVAL");
-        var q=number("SELECT id FROM approval_request WHERE plan_item_id=? AND status='PENDING'", i);
+        assertThat(ok(send(HttpMethod.GET,"/api/dashboard",bgd,null),200).path("summary").path("approvedThisMonth").asLong()).isEqualTo(before+1);
+        assertThat(text("SELECT status FROM maintenance_plan_item WHERE id=?", i)).isEqualTo("ASSIGNED_EXTERNAL");
+        long q=number("SELECT id FROM approval_request WHERE plan_item_id=? AND status='DECIDED'", i);
         assertThat(text("SELECT rationale FROM approval_request WHERE id=?", q)).isEqualTo("Năng lực phù hợp");
-        assertThat(number("SELECT count(*) FROM user_notification WHERE notification_type='VENDOR_PENDING' AND target_url=?", "/approvals/"+q)).isGreaterThan(0);
+        assertThat(number("SELECT assigned_provider_id FROM maintenance_plan_item WHERE id=?", i)).isEqualTo(provider);
+        assertThat(text("SELECT assignment_route FROM maintenance_plan_item WHERE id=?", i)).isEqualTo("EXTERNAL_APPROVED");
+        assertThat(number("SELECT count(*) FROM approval_action v JOIN approval_action p ON p.request_id=? WHERE v.request_id=? AND v.actor_user_id=p.actor_user_id AND v.action_at=p.action_at AND v.outcome='APPROVE'", a.path("requestId").asLong(), q)).isEqualTo(1);
+        assertThat(number("SELECT count(*) FROM user_notification WHERE notification_type='VENDOR_PENDING' AND target_url=?", "/approvals/"+q)).isZero();
         assertCode(send(HttpMethod.POST, "/api/approvals/"+a.path("requestId").asLong()+"/decision", bgd, Map.of("version", pv(p), "outcome", "APPROVE")), 409, "APPROVAL_REQUEST_NOT_PENDING");
         assertThat(number("SELECT count(*) FROM approval_request WHERE plan_item_id=?", i)).isEqualTo(1);
     }
-    @Test void vendorApproveAssignsProposedProviderAndNotifies() {
-        var p=create(external(paid));
-        approve(p);
-        long i=item(p);
-        long q=pending(i);
-        var a=decide(q, iv(i), "APPROVE");
-        assertThat(a.path("status").asText()).isEqualTo("ASSIGNED_EXTERNAL");
-        assertThat(number("SELECT assigned_provider_id FROM maintenance_plan_item WHERE id=?", i)).isEqualTo(provider);
-        assertThat(number("SELECT count(*) FROM user_notification WHERE notification_type='VENDOR_APPROVED' AND target_url=?", "/plans/"+p)).isGreaterThan(0);
-    }
-    @Test void mixedPreparedPlanWaitsForAllVendorsBeforeExecutionAndRemainsRevisable() {
+    @Test void onePlanApprovalAllowsStartingContractAndExternalItemsTogether() {
         long p=create(free(), external(paid));
         approve(p);
-        long contract=number("SELECT id FROM maintenance_plan_item WHERE plan_id=? AND equipment_id=?", p, eq);
-        long external=number("SELECT id FROM maintenance_plan_item WHERE plan_id=? AND equipment_id=?", p, paid);
-        assertThat(ok(send(HttpMethod.GET, "/api/plans/"+p, vtyt, null), 200).path("pendingVendorApproval").asBoolean()).isTrue();
-        assertCode(send(HttpMethod.POST, "/api/plan-items/"+contract+"/executions", vtyt,
-                Map.of("version", iv(contract), "planVersion", pv(p))), 409, "PLAN_VENDOR_APPROVAL_PENDING");
-        assertThat(number("SELECT count(*) FROM maintenance_execution WHERE plan_item_id=?", contract)).isZero();
-        decide(pending(external), iv(external), "REVISION_REQUIRED");
-        assertThat(text("SELECT status FROM maintenance_plan WHERE id=?", p)).isEqualTo("REVISION_REQUIRED");
-        var revised=body(free(), external(paid));
-        revised.put("version", pv(p));
-        ok(send(HttpMethod.PATCH, "/api/plans/"+p, vtyt, revised), 200);
-        approve(p);
-        decide(pending(external), iv(external), "APPROVE");
         assertThat(ok(send(HttpMethod.GET, "/api/plans/"+p, vtyt, null), 200).path("pendingVendorApproval").asBoolean()).isFalse();
-        ok(send(HttpMethod.POST, "/api/plan-items/"+contract+"/executions", vtyt,
-                Map.of("version", iv(contract), "planVersion", pv(p))), 201);
+        ok(send(HttpMethod.POST, "/api/plans/"+p+"/start-maintenance", vtyt, Map.of("version", pv(p))), 200);
         assertThat(text("SELECT status FROM maintenance_plan WHERE id=?", p)).isEqualTo("IN_PROGRESS");
+        assertThat(number("SELECT count(*) FROM maintenance_execution x JOIN maintenance_plan_item i ON i.id=x.plan_item_id WHERE i.plan_id=?", p)).isEqualTo(2);
     }
-    @Test void vendorRevisionReturnsWholePlanAndCancelsSiblingPendingRequests() {
-        var p=create(external(paid), external(missing));
-        approve(p);
-        long i=item(p);
-        long q=pending(i);
-        decide(q, iv(i), "REVISION_REQUIRED");
+    @Test void planRevisionKeepsAllProposalsEditableUntilResubmittedAndApproved() {
+        long p=create(external(paid), external(missing));
+        var q=submit(p).path("approvalRequestId").asLong();
+        decide(q, pv(p), "REVISION_REQUIRED");
         assertThat(text("SELECT status FROM maintenance_plan WHERE id=?", p)).isEqualTo("REVISION_REQUIRED");
-        assertThat(number("SELECT count(*) FROM approval_request WHERE status='PENDING' AND plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)", p)).isZero();
         assertThat(number("SELECT count(*) FROM approval_request WHERE status='DRAFT' AND plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)", p)).isEqualTo(2);
-        var input=new HashMap<>(external(paid));
-        input.put("proposedProviderId", provider2);
-        ok(send(HttpMethod.PATCH, "/api/plans/"+p, vtyt, edit(p, input)), 200);
+        assertThat(number("SELECT count(*) FROM maintenance_plan_item WHERE plan_id=? AND assigned_provider_id IS NOT NULL", p)).isZero();
+        var replacement=new HashMap<>(external(paid));
+        replacement.put("proposedProviderId", provider2);
+        var edit=body(replacement, external(missing));edit.put("version", pv(p));
+        ok(send(HttpMethod.PATCH, "/api/plans/"+p, vtyt, edit), 200);
         approve(p);
-        assertThat(text("SELECT status FROM maintenance_plan WHERE id=?", p)).isEqualTo("APPROVED");
-        assertThat(number("SELECT count(*) FROM approval_action WHERE request_id=?", q)).isEqualTo(1);
+        assertThat(number("SELECT count(*) FROM maintenance_plan_item WHERE plan_id=? AND status='ASSIGNED_EXTERNAL'", p)).isEqualTo(2);
+        assertThat(number("SELECT count(*) FROM approval_request WHERE status='PENDING' AND plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)", p)).isZero();
+    }
+    @Test void notificationFailureRollsBackPlanAndAllProviderApprovals() {
+        long p=create(external(paid), external(missing));
+        long q=submit(p).path("approvalRequestId").asLong();
+        doThrow(new IllegalStateException("controlled notification failure")).when(notifications).save(any(vn.edu.medmaintenance.persistence.entity.UserNotification.class));
+        ok(send(HttpMethod.POST, "/api/approvals/"+q+"/decision", bgd, Map.of("version", pv(p), "outcome", "APPROVE")), 500);
+        assertThat(text("SELECT status FROM maintenance_plan WHERE id=?", p)).isEqualTo("SUBMITTED");
+        assertThat(number("SELECT count(*) FROM maintenance_plan_item WHERE plan_id=? AND assigned_provider_id IS NOT NULL", p)).isZero();
+        assertThat(number("SELECT count(*) FROM approval_request WHERE status='DRAFT' AND plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?)", p)).isEqualTo(2);
+        assertThat(number("SELECT count(*) FROM approval_action WHERE request_id IN (SELECT id FROM approval_request WHERE plan_id=? OR plan_item_id IN (SELECT id FROM maintenance_plan_item WHERE plan_id=?))", p, p)).isZero();
+    }
+    @Test void providerDeactivatedAfterSubmissionPreventsPartialApproval() {
+        long p=create(free(), external(paid));long q=submit(p).path("approvalRequestId").asLong();
+        jdbc.update("UPDATE service_provider SET active=false WHERE id=?", provider);
+        try {
+            assertCode(send(HttpMethod.POST, "/api/approvals/"+q+"/decision", bgd, Map.of("version", pv(p), "outcome", "APPROVE")), 409, "PLAN_ITEM_INCOMPLETE");
+            assertThat(text("SELECT status FROM maintenance_plan WHERE id=?", p)).isEqualTo("SUBMITTED");
+            assertThat(number("SELECT count(*) FROM approval_action WHERE request_id=?", q)).isZero();
+        } finally { jdbc.update("UPDATE service_provider SET active=true WHERE id=?", provider); }
+    }
+    @Test void migrationRepairsPreviouslyActivatedProposalsAndPreservesDecisionEvidence() throws Exception {
+        long p=create(free(), external(paid));var decision=approve(p);
+        long i=number("SELECT id FROM maintenance_plan_item WHERE plan_id=? AND equipment_id=?",p,paid);
+        long q=number("SELECT id FROM approval_request WHERE plan_item_id=?",i);
+        jdbc.update("DELETE FROM approval_action WHERE request_id=?",q);
+        jdbc.update("UPDATE approval_request SET status='PENDING',resolved_at=NULL WHERE id=?",q);
+        jdbc.update("UPDATE maintenance_plan_item SET status='WAITING_VENDOR_APPROVAL',assigned_provider_id=NULL,assignment_route=NULL WHERE id=?",i);
+        jdbc.update("INSERT INTO status_history(plan_item_id,actor_user_id,old_state,new_state,action,reason,action_timestamp) SELECT ?,actor_user_id,'PENDING_PROPOSAL','WAITING_VENDOR_APPROVAL','ACTIVATE_PREPARED_VENDOR',?,action_at FROM approval_action WHERE request_id=?",i,"request="+q,decision.path("requestId").asLong());
+        var path=java.nio.file.Path.of("../database/migrations/V013__approve_prepared_providers_with_plan.sql");
+        if(!java.nio.file.Files.exists(path))path=java.nio.file.Path.of("database/migrations/V013__approve_prepared_providers_with_plan.sql");
+        String migration=java.nio.file.Files.readString(path);
+        jdbc.execute(migration);
+        jdbc.execute(migration); // Reapplying cannot duplicate the inherited decision.
+        assertThat(number("SELECT count(*) FROM approval_action WHERE request_id=?",q)).isEqualTo(1);
+        assertThat(number("SELECT count(*) FROM status_history WHERE plan_item_id=? AND action='ACTIVATE_PREPARED_VENDOR'",i)).isEqualTo(1);
+        assertThat(number("SELECT count(*) FROM status_history WHERE plan_item_id=? AND action='APPLY_PLAN_APPROVAL_TO_PROVIDER'",i)).isEqualTo(1);
+        assertThat(text("SELECT status FROM maintenance_plan_item WHERE id=?",i)).isEqualTo("ASSIGNED_EXTERNAL");
+        assertThat(ok(send(HttpMethod.GET,"/api/plans/"+p,vtyt,null),200).path("pendingVendorApproval").asBoolean()).isFalse();
+        ok(send(HttpMethod.POST,"/api/plans/"+p+"/start-maintenance",vtyt,Map.of("version",pv(p))),200);
+    }
+    @ParameterizedTest @ValueSource(strings={"inactive", "revision", "laterProposal"})
+    void migrationDoesNotApproveProposalsOutsideTheRecordedPlanDecision(String scenario) throws Exception {
+        long p=create(external(paid));var decision=approve(p);long i=item(p);
+        long q=number("SELECT id FROM approval_request WHERE plan_item_id=?",i);
+        jdbc.update("DELETE FROM approval_action WHERE request_id=?",q);
+        jdbc.update("UPDATE approval_request SET status='PENDING',resolved_at=NULL WHERE id=?",q);
+        jdbc.update("UPDATE maintenance_plan_item SET status='WAITING_VENDOR_APPROVAL',assigned_provider_id=NULL,assignment_route=NULL WHERE id=?",i);
+        jdbc.update("INSERT INTO status_history(plan_item_id,actor_user_id,old_state,new_state,action,reason,action_timestamp) SELECT ?,actor_user_id,'PENDING_PROPOSAL','WAITING_VENDOR_APPROVAL','ACTIVATE_PREPARED_VENDOR',?,action_at FROM approval_action WHERE request_id=?",i,"request="+q,decision.path("requestId").asLong());
+        if(scenario.equals("inactive"))jdbc.update("UPDATE service_provider SET active=false WHERE id=?",provider);
+        if(scenario.equals("revision"))jdbc.update("UPDATE maintenance_plan SET status='REVISION_REQUIRED' WHERE id=?",p);
+        if(scenario.equals("laterProposal"))jdbc.update("UPDATE approval_request SET submitted_at=submitted_at+interval '1 minute' WHERE id=?",q);
+        try {
+            var path=java.nio.file.Path.of("../database/migrations/V013__approve_prepared_providers_with_plan.sql");
+            if(!java.nio.file.Files.exists(path))path=java.nio.file.Path.of("database/migrations/V013__approve_prepared_providers_with_plan.sql");
+            jdbc.execute(java.nio.file.Files.readString(path));
+            assertThat(text("SELECT status FROM approval_request WHERE id=?",q)).isEqualTo("PENDING");
+            assertThat(number("SELECT count(*) FROM approval_action WHERE request_id=?",q)).isZero();
+            assertThat(number("SELECT count(*) FROM maintenance_plan_item WHERE id=? AND assigned_provider_id IS NULL",i)).isEqualTo(1);
+        } finally { if(scenario.equals("inactive"))jdbc.update("UPDATE service_provider SET active=true WHERE id=?",provider); }
     }
     @Test void planRevisionNotificationAndResubmitRelock() {
         var p=create(free());
@@ -387,7 +426,7 @@ import vn.edu.medmaintenance.persistence.enums.*;
             var row=ok(send(HttpMethod.GET, "/api/plans/"+p+"/items", vtyt, null), 200).path("content").get(0);
             assertThat(row.path("serviceChoice").asText()).isEqualTo("MANUFACTURER");
             approve(p);
-            assertThat(text("SELECT status FROM maintenance_plan_item WHERE id=?", i)).isEqualTo("WAITING_VENDOR_APPROVAL");
+            assertThat(text("SELECT status FROM maintenance_plan_item WHERE id=?", i)).isEqualTo("ASSIGNED_EXTERNAL");
             input.put("proposedProviderId", provider2);
             assertCode(send(HttpMethod.POST, "/api/plans", vtyt, body(input)), 409, "EQUIPMENT_IN_OPEN_PLAN");
         } finally { jdbc.update("UPDATE equipment SET manufacturer_provider_id=NULL WHERE id=?", paid); }
@@ -471,9 +510,6 @@ import vn.edu.medmaintenance.persistence.enums.*;
     }
     private JsonNode decide(long q, int version, String outcome) {
         return ok(send(HttpMethod.POST, "/api/approvals/"+q+"/decision", bgd, Map.of("version", version, "outcome", outcome, "comment", "Điều chỉnh theo đánh giá")), 200);
-    }
-    private long pending(long i) {
-        return number("SELECT id FROM approval_request WHERE plan_item_id=? AND status='PENDING'", i);
     }
     private long item(long p) {
         return number("SELECT id FROM maintenance_plan_item WHERE plan_id=? ORDER BY id LIMIT 1", p);

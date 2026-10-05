@@ -28,9 +28,10 @@ INSERT INTO maintenance_coverage(equipment_id,provider_id,contract_reference,cov
 SELECT equipment_id,provider_id,contract_reference,coverage_scope,effective_from,effective_to,classification,verified_by_user_id,verified_at,basis_note,warranty_expires_on FROM maintenance_coverage WHERE id=1;
 SQL
 PSQL=(psql -X -q -v ON_ERROR_STOP=1 -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USERNAME" -d "$DB_NAME")
+# Compare original columns; validate newly added contract/quarter columns below.
 SNAPSHOT_SQL="SELECT md5(jsonb_build_object(
- 'plans',(SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM maintenance_plan p),
- 'items',(SELECT jsonb_agg(to_jsonb(i)-'last_maintenance_date'-'maintenance_due_date' ORDER BY id) FROM maintenance_plan_item i),
+ 'plans',(SELECT jsonb_agg(to_jsonb(p)-'plan_year'-'plan_quarter' ORDER BY id) FROM maintenance_plan p),
+ 'items',(SELECT jsonb_agg(to_jsonb(i)-'last_maintenance_date'-'maintenance_due_date'-'contract_id' ORDER BY id) FROM maintenance_plan_item i),
  'executions',(SELECT jsonb_agg(to_jsonb(x) ORDER BY id) FROM maintenance_execution x),
  'acceptances',(SELECT jsonb_agg(to_jsonb(a) ORDER BY id) FROM acceptance_record a),
  'requests',(SELECT jsonb_agg(to_jsonb(r) ORDER BY id) FROM approval_request r),
@@ -55,6 +56,17 @@ DO $$ BEGIN
  WHERE c.provider_id<>k.provider_id OR c.effective_from<>k.start_date OR c.effective_to<>k.end_date) THEN
   RAISE EXCEPTION 'Contract mirror drift';
  END IF;
+ IF EXISTS(SELECT 1 FROM maintenance_plan_item i JOIN maintenance_coverage c ON c.id=i.coverage_id
+ WHERE i.contract_id IS DISTINCT FROM c.contract_id) THEN
+  RAISE EXCEPTION 'Plan item contract backfill drift';
+ END IF;
+ IF EXISTS(SELECT 1 FROM maintenance_plan p WHERE p.plan_year IS NOT NULL AND (
+ p.plan_year<>extract(year from p.period_start)::integer OR
+ p.plan_quarter<>'Q'||extract(quarter from p.period_start)::integer OR
+ p.period_start<>date_trunc('quarter',p.period_start)::date OR
+ p.period_end<>(date_trunc('quarter',p.period_start)+interval '3 months - 1 day')::date)) THEN
+  RAISE EXCEPTION 'Quarter backfill does not match the original plan period';
+ END IF;
 END $$;
 SQL
-printf 'PASS: populated V009 → V010, history preserved, repeated coverage evidence grouped, no invented schedule dates.\n'
+printf 'PASS: populated V009 → V013, original workflow/history preserved, repeated coverage evidence grouped, no invented schedule dates.\n'

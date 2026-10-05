@@ -3,9 +3,11 @@ import { NotificationsPage } from './pages/NotificationsPage'
 import { Navigate, Route, Routes } from 'react-router'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { AppLayout } from './layouts/AppLayout'
+import { EquipmentFormPage } from './pages/EquipmentFormPage'
+import { MaintenanceHistoryPage } from './pages/MaintenanceHistoryPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { LoginPage } from './pages/LoginPage'
-import { NotFoundPage, UnauthorizedPage } from './pages/PlaceholderPage'
+import { NotFoundPage } from './pages/PlaceholderPage'
 import { PlanListPage } from './pages/PlanListPage'
 import { PlanFormPage } from './pages/PlanFormPage'
 import { PlanDetailPage } from './pages/PlanDetailPage'
@@ -51,6 +53,9 @@ export default function App() {
         <Route path="/approvals/:requestId" element={<RoleGuard roles={['BAN_GIAM_DOC']}><ApprovalDetailPage /></RoleGuard>} />
         <Route path="/reports" element={<RoleGuard roles={['PHONG_VTYT', 'BAN_GIAM_DOC', 'KHOA_PHONG']}><ReportListPage /></RoleGuard>} />
         <Route path="/plans/:planId/report" element={<RoleGuard roles={['PHONG_VTYT', 'BAN_GIAM_DOC', 'KHOA_PHONG']}><ReportDetailPage /></RoleGuard>} />
+        <Route path="/equipment/new" element={<RoleGuard roles={['PHONG_VTYT']}><EquipmentFormPage /></RoleGuard>} />
+        <Route path="/maintenance-history" element={<RoleGuard roles={['PHONG_VTYT', 'BAN_GIAM_DOC', 'KHOA_PHONG']}><MaintenanceHistoryPage /></RoleGuard>} />
+        <Route path="/maintenance-history/plans/:planId" element={<RoleGuard roles={['PHONG_VTYT']}><MaintenanceHistoryPage /></RoleGuard>} />
         <Route path="/equipment" element={<RoleGuard roles={['PHONG_VTYT', 'KHOA_PHONG']}><EquipmentListPage /></RoleGuard>} />
         <Route path="/equipment/:equipmentId" element={<RoleGuard roles={['PHONG_VTYT', 'ADMIN']}><EquipmentDetailPage /></RoleGuard>} />
         <Route path="/equipment/:equipmentId/history" element={<RoleGuard roles={['PHONG_VTYT', 'KHOA_PHONG']}><EquipmentHistoryPage /></RoleGuard>} />
@@ -67,7 +72,7 @@ export default function App() {
         <Route path="/admin/accounts/new" element={<RoleGuard roles={['ADMIN']}><AdminAccountFormPage mode="create" /></RoleGuard>} />
         <Route path="/admin/accounts/:id" element={<RoleGuard roles={['ADMIN']}><AdminAccountDetailPage /></RoleGuard>} />
         <Route path="/admin/accounts/:id/edit" element={<RoleGuard roles={['ADMIN']}><AdminAccountFormPage mode="edit" /></RoleGuard>} />
-        <Route path="/unauthorized" element={<UnauthorizedPage />} />
+        <Route path="/unauthorized" element={<Navigate replace to="/dashboard" />} />
       </Route>
     </Route>
     <Route path="*" element={<NotFoundPage />} />

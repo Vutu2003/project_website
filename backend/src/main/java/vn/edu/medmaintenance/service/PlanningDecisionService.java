@@ -16,18 +16,18 @@ import vn.edu.medmaintenance.persistence.repository.*;
     private final MaintenanceCoverageRepository coverages;
     private final ServiceProviderRepository providers;
     private final ApprovalRequestRepository requests;
+    private final ApprovalActionRepository actions;
     private final MaintenancePlanItemRepository items;
     private final WorkflowHistory history;
-    private final NotificationService notifications;
     private final EntityManager em;
     private final org.springframework.jdbc.core.JdbcTemplate jdbc;
-    public PlanningDecisionService(MaintenanceCoverageRepository c, ServiceProviderRepository p, ApprovalRequestRepository r, MaintenancePlanItemRepository i, WorkflowHistory h, NotificationService n, EntityManager em, org.springframework.jdbc.core.JdbcTemplate jdbc) {
+    public PlanningDecisionService(MaintenanceCoverageRepository c, ServiceProviderRepository p, ApprovalRequestRepository r, ApprovalActionRepository actions, MaintenancePlanItemRepository i, WorkflowHistory h, EntityManager em, org.springframework.jdbc.core.JdbcTemplate jdbc) {
         coverages=c;
         providers=p;
         requests=r;
+        this.actions=actions;
         items=i;
         history=h;
-        notifications=n;
         this.em=em;this.jdbc=jdbc;
     }
     public static boolean validFree(MaintenanceCoverage c, Long equipment, LocalDate date) {
@@ -171,19 +171,30 @@ import vn.edu.medmaintenance.persistence.repository.*;
     public ApprovalRequest draft(MaintenancePlanItem i) {
         return requests.findByPlanItem_IdAndRequestTypeAndStatus(i.getId(), ApprovalRequestType.VENDOR_SELECTION, ApprovalRequestStatus.DRAFT).orElse(null);
     }
-    public void activate(MaintenancePlan plan, UserAccount actor, OffsetDateTime at) {
+    public void approvePreparedProviders(MaintenancePlan plan, ApprovalAction planDecision) {
+        var actor=planDecision.getActorUser();
+        var at=planDecision.getActionAt();
         for (var i:items.findAllByPlan_Id(plan.getId())) {
             em.lock(i, LockModeType.OPTIMISTIC);
-            var q=draft(i);
             // Legacy approved plans without prepared content remain readable; no fabricated proposal.
-            if (i.getStatus()!=PlanItemStatus.PENDING_PROPOSAL || q==null)continue;
+            if (i.getStatus()!=PlanItemStatus.PENDING_PROPOSAL)continue;
             validateComplete(i);
-            q.setStatus(ApprovalRequestStatus.PENDING);
+            var q=draft(i);
+            q.setStatus(ApprovalRequestStatus.DECIDED);
             q.setSubmittedAt(at);
-            i.setStatus(PlanItemStatus.WAITING_VENDOR_APPROVAL);
-            history.itemTransition(i, actor, "PENDING_PROPOSAL", "WAITING_VENDOR_APPROVAL", "ACTIVATE_PREPARED_VENDOR", "request="+q.getId(), at);
-            // BGD actor must also receive the newly required provider review.
-            notifications.notifyRole(UserRole.BAN_GIAM_DOC, null, null, "VENDOR_PENDING", "Đề xuất đơn vị chờ phê duyệt", "Thiết bị "+i.getEquipment().getEquipmentCode()+" — "+q.getProposedProvider().getName(), "/approvals/"+q.getId());
+            q.setResolvedAt(at);
+            var approval=new ApprovalAction();
+            approval.setRequest(q);
+            approval.setActorUser(actor);
+            approval.setOutcome(ApprovalOutcome.APPROVE);
+            approval.setActionAt(at);
+            approval.setComment("Chấp thuận cùng kế hoạch; planApprovalRequest="+planDecision.getRequest().getId());
+            actions.save(approval);
+            i.setAssignedProvider(q.getProposedProvider());
+            i.setAssignmentRoute(AssignmentRoute.EXTERNAL_APPROVED);
+            i.setStatus(PlanItemStatus.ASSIGNED_EXTERNAL);
+            history.itemTransition(i, actor, "PENDING_PROPOSAL", "ASSIGNED_EXTERNAL", "APPROVE_PROVIDER_WITH_PLAN",
+                "request="+q.getId()+"; planApprovalRequest="+planDecision.getRequest().getId(), at);
         }
     }
     public void returnForVendorRevision(MaintenancePlan plan, UserAccount actor, String reason, OffsetDateTime at) {

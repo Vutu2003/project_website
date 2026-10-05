@@ -116,7 +116,7 @@ public class DashboardService {
             SELECT * FROM unique_work ORDER BY priority,at DESC NULLS LAST,href LIMIT 5
             """,(r,n)->new Attention(r.getString("title"),r.getString("detail"),r.getString("status"),instant(r,"at"),r.getString("href"),r.getString("cta")));
         var expiring = jdbc.query("""
-            SELECT c.id,c.contract_code,s.name provider,c.end_date,(SELECT count(*) FROM maintenance_contract_equipment m WHERE m.contract_id=c.id) equipment_count
+            SELECT c.id,c.contract_code,s.name provider,c.end_date,(SELECT count(*) FROM maintenance_contract_equipment m JOIN equipment e ON e.id=m.equipment_id WHERE e.active AND m.contract_id=c.id) equipment_count
             FROM maintenance_contract c JOIN service_provider s ON s.id=c.provider_id
             WHERE c.active AND s.active AND ? BETWEEN c.start_date AND c.end_date AND c.end_date<=? ORDER BY c.end_date,c.id LIMIT 5
             """,(r,n)->new ContractRow(r.getLong("id"),r.getString("contract_code"),r.getString("provider"),r.getObject("end_date",LocalDate.class),r.getLong("equipment_count")),today,today.plusDays(30));
@@ -128,29 +128,29 @@ public class DashboardService {
             ORDER BY l.event_at DESC,l.id DESC LIMIT 5
             """,this::item);
         return new Vtyt(UserRole.PHONG_VTYT,generated,new VtytSummary(schedule[0],contractSummary.valid(),maintaining,progress.technical(),awaitingReport),attention,currentQuarter,progress,contractSummary,expiring,recent,reports(false),List.of(
-            new Action("Tạo kế hoạch bảo trì",quarterLink(year,quarter.name())),new Action("Danh sách thiết bị","/equipment"),new Action("Danh sách hợp đồng","/contracts"),new Action("Cập nhật tiến độ","/maintenance-progress?status=IN_PROGRESS"),new Action("Lập báo cáo","/reports")));
+            new Action("Tạo kế hoạch bảo trì",quarterLink(year,quarter.name())),new Action("Danh sách thiết bị","/equipment"),new Action("Danh sách hợp đồng","/contracts"),new Action("Cập nhật tiến độ","/maintenance-progress?status=IN_PROGRESS"),new Action("Lập báo cáo","/reports"),new Action("Lịch sử bảo trì","/maintenance-history")));
     }
 
     private Bgd bgd(LocalDate today, Instant generated) {
         LocalDate month = today.withDayOfMonth(1);
         var summary = jdbc.queryForObject("""
             SELECT (SELECT count(*) FROM approval_request WHERE status='PENDING' AND request_type='PLAN_APPROVAL') plans,
-              (SELECT count(*) FROM approval_request WHERE status='PENDING' AND request_type='VENDOR_SELECTION') providers,
-              (SELECT count(*) FROM approval_action WHERE outcome='APPROVE' AND action_at>=? AND action_at<?) approved,
-              (SELECT count(*) FROM approval_action WHERE outcome='REVISION_REQUIRED' AND action_at>=? AND action_at<?) revised,
+              0 providers,
+              (SELECT count(*) FROM approval_action a JOIN approval_request r ON r.id=a.request_id WHERE r.request_type='PLAN_APPROVAL' AND outcome='APPROVE' AND action_at>=? AND action_at<?) approved,
+              (SELECT count(*) FROM approval_action a JOIN approval_request r ON r.id=a.request_id WHERE r.request_type='PLAN_APPROVAL' AND outcome='REVISION_REQUIRED' AND action_at>=? AND action_at<?) revised,
               (SELECT count(*) FROM maintenance_report_delivery WHERE department_id IS NULL AND sent_at>=? AND sent_at<?) reports
             """,(r,n)->new BgdSummary(r.getLong("plans"),r.getLong("providers"),r.getLong("approved"),r.getLong("revised"),r.getLong("reports")),month.atStartOfDay(ZONE).toOffsetDateTime(),month.plusMonths(1).atStartOfDay(ZONE).toOffsetDateTime(),month.atStartOfDay(ZONE).toOffsetDateTime(),month.plusMonths(1).atStartOfDay(ZONE).toOffsetDateTime(),month.atStartOfDay(ZONE).toOffsetDateTime(),month.plusMonths(1).atStartOfDay(ZONE).toOffsetDateTime());
         var pending = jdbc.query("""
             SELECT r.id,r.request_type,p.title,e.equipment_code,u.display_name sender,r.submitted_at at
             FROM approval_request r LEFT JOIN maintenance_plan_item i ON i.id=r.plan_item_id JOIN maintenance_plan p ON p.id=coalesce(r.plan_id,i.plan_id)
             LEFT JOIN equipment e ON e.id=i.equipment_id JOIN user_account u ON u.id=r.created_by_user_id
-            WHERE r.status='PENDING' ORDER BY r.submitted_at DESC,r.id DESC LIMIT 5
+            WHERE r.status='PENDING' AND r.request_type='PLAN_APPROVAL' ORDER BY r.submitted_at DESC,r.id DESC LIMIT 5
             """,(r,n)->new ApprovalRow(r.getLong("id"),r.getString("request_type"),r.getString("title"),r.getString("equipment_code"),r.getString("sender"),instant(r,"at")));
         var decisions = jdbc.query("""
             SELECT a.request_id,p.title,e.equipment_code,a.outcome,a.comment,u.display_name actor,a.action_at at
             FROM approval_action a JOIN approval_request r ON r.id=a.request_id LEFT JOIN maintenance_plan_item i ON i.id=r.plan_item_id
             JOIN maintenance_plan p ON p.id=coalesce(r.plan_id,i.plan_id) LEFT JOIN equipment e ON e.id=i.equipment_id JOIN user_account u ON u.id=a.actor_user_id
-            ORDER BY a.action_at DESC,a.id DESC LIMIT 5
+            WHERE r.request_type='PLAN_APPROVAL' ORDER BY a.action_at DESC,a.id DESC LIMIT 5
             """,(r,n)->new DecisionRow(r.getLong("request_id"),r.getString("title"),r.getString("equipment_code"),r.getString("outcome"),r.getString("comment"),r.getString("actor"),instant(r,"at")));
         return new Bgd(UserRole.BAN_GIAM_DOC,generated,summary,pending,decisions,reports(true),List.of(new Action("Phê duyệt","/approvals"),new Action("Xem báo cáo","/reports")));
     }
@@ -185,7 +185,7 @@ public class DashboardService {
         var handover = jdbc.query(ITEMS.formatted("i.department_id_at_plan=?")+projection+"status='AWAITING_HANDOVER' AND plan_status IN "+ACTIVE_PLANS+" ORDER BY technical_at DESC NULLS LAST,id DESC LIMIT 5",this::item,department);
         var active = jdbc.query(ITEMS.formatted("i.department_id_at_plan=?")+projection+"status IN "+ACTIVE_ITEMS+" AND plan_status IN "+ACTIVE_PLANS+" ORDER BY coalesce(event_at,ended_at,started_at) DESC NULLS LAST,id DESC LIMIT 5",this::item,department);
         var history = jdbc.query(ITEMS.formatted("i.department_id_at_plan=?")+" SELECT id,plan_id,equipment_id,equipment_code,equipment_name,provider,status,ended_at at,work_note note,actor FROM tracked WHERE status IN ('COMPLETED','REPAIR_REQUIRED') AND ended_at IS NOT NULL ORDER BY ended_at DESC,id DESC LIMIT 5",this::item,department);
-        return new Khoa(UserRole.KHOA_PHONG,generated,department,names.get(0),summary,handover,active,history,List.of(new Action("Thiết bị chờ bàn giao","/execution"),new Action("Lịch sử bảo trì","/equipment"),new Action("Báo cáo đã nhận","/reports")));
+        return new Khoa(UserRole.KHOA_PHONG,generated,department,names.get(0),summary,handover,active,history,List.of(new Action("Thiết bị chờ bàn giao","/execution"),new Action("Lịch sử bảo trì","/maintenance-history"),new Action("Báo cáo đã nhận","/reports")));
     }
 
     private Admin admin(LocalDate today, Instant generated) {

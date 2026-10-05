@@ -28,19 +28,22 @@ public class PlanController {
     private final MaintenancePlanRepository plans;
     private final MaintenancePlanItemRepository items;
     private final PlanningService planning;
+    private final vn.edu.medmaintenance.service.PlanDeletionService deletion;
     private final CurrentUser currentUser;
     private final org.springframework.jdbc.core.JdbcTemplate jdbc;
-    private final vn.edu.medmaintenance.persistence.repository.StatusHistoryRepository histories;
     private final vn.edu.medmaintenance.persistence.repository.ApprovalRequestRepository requests;
 
     public PlanController(MaintenancePlanRepository plans, MaintenancePlanItemRepository items,
             PlanningService planning, CurrentUser currentUser,vn.edu.medmaintenance.persistence.repository.ApprovalRequestRepository requests,
-            vn.edu.medmaintenance.persistence.repository.StatusHistoryRepository histories, org.springframework.jdbc.core.JdbcTemplate jdbc) {
-        this.plans = plans;this.jdbc=jdbc;
+            org.springframework.jdbc.core.JdbcTemplate jdbc, vn.edu.medmaintenance.service.PlanDeletionService deletion) {
+        this.plans = plans;this.jdbc=jdbc;this.deletion=deletion;
         this.items = items;
         this.planning = planning;
-        this.currentUser = currentUser;this.requests=requests;this.histories=histories;
+        this.currentUser = currentUser;this.requests=requests;
     }
+
+    @DeleteMapping("/{id}") @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable long id,@RequestParam int version){deletion.delete(id,version);}
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -84,9 +87,10 @@ public class PlanController {
         PageRequests.requirePositive(id, "id");
         requireVisiblePlan(id);
         return plans.findWithCreatorById(id).map(plan -> PlanMapper.toResponse(plan,
-                histories.existsByPlanItem_Plan_IdAndPlanItem_StatusAndAction(id,
-                        vn.edu.medmaintenance.persistence.enums.PlanItemStatus.WAITING_VENDOR_APPROVAL,
-                        "ACTIVATE_PREPARED_VENDOR")))
+                items.existsByPlan_IdAndStatusIn(id, java.util.List.of(
+                        vn.edu.medmaintenance.persistence.enums.PlanItemStatus.PLANNED,
+                        vn.edu.medmaintenance.persistence.enums.PlanItemStatus.PENDING_PROPOSAL,
+                        vn.edu.medmaintenance.persistence.enums.PlanItemStatus.WAITING_VENDOR_APPROVAL))))
                 .orElseThrow(() -> new ResourceNotFoundException("Plan"));
     }
 

@@ -171,8 +171,8 @@ class ApiIntegrationTest {
 
     @Test
     void unsupportedWriteMethodUses405AndSafeErrorBody() {
-        assertError(post("/api/equipment"),
-                405, "METHOD_NOT_ALLOWED", "/api/equipment");
+        assertError(post("/api/departments"),
+                405, "METHOD_NOT_ALLOWED", "/api/departments");
         assertError(get("/api/nonexistent"), 404, "RESOURCE_NOT_FOUND", "/api/nonexistent");
     }
 

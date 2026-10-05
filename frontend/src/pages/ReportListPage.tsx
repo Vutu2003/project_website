@@ -25,8 +25,8 @@ function PlanningReportsPage() {
     return () => { active = false }
   }, [page, status, refresh])
   return <div className="page-stack">
-    <div className="page-title-block"><p className="eyebrow">BÁO CÁO BẢO TRÌ</p><h1>Báo cáo bảo trì</h1>
-      <p>Các kế hoạch đã hoàn thành bảo trì. Mở báo cáo để kiểm tra, hoàn tất và gửi đến người nhận.</p></div>
+    <div className="page-title-row"><div className="page-title-block"><p className="eyebrow">BÁO CÁO BẢO TRÌ</p><h1>Báo cáo bảo trì</h1>
+      <p>Các kế hoạch đã hoàn thành bảo trì. Mở báo cáo để kiểm tra, hoàn tất và gửi đến người nhận.</p></div><Link className="button secondary" to="/maintenance-history">Lịch sử bảo trì & báo cáo đã lưu</Link></div>
     <section className="panel business-panel"><div className="panel-heading"><h2>Kế hoạch</h2>
       <label className="inline-filter">Trạng thái <select value={status} onChange={event => { setStatus(event.target.value as typeof status); setPage(0); setLoading(true) }}>
         <option value="AWAITING_REPORT">Chờ báo cáo</option><option value="REPORTED">Đã báo cáo</option>

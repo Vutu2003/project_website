@@ -31,13 +31,12 @@ public class ExecutionAcceptanceService {
     private final WorkflowHistory history;
     private final EntityManager entityManager;
     private final NotificationService notifications;
-    private final StatusHistoryRepository histories;
 
     public ExecutionAcceptanceService(MaintenancePlanItemRepository items,
             MaintenanceExecutionRepository executions, MaintenanceProgressLogRepository progress,
             AcceptanceRecordRepository acceptances, ApprovalRequestRepository requests,
             ApprovalActionRepository actions, UserAccountRepository users, CurrentUser currentUser,
-            VtytCoSigner coSigner, WorkflowHistory history, EntityManager entityManager,NotificationService notifications, StatusHistoryRepository histories) {
+            VtytCoSigner coSigner, WorkflowHistory history, EntityManager entityManager,NotificationService notifications) {
         this.items = items;
         this.executions = executions;
         this.progress = progress;
@@ -48,7 +47,7 @@ public class ExecutionAcceptanceService {
         this.currentUser = currentUser;
         this.coSigner = coSigner;
         this.history = history;
-        this.entityManager = entityManager;this.notifications=notifications;this.histories=histories;
+        this.entityManager = entityManager;this.notifications=notifications;
     }
 
     @Transactional
@@ -61,11 +60,6 @@ public class ExecutionAcceptanceService {
             conflict("PLAN_NOT_EXECUTABLE", "Plan is not approved for maintenance");
         if (!plan.getVersion().equals(command.planVersion()))
             conflict("OPTIMISTIC_LOCK_CONFLICT", "Plan has changed; reload before retrying");
-        // Prepared vendor decisions must finish before execution, so a revision can
-        // safely return the entire plan to its editable state. Legacy plans retain their gate.
-        if (histories.existsByPlanItem_Plan_IdAndPlanItem_StatusAndAction(plan.getId(),
-                PlanItemStatus.WAITING_VENDOR_APPROVAL, "ACTIVATE_PREPARED_VENDOR"))
-            conflict("PLAN_VENDOR_APPROVAL_PENDING", "Cần phê duyệt xong các đơn vị đề xuất trước khi bắt đầu thực hiện kế hoạch.");
         PlanItemStatus old = item.getStatus();
         if (old != PlanItemStatus.UNDER_CONTRACT && old != PlanItemStatus.ASSIGNED_EXTERNAL
                 && old != PlanItemStatus.REWORK_REQUIRED)

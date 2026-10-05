@@ -41,7 +41,7 @@ export function ApprovalDetailPage() {
     setValidation(null); setError(null)
     if (outcome === 'REVISION_REQUIRED' && !comment.trim()) { setValidation('Vui lòng ghi lý do yêu cầu chỉnh sửa.'); return }
     const verb = outcome === 'APPROVE' ? 'phê duyệt' : 'yêu cầu chỉnh sửa'
-    if (!window.confirm(`Xác nhận ${verb} yêu cầu #${review.id}? Quyết định sẽ được lưu vào lịch sử.`)) return
+    if (!window.confirm(review.requestType === 'PLAN_APPROVAL' && outcome === 'APPROVE' ? 'Phê duyệt kế hoạch và tất cả đơn vị bảo trì được đề xuất? VTYT có thể bắt đầu bảo trì ngay sau khi duyệt.' : `Xác nhận ${verb} yêu cầu #${review.id}? Quyết định sẽ được lưu vào lịch sử.`)) return
     const version = review.requestType === 'PLAN_APPROVAL' ? review.planVersion : review.itemVersion
     if (version == null) { setError(new UserInputError('Thiếu phiên bản hiện tại. Vui lòng tải lại.')); return }
     setBusy(true)
@@ -74,7 +74,7 @@ export function ApprovalDetailPage() {
         <div><dt>Lý do đề xuất</dt><dd>{review.rationale || '—'}</dd></div>
         <div><dt>Ảnh hưởng bảo hành</dt><dd>{review.warrantyImpactNote || '—'}</dd></div></dl>
     </section>}
-    <section className="panel business-panel"><div className="panel-heading"><div><h2>Quyết định của Ban Giám đốc</h2><p>Nhận xét sẽ được gửi đến Phòng VTYT.</p></div></div>
+    <section className="panel business-panel"><div className="panel-heading"><div><h2>Quyết định của Ban Giám đốc</h2><p>{review.requestType === 'PLAN_APPROVAL' ? 'Phê duyệt một lần cho kế hoạch và các đơn vị bảo trì được đề xuất. VTYT có thể bắt đầu ngay sau khi duyệt.' : 'Nhận xét sẽ được gửi đến Phòng VTYT.'}</p></div></div>
       <div className="decision-options"><label><input type="radio" name="decision" checked={outcome === 'APPROVE'} onChange={() => setOutcome('APPROVE')} /> Phê duyệt</label>
         <label><input type="radio" name="decision" checked={outcome === 'REVISION_REQUIRED'} onChange={() => setOutcome('REVISION_REQUIRED')} /> Yêu cầu chỉnh sửa</label></div>
       <label className="block-label">Nhận xét / lý do {outcome === 'REVISION_REQUIRED' && <span className="warning-text">(bắt buộc)</span>}
